@@ -1,0 +1,8 @@
+node_modules
+.DS_Store
+dist
+.env
+backend/config/data.json
+package-lock.json
+.gemini
+brain

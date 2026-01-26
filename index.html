@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomePiNAS | Premium Control Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="frontend/style.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Setup View (Visible if no account exists) -->
+        <div id="setup-view" class="view">
+            <div class="glass-card login-card">
+                <div class="brand">
+                    <div class="logo-orb"></div>
+                    <h1>Initialize NAS</h1>
+                    <p>Create your Administrative Credentials</p>
+                </div>
+                <form id="setup-form">
+                    <div class="input-group">
+                        <input type="text" id="new-username" required placeholder=" ">
+                        <label for="new-username">Admin Username</label>
+                    </div>
+                    <div class="input-group">
+                        <input type="password" id="new-password" required placeholder=" ">
+                        <label for="new-password">New Security Key</label>
+                    </div>
+                    <button type="submit" class="btn-primary">Initialize Gateway</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Storage Setup View (SnapRAID + MergerFS) -->
+        <div id="storage-view" class="view">
+            <div class="glass-card storage-card">
+                <div class="brand">
+                    <div class="logo-orb"></div>
+                    <h1>Storage Pool Setup</h1>
+                    <p>Configure SnapRAID + MergerFS for your NAS</p>
+                </div>
+
+                <div class="storage-info-banner">
+                    <div class="info-item">
+                        <strong>Data</strong>
+                        <span>Store your files (pooled with MergerFS)</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Parity</strong>
+                        <span>Protects against disk failure (SnapRAID)</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Cache</strong>
+                        <span>Fast NVMe/SSD for frequently accessed data</span>
+                    </div>
+                </div>
+
+                <div class="disk-management-area">
+                    <table class="disk-table">
+                        <thead>
+                            <tr>
+                                <th>Disk Info</th>
+                                <th>Type</th>
+                                <th>Role Selection</th>
+                            </tr>
+                        </thead>
+                        <tbody id="granular-disk-list">
+                            <!-- Disks with granular options will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="config-summary">
+                    <h3>Pool Configuration</h3>
+                    <div id="selection-summary" class="summary-stats">
+                        <div class="stat data"><span>Data:</span> <span id="data-count">0</span></div>
+                        <div class="stat parity"><span>Parity:</span> <span id="parity-count">0</span></div>
+                        <div class="stat cache"><span>Cache:</span> <span id="cache-count">0</span></div>
+                    </div>
+                    <p class="pool-note">Requires at least 1 Data + 1 Parity disk. Pool will be mounted at <code>/mnt/storage</code></p>
+                </div>
+
+                <div class="storage-footer">
+                    <button id="save-storage-btn" class="btn-primary">Create Storage Pool</button>
+                    <p class="hint">⚠️ All selected disks will be FORMATTED. Parity disk should be >= largest data disk.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login View (Visible if account exists) -->
+        <div id="login-view" class="view">
+            <div class="glass-card login-card">
+                <div class="brand">
+                    <div class="logo-orb"></div>
+                    <h1>HomePiNAS</h1>
+                    <p>Secure Enterprise Gateway</p>
+                </div>
+                <form id="login-form">
+                    <div class="input-group">
+                        <input type="text" id="username" required placeholder=" ">
+                        <label for="username">Username</label>
+                    </div>
+                    <div class="input-group">
+                        <input type="password" id="password" required placeholder=" ">
+                        <label for="password">Security Key</label>
+                    </div>
+                    <button type="submit" class="btn-primary">Access Gateway</button>
+                    <button type="button" id="reset-setup-btn" class="btn-link"
+                        style="margin-top: 15px; color: var(--text-dim); background: none; border: none; cursor: pointer; font-size: 0.8rem;">Reset
+                        Setup & Data</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard View (Hidden by default) -->
+        <div id="dashboard-view" class="view">
+            <nav class="sidebar">
+                <div class="sidebar-logo">HPN</div>
+                <ul class="nav-links">
+                    <li class="active" data-view="dashboard">Overview</li>
+                    <li data-view="docker">Docker Manager</li>
+                    <li data-view="storage">Storage</li>
+                    <li data-view="network">Network</li>
+                    <li data-view="system">System</li>
+                </ul>
+                <div class="user-info">
+                    <div class="avatar"></div>
+                    <span>Admin</span>
+                </div>
+            </nav>
+            <main class="content">
+                <header>
+                    <h2 id="view-title">System Overview</h2>
+                </header>
+                <div id="dashboard-content" class="grid-container">
+                    <!-- Dynamic Content -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Storage Progress Modal -->
+    <div id="storage-progress-modal" class="modal">
+        <div class="glass-card modal-content storage-progress">
+            <header class="modal-header">
+                <h3>🔧 Configuring Storage Pool</h3>
+            </header>
+            <div class="progress-container">
+                <div class="progress-step" id="step-format">
+                    <span class="step-icon">⏳</span>
+                    <span class="step-text">Formatting disks...</span>
+                </div>
+                <div class="progress-step" id="step-mount">
+                    <span class="step-icon">⏳</span>
+                    <span class="step-text">Mounting partitions...</span>
+                </div>
+                <div class="progress-step" id="step-snapraid">
+                    <span class="step-icon">⏳</span>
+                    <span class="step-text">Creating SnapRAID config...</span>
+                </div>
+                <div class="progress-step" id="step-mergerfs">
+                    <span class="step-icon">⏳</span>
+                    <span class="step-text">Configuring MergerFS pool...</span>
+                </div>
+                <div class="progress-step" id="step-fstab">
+                    <span class="step-icon">⏳</span>
+                    <span class="step-text">Updating /etc/fstab...</span>
+                </div>
+                <div class="progress-step" id="step-sync">
+                    <span class="step-icon">⏳</span>
+                    <span class="step-text">Initial SnapRAID sync...</span>
+                    <div class="sync-progress-bar">
+                        <div class="sync-progress-fill" id="sync-progress-fill"></div>
+                    </div>
+                    <span class="sync-status" id="sync-status"></span>
+                </div>
+            </div>
+            <div class="progress-footer">
+                <p id="progress-message">Please wait, this may take several minutes...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- DDNS Modal -->
+    <div id="ddns-modal" class="modal">
+        <div class="glass-card modal-content">
+            <header class="modal-header">
+                <h3>Add New DDNS Service</h3>
+                <button id="close-modal" class="btn-close">&times;</button>
+            </header>
+            <form id="ddns-form">
+                <div class="input-group">
+                    <select id="ddns-service-select" required>
+                        <option value="" disabled selected>Select Provider</option>
+                        <option value="cloudflare">Cloudflare</option>
+                        <option value="noip">No-IP</option>
+                        <option value="duckdns">DuckDNS</option>
+                    </select>
+                    <label>Service Provider</label>
+                </div>
+
+                <div id="ddns-dynamic-fields">
+                    <!-- Fields injected here based on selection -->
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn-primary">Verify & Save Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script type="module" src="frontend/main.js"></script>
+</body>
+
+</html>
