@@ -8,12 +8,14 @@ const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const { v4: uuidv4 } = require('uuid');
+const Database = require('better-sqlite3');
 
 const app = express();
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const PORT = process.env.PORT || 3001;
-const VERSION = '1.5.3';
+const VERSION = '1.5.4';
 const DATA_FILE = path.join(__dirname, 'config', 'data.json');
+const SESSION_DB_PATH = path.join(__dirname, 'config', 'sessions.db');
 const SALT_ROUNDS = 12;
 
 // =============================================================================
@@ -111,9 +113,53 @@ async function safeExec(command, args = [], options = {}) {
 
 // =============================================================================
 
-// In-memory session store (use Redis in production)
-const sessions = new Map();
+// =============================================================================
+// SESSION STORAGE: SQLite-based persistent sessions (v1.5.4)
+// =============================================================================
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Initialize SQLite session database
+let sessionDb = null;
+function initSessionDb() {
+    try {
+        // Ensure config directory exists
+        const configDir = path.dirname(SESSION_DB_PATH);
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+
+        sessionDb = new Database(SESSION_DB_PATH);
+
+        // Create sessions table if not exists
+        sessionDb.exec(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                expires_at INTEGER NOT NULL,
+                created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+            )
+        `);
+
+        // Create index for faster expiration queries
+        sessionDb.exec(`
+            CREATE INDEX IF NOT EXISTS idx_sessions_expires
+            ON sessions(expires_at)
+        `);
+
+        console.log('Session database initialized at', SESSION_DB_PATH);
+
+        // Clean expired sessions on startup
+        cleanExpiredSessions();
+
+        return true;
+    } catch (e) {
+        console.error('Failed to initialize session database:', e.message);
+        return false;
+    }
+}
+
+// Initialize session DB on startup
+initSessionDb();
 
 // Security Middleware - Helmet configured for HTTP local network
 app.use(helmet({
@@ -247,38 +293,85 @@ function validateSystemAction(action) {
     return ['reboot', 'shutdown'].includes(action);
 }
 
-// Session management
+// Session management - SQLite-backed (v1.5.4)
 function createSession(username) {
     const sessionId = uuidv4();
     const expiresAt = Date.now() + SESSION_DURATION;
-    sessions.set(sessionId, { username, expiresAt });
-    return sessionId;
+
+    if (!sessionDb) {
+        console.error('Session database not initialized');
+        return null;
+    }
+
+    try {
+        const stmt = sessionDb.prepare(`
+            INSERT INTO sessions (session_id, username, expires_at)
+            VALUES (?, ?, ?)
+        `);
+        stmt.run(sessionId, username, expiresAt);
+        return sessionId;
+    } catch (e) {
+        console.error('Failed to create session:', e.message);
+        return null;
+    }
 }
 
 function validateSession(sessionId) {
-    if (!sessionId) return null;
-    const session = sessions.get(sessionId);
-    if (!session) return null;
-    if (Date.now() > session.expiresAt) {
-        sessions.delete(sessionId);
+    if (!sessionId || !sessionDb) return null;
+
+    try {
+        const stmt = sessionDb.prepare(`
+            SELECT session_id, username, expires_at
+            FROM sessions
+            WHERE session_id = ?
+        `);
+        const session = stmt.get(sessionId);
+
+        if (!session) return null;
+
+        // Check if expired
+        if (Date.now() > session.expires_at) {
+            destroySession(sessionId);
+            return null;
+        }
+
+        return {
+            username: session.username,
+            expiresAt: session.expires_at
+        };
+    } catch (e) {
+        console.error('Failed to validate session:', e.message);
         return null;
     }
-    return session;
 }
 
 function destroySession(sessionId) {
-    sessions.delete(sessionId);
+    if (!sessionDb) return;
+
+    try {
+        const stmt = sessionDb.prepare('DELETE FROM sessions WHERE session_id = ?');
+        stmt.run(sessionId);
+    } catch (e) {
+        console.error('Failed to destroy session:', e.message);
+    }
+}
+
+function cleanExpiredSessions() {
+    if (!sessionDb) return;
+
+    try {
+        const stmt = sessionDb.prepare('DELETE FROM sessions WHERE expires_at < ?');
+        const result = stmt.run(Date.now());
+        if (result.changes > 0) {
+            console.log(`Cleaned ${result.changes} expired sessions`);
+        }
+    } catch (e) {
+        console.error('Failed to clean expired sessions:', e.message);
+    }
 }
 
 // Clean expired sessions periodically
-setInterval(() => {
-    const now = Date.now();
-    for (const [id, session] of sessions.entries()) {
-        if (now > session.expiresAt) {
-            sessions.delete(id);
-        }
-    }
-}, 60 * 60 * 1000); // Clean every hour
+setInterval(cleanExpiredSessions, 60 * 60 * 1000); // Clean every hour
 
 // Authentication middleware
 function requireAuth(req, res, next) {
@@ -1185,8 +1278,10 @@ app.post('/api/system/reset', requireAuth, criticalLimiter, (req, res) => {
             fs.unlinkSync(DATA_FILE);
         }
 
-        // Clear all sessions
-        sessions.clear();
+        // Clear all sessions from SQLite
+        if (sessionDb) {
+            sessionDb.exec('DELETE FROM sessions');
+        }
 
         res.json({ success: true, message: 'System configuration reset' });
     } catch (e) {

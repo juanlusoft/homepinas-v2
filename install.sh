@@ -3,7 +3,7 @@
 # HomePiNAS - Premium Dashboard for Raspberry Pi CM5
 # Professional One-Liner Installer
 # Optimized for Raspberry Pi OS (ARM64)
-# Version: 1.5.3 (Security Hardened Edition)
+# Version: 1.5.4 (Security Hardened Edition)
 
 set -e
 
@@ -15,7 +15,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}   HomePiNAS v1.5.0 Secure Installer    ${NC}"
+echo -e "${BLUE}   HomePiNAS v1.5.4 Secure Installer    ${NC}"
 echo -e "${BLUE}   Security Hardened Edition            ${NC}"
 echo -e "${BLUE}=========================================${NC}"
 
@@ -61,7 +61,7 @@ for pkg in docker.io docker-doc docker-compose podman-docker containerd runc con
 done
 apt-get autoremove -y $APT_OPTS
 apt-get clean
-apt-get install -y $APT_OPTS git curl sudo smartmontools lm-sensors docker.io parted samba samba-common-bin
+apt-get install -y $APT_OPTS git curl sudo smartmontools lm-sensors docker.io parted samba samba-common-bin build-essential python3
 
 # 2. Install SnapRAID + MergerFS
 echo -e "${BLUE}[2/7] Installing SnapRAID + MergerFS...${NC}"
@@ -607,7 +607,7 @@ systemctl enable homepinas-snapraid-sync.timer || true
 
 echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}    SECURE INSTALLATION COMPLETE!       ${NC}"
-echo -e "${GREEN}      HomePiNAS v1.5.3                  ${NC}"
+echo -e "${GREEN}      HomePiNAS v1.5.4                  ${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo -e ""
 IP_ADDR=$(hostname -I | awk '{print $1}')
@@ -622,7 +622,7 @@ echo -e ""
 echo -e "${YELLOW}Features enabled:${NC}"
 echo -e "  - ${GREEN}HTTPS${NC} with self-signed certificates"
 echo -e "  - Bcrypt password hashing"
-echo -e "  - Session-based authentication"
+echo -e "  - ${GREEN}Persistent sessions${NC} (SQLite-backed)"
 echo -e "  - Rate limiting protection"
 echo -e "  - Input sanitization (command injection protection)"
 echo -e "  - Restricted sudoers permissions"
