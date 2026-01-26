@@ -33,9 +33,10 @@ const dockerRoutes = require('./routes/docker');
 const authRoutes = require('./routes/auth');
 const networkRoutes = require('./routes/network');
 const powerRoutes = require('./routes/power');
+const updateRoutes = require('./routes/update');
 
 // Configuration
-const VERSION = '1.5.6';
+const VERSION = '1.5.7';
 const HTTPS_PORT = process.env.HTTPS_PORT || 3001;
 const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const SSL_CERT_PATH = path.join(__dirname, 'certs', 'server.crt');
@@ -112,6 +113,9 @@ app.use('/api/network', networkRoutes);
 // Power routes (reset, reboot, shutdown)
 app.use('/api/system', powerRoutes);
 
+// Update routes (check, apply)
+app.use('/api/update', updateRoutes);
+
 // =============================================================================
 // SERVER STARTUP
 // =============================================================================
@@ -157,6 +161,7 @@ httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
     console.log('        - routes/auth.js      (login, setup)');
     console.log('        - routes/network.js   (interfaces)');
     console.log('        - routes/power.js     (reboot, shutdown)');
+    console.log('        - routes/update.js    (OTA updates)');
     console.log('');
 });
 

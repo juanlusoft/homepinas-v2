@@ -1450,8 +1450,49 @@ function renderSystemView() {
     infoCard.appendChild(uptimeRow);
     infoCard.appendChild(hostnameRow);
 
+    // Update card
+    const updateCard = document.createElement('div');
+    updateCard.className = 'glass-card';
+
+    const updateTitle = document.createElement('h3');
+    updateTitle.textContent = 'Software Updates';
+
+    const updateDesc = document.createElement('p');
+    updateDesc.style.cssText = 'color: var(--text-dim); margin-top: 10px;';
+    updateDesc.textContent = 'Check for and install HomePiNAS updates from GitHub.';
+
+    const updateStatus = document.createElement('div');
+    updateStatus.id = 'update-status';
+    updateStatus.style.cssText = 'margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;';
+    updateStatus.innerHTML = '<span style="color: var(--text-dim);">Click "Check Updates" to verify...</span>';
+
+    const updateBtnContainer = document.createElement('div');
+    updateBtnContainer.style.cssText = 'display: flex; gap: 15px; margin-top: 20px;';
+
+    const checkUpdateBtn = document.createElement('button');
+    checkUpdateBtn.className = 'btn-primary';
+    checkUpdateBtn.style.cssText = 'background: #6366f1; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);';
+    checkUpdateBtn.textContent = 'Check Updates';
+    checkUpdateBtn.addEventListener('click', checkForUpdates);
+
+    const applyUpdateBtn = document.createElement('button');
+    applyUpdateBtn.className = 'btn-primary';
+    applyUpdateBtn.id = 'apply-update-btn';
+    applyUpdateBtn.style.cssText = 'background: #10b981; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); display: none;';
+    applyUpdateBtn.textContent = 'Install Update';
+    applyUpdateBtn.addEventListener('click', applyUpdate);
+
+    updateBtnContainer.appendChild(checkUpdateBtn);
+    updateBtnContainer.appendChild(applyUpdateBtn);
+
+    updateCard.appendChild(updateTitle);
+    updateCard.appendChild(updateDesc);
+    updateCard.appendChild(updateStatus);
+    updateCard.appendChild(updateBtnContainer);
+
     dashboardContent.appendChild(mgmtCard);
     dashboardContent.appendChild(infoCard);
+    dashboardContent.appendChild(updateCard);
 }
 
 async function systemAction(action) {
@@ -1475,6 +1516,117 @@ async function systemAction(action) {
 }
 
 window.systemAction = systemAction;
+
+// Update Functions
+async function checkForUpdates() {
+    const statusEl = document.getElementById('update-status');
+    const applyBtn = document.getElementById('apply-update-btn');
+
+    if (!statusEl) return;
+
+    statusEl.innerHTML = '<span style="color: #f59e0b;">Checking for updates...</span>';
+    if (applyBtn) applyBtn.style.display = 'none';
+
+    try {
+        const res = await authFetch(`${API_BASE}/update/check`);
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Failed to check updates');
+        }
+
+        if (data.updateAvailable) {
+            statusEl.innerHTML = `
+                <div style="color: #10b981; font-weight: 600;">Update Available!</div>
+                <div style="margin-top: 8px; color: var(--text-dim);">
+                    Current: <strong>v${escapeHtml(data.currentVersion)}</strong> →
+                    Latest: <strong style="color: #10b981;">v${escapeHtml(data.latestVersion)}</strong>
+                </div>
+                <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-dim);">
+                    <strong>Changes:</strong><br>
+                    <code style="display: block; margin-top: 5px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; white-space: pre-wrap;">${escapeHtml(data.changelog || 'See GitHub for details')}</code>
+                </div>
+            `;
+            if (applyBtn) applyBtn.style.display = 'inline-block';
+        } else {
+            statusEl.innerHTML = `
+                <div style="color: #6366f1;">You're up to date!</div>
+                <div style="margin-top: 8px; color: var(--text-dim);">
+                    Version: <strong>v${escapeHtml(data.currentVersion)}</strong>
+                </div>
+            `;
+        }
+    } catch (e) {
+        console.error('Update check error:', e);
+        statusEl.innerHTML = `<span style="color: #ef4444;">Error: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+async function applyUpdate() {
+    if (!confirm('Install the update now? The service will restart and you may lose connection for ~30 seconds.')) {
+        return;
+    }
+
+    const statusEl = document.getElementById('update-status');
+    const applyBtn = document.getElementById('apply-update-btn');
+
+    if (statusEl) {
+        statusEl.innerHTML = '<span style="color: #f59e0b;">Installing update... Please wait.</span>';
+    }
+    if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Installing...';
+    }
+
+    try {
+        const res = await authFetch(`${API_BASE}/update/apply`, { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Update failed');
+        }
+
+        if (statusEl) {
+            statusEl.innerHTML = `
+                <div style="color: #10b981; font-weight: 600;">Update started!</div>
+                <div style="margin-top: 8px; color: var(--text-dim);">
+                    The service is restarting. This page will refresh automatically in 30 seconds...
+                </div>
+                <div style="margin-top: 10px;">
+                    <div class="progress-bar" style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                        <div id="update-progress" style="height: 100%; background: #10b981; width: 0%; transition: width 0.5s;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Progress animation and auto-refresh
+        let progress = 0;
+        const progressEl = document.getElementById('update-progress');
+        const interval = setInterval(() => {
+            progress += 3.33;
+            if (progressEl) progressEl.style.width = `${Math.min(progress, 100)}%`;
+            if (progress >= 100) {
+                clearInterval(interval);
+                window.location.reload();
+            }
+        }, 1000);
+
+    } catch (e) {
+        console.error('Update apply error:', e);
+        if (statusEl) {
+            statusEl.innerHTML = `<span style="color: #ef4444;">Update failed: ${escapeHtml(e.message)}</span>`;
+        }
+        if (applyBtn) {
+            applyBtn.disabled = false;
+            applyBtn.textContent = 'Retry Update';
+            applyBtn.style.display = 'inline-block';
+        }
+    }
+}
+
+window.checkForUpdates = checkForUpdates;
+window.applyUpdate = applyUpdate;
 
 // Helper Colors
 function getRoleColor(role) {
