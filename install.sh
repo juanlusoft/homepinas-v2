@@ -3,7 +3,7 @@
 # HomePiNAS - Premium Dashboard for Raspberry Pi CM5
 # Professional One-Liner Installer
 # Optimized for Raspberry Pi OS (ARM64)
-# Version: 1.5.5 (Security Hardened Edition)
+# Version: 1.5.6 (Security Hardened Edition)
 
 set -e
 
@@ -15,7 +15,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}   HomePiNAS v1.5.5 Secure Installer    ${NC}"
+echo -e "${BLUE}   HomePiNAS v1.5.6 Secure Installer    ${NC}"
 echo -e "${BLUE}   Security Hardened Edition            ${NC}"
 echo -e "${BLUE}=========================================${NC}"
 
@@ -673,7 +673,7 @@ systemctl enable homepinas-snapraid-sync.timer || true
 
 echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}    SECURE INSTALLATION COMPLETE!       ${NC}"
-echo -e "${GREEN}      HomePiNAS v1.5.5                  ${NC}"
+echo -e "${GREEN}      HomePiNAS v1.5.6                  ${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo -e ""
 IP_ADDR=$(hostname -I | awk '{print $1}')
