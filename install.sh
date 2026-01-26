@@ -3,7 +3,7 @@
 # HomePiNAS - Premium Dashboard for Raspberry Pi CM5
 # Professional One-Liner Installer
 # Optimized for Raspberry Pi OS (ARM64)
-# Version: 1.5.2 (Security Hardened Edition)
+# Version: 1.5.3 (Security Hardened Edition)
 
 set -e
 
@@ -215,14 +215,30 @@ else
 fi
 
 # 5. App Setup
-echo -e "${BLUE}[5/7] Building application...${NC}"
+echo -e "${BLUE}[5/8] Building application...${NC}"
 npm install
+
+# Generate self-signed SSL certificates for HTTPS
+echo -e "${BLUE}Generating SSL certificates...${NC}"
+mkdir -p $TARGET_DIR/backend/certs
+if [ ! -f "$TARGET_DIR/backend/certs/server.key" ]; then
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout $TARGET_DIR/backend/certs/server.key \
+        -out $TARGET_DIR/backend/certs/server.crt \
+        -subj "/C=ES/ST=Local/L=HomeLab/O=HomePiNAS/OU=NAS/CN=$(hostname)" \
+        2>/dev/null
+    echo -e "${GREEN}SSL certificates generated (valid for 10 years)${NC}"
+else
+    echo -e "${GREEN}SSL certificates already exist${NC}"
+fi
+
 REAL_USER=${SUDO_USER:-$USER}
 chown -R $REAL_USER:$REAL_USER $TARGET_DIR
 chmod -R 755 $TARGET_DIR
+chmod 600 $TARGET_DIR/backend/certs/server.key
 
 # 6. Fan Control Setup (for Raspberry Pi CM5 with EMC2305)
-echo -e "${BLUE}[6/7] Configuring Fan Control...${NC}"
+echo -e "${BLUE}[6/8] Configuring Fan Control...${NC}"
 
 # Check and add I2C configuration
 NEEDS_REBOOT=0
@@ -427,7 +443,7 @@ EOF
 fi
 
 # 7. Permissions & Services
-echo -e "${BLUE}[7/7] Configuring Systemd services...${NC}"
+echo -e "${BLUE}[7/8] Configuring Systemd services...${NC}"
 usermod -aG docker $REAL_USER
 
 # Sudoers for system control, fan PWM, storage and Samba management
@@ -591,15 +607,25 @@ systemctl enable homepinas-snapraid-sync.timer || true
 
 echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}    SECURE INSTALLATION COMPLETE!       ${NC}"
+echo -e "${GREEN}      HomePiNAS v1.5.3                  ${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo -e ""
-echo -e "Dashboard: ${BLUE}http://$(hostname -I | awk '{print $1}'):3001${NC}"
+IP_ADDR=$(hostname -I | awk '{print $1}')
+echo -e "${YELLOW}Dashboard Access:${NC}"
+echo -e "  HTTPS (Recommended): ${GREEN}https://${IP_ADDR}:3001${NC}"
+echo -e "  HTTP  (Fallback):    ${BLUE}http://${IP_ADDR}:3000${NC}"
+echo -e ""
+echo -e "${YELLOW}Note:${NC} Your browser will show a certificate warning for HTTPS."
+echo -e "      This is normal for self-signed certificates. Click 'Advanced'"
+echo -e "      and 'Proceed' to access the dashboard securely."
 echo -e ""
 echo -e "${YELLOW}Features enabled:${NC}"
+echo -e "  - ${GREEN}HTTPS${NC} with self-signed certificates"
 echo -e "  - Bcrypt password hashing"
 echo -e "  - Session-based authentication"
 echo -e "  - Rate limiting protection"
-echo -e "  - XSS prevention"
+echo -e "  - Input sanitization (command injection protection)"
+echo -e "  - Restricted sudoers permissions"
 echo -e "  - Fan control with PWM curves"
 echo -e "  - ${GREEN}SnapRAID${NC} parity protection"
 echo -e "  - ${GREEN}MergerFS${NC} disk pooling"

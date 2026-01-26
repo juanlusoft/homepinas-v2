@@ -12,7 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const PORT = process.env.PORT || 3001;
-const VERSION = '1.5.2';
+const VERSION = '1.5.3';
 const DATA_FILE = path.join(__dirname, 'config', 'data.json');
 const SALT_ROUNDS = 12;
 
@@ -1490,6 +1490,41 @@ app.post('/api/network/configure', requireAuth, (req, res) => {
     }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`HPN Unified Dashboard running on http://0.0.0.0:${PORT}`);
+// =============================================================================
+// HTTPS Support with self-signed certificates
+// =============================================================================
+const https = require('https');
+const http = require('http');
+
+const SSL_CERT_PATH = path.join(__dirname, 'certs', 'server.crt');
+const SSL_KEY_PATH = path.join(__dirname, 'certs', 'server.key');
+const HTTPS_PORT = process.env.HTTPS_PORT || 3001;
+const HTTP_PORT = process.env.HTTP_PORT || 3000;
+
+// Check if SSL certificates exist
+let httpsServer = null;
+if (fs.existsSync(SSL_CERT_PATH) && fs.existsSync(SSL_KEY_PATH)) {
+    try {
+        const sslOptions = {
+            key: fs.readFileSync(SSL_KEY_PATH),
+            cert: fs.readFileSync(SSL_CERT_PATH)
+        };
+        httpsServer = https.createServer(sslOptions, app);
+        httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+            console.log(`HomePiNAS Dashboard (HTTPS) running on https://0.0.0.0:${HTTPS_PORT}`);
+        });
+    } catch (e) {
+        console.error('Failed to start HTTPS server:', e.message);
+    }
+}
+
+// Always start HTTP server (for local network or redirect)
+const httpServer = http.createServer(app);
+httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
+    console.log(`HomePiNAS Dashboard (HTTP) running on http://0.0.0.0:${HTTP_PORT}`);
+    if (httpsServer) {
+        console.log(`Recommended: Use HTTPS on port ${HTTPS_PORT} for secure access`);
+    } else {
+        console.log('Note: HTTPS not configured. Run install.sh to generate SSL certificates.');
+    }
 });
