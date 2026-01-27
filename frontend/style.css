@@ -160,8 +160,13 @@ body {
 .sidebar-logo {
     font-size: 1.5rem;
     font-weight: 600;
-    padding: 0 30px 40px;
+    padding: 20px 30px 40px;
     color: var(--primary);
+}
+
+.sidebar-logo img {
+    max-width: 100%;
+    height: auto;
 }
 
 .nav-links {
@@ -1797,7 +1802,11 @@ input:checked+.slider:before {
 
 /* User Info & Logout */
 .user-info {
-    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 15px 30px;
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .logout-btn {
