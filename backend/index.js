@@ -1,6 +1,6 @@
 /**
  * HomePiNAS - Premium NAS Dashboard for Raspberry Pi CM5
- * v1.5.8 - Enhanced Docker Manager
+ * v1.6.0 - Security Hardening
  *
  * Security Hardened Edition with:
  * - Bcrypt password hashing
@@ -38,7 +38,7 @@ const powerRoutes = require('./routes/power');
 const updateRoutes = require('./routes/update');
 
 // Configuration
-const VERSION = '1.5.8';
+const VERSION = '1.6.0';
 const HTTPS_PORT = process.env.HTTPS_PORT || 3001;
 const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const SSL_CERT_PATH = path.join(__dirname, 'certs', 'server.crt');
