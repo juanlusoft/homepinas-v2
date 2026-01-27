@@ -215,8 +215,7 @@ function startGlobalPolling() {
                 state.globalStats = await res.json();
 
                 // Re-render dashboard if active to show real-time changes
-                const activeNav = document.querySelector('.nav-links li.active');
-                if (activeNav && activeNav.dataset.view === 'dashboard') renderDashboard();
+                if (state.currentView === "dashboard") renderDashboard();
             }
         } catch (e) {
             console.error('Stats polling error:', e);
@@ -697,6 +696,7 @@ navLinks.forEach(link => {
 });
 
 function renderContent(view) {
+    state.currentView = view;
     dashboardContent.innerHTML = '';
     if (view === 'dashboard') renderDashboard();
     else if (view === 'docker') renderDockerManager();
