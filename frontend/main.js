@@ -111,7 +111,7 @@ function navigateTo(path, replace = false) {
  * Get view name from URL path
  */
 function getViewFromPath(path) {
-    const cleanPath = path.replace(/^//, '').split('?')[0];
+    const cleanPath = path.replace(/^\//, '').split('?')[0];
     if (!cleanPath || cleanPath === 'home' || cleanPath === 'dashboard') return 'dashboard';
     if (viewsMap[cleanPath]) return cleanPath;
     return 'dashboard';
