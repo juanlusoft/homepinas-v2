@@ -20,7 +20,7 @@ jobs:
       - name: Get current version
         id: get_version
         run: |
-          VERSION=$(grep -oP 'VERSION="\K[^"]+' install.sh)
+          VERSION=$(grep -oP '^VERSION="\K[^"]+' install.sh)
           echo "current=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Bump patch version
