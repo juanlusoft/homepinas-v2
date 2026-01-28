@@ -271,6 +271,118 @@ function Install-7Zip {
     }
 }
 
+function Start-RpiOsDownload {
+    $script:SelectButton.Enabled = $false
+    $script:DownloadButton.Enabled = $false
+    $script:ProcessButton.Enabled = $false
+
+    Write-Log "Obteniendo URL de descarga..." "Info"
+    Update-Progress -Percent 5 -Status "Conectando con raspberrypi.com..."
+
+    $downloadJob = Start-Job -ScriptBlock {
+        param($DownloadDir)
+
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+            # URL for latest Raspberry Pi OS Lite 64-bit (compatible with CM5/Pi5)
+            $baseUrl = "https://downloads.raspberrypi.com/raspios_lite_arm64/images/"
+
+            # Get latest version folder
+            $response = Invoke-WebRequest -Uri $baseUrl -UseBasicParsing
+            $folders = [regex]::Matches($response.Content, 'href="(raspios_lite_arm64-[^"]+)"') | ForEach-Object { $_.Groups[1].Value }
+            $latestFolder = $folders | Sort-Object -Descending | Select-Object -First 1
+
+            if (-not $latestFolder) {
+                throw "No se pudo encontrar la version mas reciente"
+            }
+
+            # Get the .img.xz file from that folder
+            $folderUrl = "$baseUrl$latestFolder"
+            $folderResponse = Invoke-WebRequest -Uri $folderUrl -UseBasicParsing
+            $imgFile = [regex]::Match($folderResponse.Content, 'href="([^"]+\.img\.xz)"').Groups[1].Value
+
+            if (-not $imgFile) {
+                throw "No se encontro archivo de imagen"
+            }
+
+            $downloadUrl = "$folderUrl$imgFile"
+            $outputPath = Join-Path $DownloadDir $imgFile
+
+            # Download with progress
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($downloadUrl, $outputPath)
+
+            return @{
+                Success = $true
+                FilePath = $outputPath
+                FileName = $imgFile
+            }
+        } catch {
+            return @{
+                Success = $false
+                Error = $_.Exception.Message
+            }
+        }
+    } -ArgumentList "$env:USERPROFILE\Downloads"
+
+    # Monitor download
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 1000
+    $script:downloadProgress = 10
+    $timer.Add_Tick({
+        if ($downloadJob.State -eq "Completed") {
+            $timer.Stop()
+            $result = Receive-Job -Job $downloadJob
+            Remove-Job -Job $downloadJob
+
+            if ($result.Success) {
+                Update-Progress -Percent 100 -Status "Descarga completada"
+                Write-Log "Imagen descargada: $($result.FileName)" "Success"
+                Write-Log "Ubicacion: $($result.FilePath)" "Info"
+                $script:FilePathTextBox.Text = $result.FilePath
+                $script:ProcessButton.Enabled = $true
+
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Imagen descargada correctamente!`n`n$($result.FileName)`n`nPulsa 'CREAR IMAGEN' para continuar.",
+                    "Descarga Completada",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Information
+                )
+            } else {
+                Update-Progress -Percent 0 -Status "Error en descarga"
+                Write-Log "Error: $($result.Error)" "Error"
+
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Error descargando imagen:`n`n$($result.Error)`n`nDescargala manualmente desde raspberrypi.com",
+                    "Error de Descarga",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Error
+                )
+            }
+
+            $script:SelectButton.Enabled = $true
+            $script:DownloadButton.Enabled = $true
+        }
+        elseif ($downloadJob.State -eq "Running") {
+            # Animate progress while downloading
+            $script:downloadProgress += 2
+            if ($script:downloadProgress > 90) { $script:downloadProgress = 90 }
+            Update-Progress -Percent $script:downloadProgress -Status "Descargando Raspberry Pi OS Lite (64-bit)..."
+        }
+        elseif ($downloadJob.State -eq "Failed") {
+            $timer.Stop()
+            Write-Log "Error en la descarga" "Error"
+            $script:SelectButton.Enabled = $true
+            $script:DownloadButton.Enabled = $true
+        }
+    })
+
+    Write-Log "Descargando Raspberry Pi OS Lite para CM5/Pi5..." "Info"
+    Update-Progress -Percent 10 -Status "Descargando..."
+    $timer.Start()
+}
+
 function Expand-CompressedImage {
     param([string]$Path)
 
@@ -725,7 +837,7 @@ function Show-MainForm {
 
     # File path textbox
     $script:FilePathTextBox = New-Object System.Windows.Forms.TextBox
-    $script:FilePathTextBox.Size = New-Object System.Drawing.Size(500, 30)
+    $script:FilePathTextBox.Size = New-Object System.Drawing.Size(390, 30)
     $script:FilePathTextBox.Location = New-Object System.Drawing.Point(20, 50)
     $script:FilePathTextBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     $script:FilePathTextBox.ReadOnly = $true
@@ -733,11 +845,28 @@ function Show-MainForm {
     $script:FilePathTextBox.Text = "Ninguna imagen seleccionada..."
     $contentPanel.Controls.Add($script:FilePathTextBox)
 
+    # Download button (new)
+    $script:DownloadButton = New-Object System.Windows.Forms.Button
+    $script:DownloadButton.Text = "Descargar RPi OS"
+    $script:DownloadButton.Size = New-Object System.Drawing.Size(115, 30)
+    $script:DownloadButton.Location = New-Object System.Drawing.Point(420, 50)
+    $script:DownloadButton.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $script:DownloadButton.BackColor = $script:Colors.Success
+    $script:DownloadButton.ForeColor = [System.Drawing.Color]::White
+    $script:DownloadButton.FlatStyle = "Flat"
+    $script:DownloadButton.FlatAppearance.BorderSize = 0
+    $script:DownloadButton.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $contentPanel.Controls.Add($script:DownloadButton)
+
+    $script:DownloadButton.Add_Click({
+        Start-RpiOsDownload
+    })
+
     # Select button
     $script:SelectButton = New-Object System.Windows.Forms.Button
     $script:SelectButton.Text = "Examinar..."
-    $script:SelectButton.Size = New-Object System.Drawing.Size(110, 30)
-    $script:SelectButton.Location = New-Object System.Drawing.Point(530, 50)
+    $script:SelectButton.Size = New-Object System.Drawing.Size(95, 30)
+    $script:SelectButton.Location = New-Object System.Drawing.Point(545, 50)
     $script:SelectButton.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $script:SelectButton.BackColor = $script:Colors.Primary
     $script:SelectButton.ForeColor = [System.Drawing.Color]::White
@@ -750,7 +879,7 @@ function Show-MainForm {
         $dialog = New-Object System.Windows.Forms.OpenFileDialog
         $dialog.Title = "Seleccionar imagen de Raspberry Pi OS"
         $dialog.Filter = "Imagenes (*.img;*.img.xz;*.zip)|*.img;*.img.xz;*.zip|Todos los archivos (*.*)|*.*"
-        $dialog.InitialDirectory = [Environment]::GetFolderPath("Downloads")
+        $dialog.InitialDirectory = "$env:USERPROFILE\Downloads"
 
         if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             $script:FilePathTextBox.Text = $dialog.FileName
@@ -760,7 +889,7 @@ function Show-MainForm {
 
     # Supported formats info
     $formatLabel = New-Object System.Windows.Forms.Label
-    $formatLabel.Text = "Formatos soportados: .img, .img.xz, .zip"
+    $formatLabel.Text = "Compatible con CM5, Pi5, Pi4 (64-bit) | Formatos: .img, .img.xz, .zip"
     $formatLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $formatLabel.ForeColor = $script:Colors.TextSecondary
     $formatLabel.Location = New-Object System.Drawing.Point(20, 85)
@@ -769,7 +898,7 @@ function Show-MainForm {
 
     # Download link
     $downloadLink = New-Object System.Windows.Forms.LinkLabel
-    $downloadLink.Text = "Descargar Raspberry Pi OS desde raspberrypi.com"
+    $downloadLink.Text = "O descarga manualmente desde raspberrypi.com"
     $downloadLink.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $downloadLink.Location = New-Object System.Drawing.Point(20, 105)
     $downloadLink.AutoSize = $true
