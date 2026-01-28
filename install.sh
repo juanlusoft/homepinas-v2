@@ -1,24 +1,24 @@
 #!/bin/bash
 
-# HomePiNAS - Premium Dashboard for Raspberry Pi CM5
-# Professional One-Liner Installer
-# Optimized for Raspberry Pi OS (ARM64)
-# Version: 1.8.0 (Homelabs.club Edition)
+# HomePiNAS - Premium Dashboard for Raspberry Pi / Debian / Ubuntu
+# Universal Installer with automatic OS detection
+# Version: 2.0.0 (Homelabs.club Edition)
 
 set -e
 
 # Version - CHANGE THIS FOR EACH RELEASE
-VERSION="1.8.6"
+VERSION="2.0.0"
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}   HomePiNAS v${VERSION} Secure Installer    ${NC}"
+echo -e "${BLUE}   HomePiNAS v${VERSION} Universal Installer  ${NC}"
 echo -e "${BLUE}   Homelabs.club Edition                ${NC}"
 echo -e "${BLUE}=========================================${NC}"
 
@@ -52,183 +52,370 @@ POOL_MOUNT="/mnt/storage"
 SNAPRAID_CONF="/etc/snapraid.conf"
 MERGERFS_CONF="/etc/mergerfs.conf"
 
-# 1. Environment Ready
-echo -e "${BLUE}[1/7] Preparing environment...${NC}"
-
 # APT options to suppress all interactive prompts
 APT_OPTS="-o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef"
 
-# Detect Debian version
-DEBIAN_VERSION=""
+#######################################
+# PHASE 1: OS DETECTION
+#######################################
+echo -e "${BLUE}[1/7] Detecting operating system...${NC}"
+
+# Initialize detection variables
+OS_ID=""
+OS_VERSION=""
+OS_CODENAME=""
+OS_PRETTY=""
+ARCH=""
+IS_RASPBERRY_PI=false
+IS_TESTING=false
+
+# Detect architecture
+ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m)
+case "$ARCH" in
+    aarch64) ARCH="arm64" ;;
+    x86_64)  ARCH="amd64" ;;
+esac
+
+# Detect if running on Raspberry Pi
+if [ -f /proc/device-tree/model ]; then
+    if grep -qi "raspberry" /proc/device-tree/model 2>/dev/null; then
+        IS_RASPBERRY_PI=true
+    fi
+fi
+
+# Read OS information
 if [ -f /etc/os-release ]; then
     . /etc/os-release
-    DEBIAN_VERSION="$VERSION_CODENAME"
+    OS_ID="$ID"
+    OS_VERSION="$VERSION_ID"
+    OS_CODENAME="$VERSION_CODENAME"
+    OS_PRETTY="$PRETTY_NAME"
 fi
 
-echo -e "${BLUE}Detected: $PRETTY_NAME${NC}"
+# Detect if this is a testing/unstable release
+case "$OS_CODENAME" in
+    trixie|sid|testing|unstable|devel)
+        IS_TESTING=true
+        ;;
+esac
 
-apt-get update || true
-apt-get install -f -y $APT_OPTS
+# Display detected information
+echo -e "${CYAN}┌─────────────────────────────────────────┐${NC}"
+echo -e "${CYAN}│ System Detection Results                │${NC}"
+echo -e "${CYAN}├─────────────────────────────────────────┤${NC}"
+echo -e "${CYAN}│${NC} OS:          ${GREEN}$OS_PRETTY${NC}"
+echo -e "${CYAN}│${NC} ID:          ${GREEN}$OS_ID${NC}"
+echo -e "${CYAN}│${NC} Codename:    ${GREEN}$OS_CODENAME${NC}"
+echo -e "${CYAN}│${NC} Architecture:${GREEN}$ARCH${NC}"
+echo -e "${CYAN}│${NC} Raspberry Pi:${GREEN}$IS_RASPBERRY_PI${NC}"
+echo -e "${CYAN}│${NC} Testing/Dev: ${GREEN}$IS_TESTING${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────┘${NC}"
 
-# Install Docker from official repo for Trixie, or docker.io for stable releases
-if [ "$DEBIAN_VERSION" = "trixie" ] || [ "$DEBIAN_VERSION" = "sid" ]; then
-    echo -e "${YELLOW}Debian Trixie/Sid detected${NC}"
+#######################################
+# PHASE 2: REPOSITORY CONFIGURATION
+#######################################
+echo -e "${BLUE}[2/7] Configuring repositories...${NC}"
 
-    # Remove conflicting packages and old Docker repo if exists
-    for pkg in docker-doc docker-compose podman-docker; do
-        apt-get purge -y $pkg 2>/dev/null || true
-    done
+# Clean up any problematic repository files
+echo -e "${BLUE}Cleaning old repository configurations...${NC}"
+rm -f /etc/apt/sources.list.d/docker.list 2>/dev/null || true
+rm -f /etc/apt/keyrings/docker.asc 2>/dev/null || true
 
-    # Remove any Docker repo files that might conflict with Trixie
-    rm -f /etc/apt/sources.list.d/docker.list 2>/dev/null || true
-    rm -f /etc/apt/keyrings/docker.asc 2>/dev/null || true
+# Function to ensure repositories are properly configured
+configure_repositories() {
+    local sources_file="/etc/apt/sources.list"
+    local sources_dir="/etc/apt/sources.list.d"
 
-    # Force update package lists after repo cleanup
-    echo -e "${BLUE}Updating package lists...${NC}"
-    apt-get update
+    # For Raspberry Pi OS
+    if [ "$IS_RASPBERRY_PI" = true ]; then
+        echo -e "${BLUE}Configuring Raspberry Pi OS repositories...${NC}"
 
-    # Install prerequisites
-    echo -e "${BLUE}Installing prerequisites...${NC}"
-    apt-get install -y $APT_OPTS ca-certificates curl gnupg git sudo smartmontools parted samba samba-common-bin build-essential python3 pigz || {
-        echo -e "${YELLOW}Some packages failed to install, trying individually...${NC}"
-        for pkg in ca-certificates curl gnupg git sudo smartmontools parted samba samba-common-bin build-essential python3 pigz; do
-            apt-get install -y $APT_OPTS $pkg 2>/dev/null || echo -e "${YELLOW}Warning: $pkg not available${NC}"
-        done
-    }
+        # Check if we need to add Debian repos
+        if ! grep -q "deb.debian.org" "$sources_file" 2>/dev/null; then
+            echo -e "${YELLOW}Adding Debian main repositories...${NC}"
 
-    # Try lm-sensors
-    apt-get install -y $APT_OPTS lm-sensors 2>/dev/null || echo -e "${YELLOW}Warning: lm-sensors not available${NC}"
+            # Backup current sources.list
+            cp "$sources_file" "${sources_file}.backup.$(date +%Y%m%d)" 2>/dev/null || true
 
-    # For Trixie, use Docker's official convenience script which handles edge cases better
-    echo -e "${BLUE}Installing Docker using official convenience script...${NC}"
+            # Add Debian repos based on codename
+            case "$OS_CODENAME" in
+                trixie)
+                    cat >> "$sources_file" <<EOF
+
+# Added by HomePiNAS installer
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security trixie-security main contrib non-free-firmware
+EOF
+                    ;;
+                bookworm)
+                    cat >> "$sources_file" <<EOF
+
+# Added by HomePiNAS installer
+deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security bookworm-security main contrib non-free-firmware
+EOF
+                    ;;
+                bullseye)
+                    cat >> "$sources_file" <<EOF
+
+# Added by HomePiNAS installer
+deb http://deb.debian.org/debian bullseye main contrib non-free
+deb http://deb.debian.org/debian bullseye-updates main contrib non-free
+deb http://deb.debian.org/debian-security bullseye-security main contrib non-free
+EOF
+                    ;;
+            esac
+        fi
+    fi
+
+    # For standard Debian
+    if [ "$OS_ID" = "debian" ] && [ "$IS_RASPBERRY_PI" = false ]; then
+        echo -e "${BLUE}Verifying Debian repositories...${NC}"
+        # Debian usually has proper repos, just verify
+        if ! grep -q "main" "$sources_file" 2>/dev/null; then
+            echo -e "${YELLOW}Warning: Debian sources.list may be incomplete${NC}"
+        fi
+    fi
+
+    # For Ubuntu
+    if [ "$OS_ID" = "ubuntu" ]; then
+        echo -e "${BLUE}Verifying Ubuntu repositories...${NC}"
+        # Ubuntu usually has proper repos configured
+        # Just ensure universe is enabled for some packages
+        add-apt-repository -y universe 2>/dev/null || true
+    fi
+}
+
+# Configure repositories
+configure_repositories
+
+# Update package lists
+echo -e "${BLUE}Updating package lists...${NC}"
+apt-get update
+
+#######################################
+# PHASE 3: INSTALL PACKAGES
+#######################################
+echo -e "${BLUE}[3/7] Installing required packages...${NC}"
+
+# Define packages based on OS
+declare -a BASE_PACKAGES
+declare -a DOCKER_PACKAGES
+
+# Common packages for all systems
+BASE_PACKAGES=(
+    "curl"
+    "ca-certificates"
+    "gnupg"
+    "sudo"
+    "parted"
+    "python3"
+)
+
+# Packages that might have different names
+install_package_safe() {
+    local pkg="$1"
+    local alt="$2"
+
+    if apt-get install -y $APT_OPTS "$pkg" 2>/dev/null; then
+        echo -e "${GREEN}✓ $pkg${NC}"
+        return 0
+    elif [ -n "$alt" ] && apt-get install -y $APT_OPTS "$alt" 2>/dev/null; then
+        echo -e "${GREEN}✓ $alt (alternative)${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}✗ $pkg not available${NC}"
+        return 1
+    fi
+}
+
+# Install base packages
+echo -e "${BLUE}Installing base packages...${NC}"
+for pkg in "${BASE_PACKAGES[@]}"; do
+    install_package_safe "$pkg"
+done
+
+# Install packages with possible alternatives
+echo -e "${BLUE}Installing system packages...${NC}"
+install_package_safe "git" ""
+install_package_safe "build-essential" "base-devel"
+install_package_safe "smartmontools" ""
+install_package_safe "lm-sensors" "sensors"
+install_package_safe "pigz" ""
+install_package_safe "samba" ""
+install_package_safe "samba-common-bin" ""
+
+# Install Docker based on OS type
+echo -e "${BLUE}Installing Docker...${NC}"
+
+install_docker() {
+    # Check if already installed
     if command -v docker &> /dev/null; then
         echo -e "${GREEN}Docker already installed${NC}"
-    else
-        # The convenience script auto-detects and handles Trixie/testing
-        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-        sh /tmp/get-docker.sh || {
-            echo -e "${RED}=========================================${NC}"
-            echo -e "${RED}Docker installation failed on Trixie.${NC}"
-            echo -e "${RED}This is a known issue with Debian Testing.${NC}"
-            echo -e "${YELLOW}HomePiNAS will work but Docker features${NC}"
-            echo -e "${YELLOW}will be unavailable until Docker is installed.${NC}"
-            echo -e "${RED}=========================================${NC}"
-        }
-        rm -f /tmp/get-docker.sh
+        return 0
     fi
 
-else
-    # Standard Debian stable (bookworm, bullseye, etc)
-    for pkg in docker.io docker-doc docker-compose podman-docker containerd runc containerd.io; do
-        apt-get purge -y $pkg 2>/dev/null || true
-    done
-    apt-get autoremove -y $APT_OPTS
-    apt-get clean
-    apt-get install -y $APT_OPTS git curl sudo smartmontools lm-sensors docker.io parted samba samba-common-bin build-essential python3
-fi
+    # For testing releases (Trixie, Sid), use convenience script
+    if [ "$IS_TESTING" = true ]; then
+        echo -e "${YELLOW}Testing release detected - using Docker convenience script${NC}"
+        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+        if sh /tmp/get-docker.sh; then
+            echo -e "${GREEN}Docker installed successfully${NC}"
+            rm -f /tmp/get-docker.sh
+            return 0
+        else
+            echo -e "${YELLOW}Docker installation failed (common on testing releases)${NC}"
+            echo -e "${YELLOW}You can try installing manually later${NC}"
+            rm -f /tmp/get-docker.sh
+            return 1
+        fi
+    fi
 
-# 2. Install SnapRAID + MergerFS
-echo -e "${BLUE}[2/7] Installing SnapRAID + MergerFS...${NC}"
+    # For stable releases, try docker.io first
+    if apt-get install -y $APT_OPTS docker.io 2>/dev/null; then
+        echo -e "${GREEN}Docker installed from system repos${NC}"
+        return 0
+    fi
+
+    # Fallback to Docker official repo
+    echo -e "${YELLOW}Trying Docker official repository...${NC}"
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/$OS_ID/gpg -o /etc/apt/keyrings/docker.asc 2>/dev/null || \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+
+    # Determine repo codename (use stable codename for testing)
+    local docker_codename="$OS_CODENAME"
+    case "$OS_CODENAME" in
+        trixie|sid) docker_codename="bookworm" ;;
+    esac
+
+    local docker_url="https://download.docker.com/linux/$OS_ID"
+    if [ "$OS_ID" = "raspbian" ]; then
+        docker_url="https://download.docker.com/linux/debian"
+    fi
+
+    echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] $docker_url $docker_codename stable" > /etc/apt/sources.list.d/docker.list
+
+    apt-get update
+    if apt-get install -y $APT_OPTS docker-ce docker-ce-cli containerd.io 2>/dev/null; then
+        echo -e "${GREEN}Docker installed from official repo${NC}"
+        return 0
+    fi
+
+    echo -e "${RED}Docker installation failed${NC}"
+    return 1
+}
+
+install_docker || echo -e "${YELLOW}Continuing without Docker...${NC}"
+
+# Fix any broken packages
+apt-get install -f -y $APT_OPTS 2>/dev/null || true
+
+#######################################
+# PHASE 4: INSTALL SNAPRAID + MERGERFS
+#######################################
+echo -e "${BLUE}[4/7] Installing SnapRAID + MergerFS...${NC}"
 
 # Install MergerFS
-if ! command -v mergerfs &> /dev/null; then
+install_mergerfs() {
+    if command -v mergerfs &> /dev/null; then
+        echo -e "${GREEN}MergerFS already installed${NC}"
+        return 0
+    fi
+
     echo -e "${BLUE}Installing MergerFS...${NC}"
+
     # Get latest mergerfs release
-    MERGERFS_VERSION=$(curl -s https://api.github.com/repos/trapexit/mergerfs/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-    if [ -z "$MERGERFS_VERSION" ]; then
-        MERGERFS_VERSION="2.40.2"
-    fi
+    MERGERFS_VERSION=$(curl -s https://api.github.com/repos/trapexit/mergerfs/releases/latest | grep -oP '"tag_name": "\K[^"]+' || echo "2.40.2")
 
-    # Detect architecture
-    ARCH=$(dpkg --print-architecture)
-    echo -e "${BLUE}Architecture: $ARCH${NC}"
+    # Determine correct package name based on distro
+    local mergerfs_distro="debian-bookworm"
+    case "$OS_CODENAME" in
+        trixie|sid) mergerfs_distro="debian-trixie" ;;
+        bookworm)   mergerfs_distro="debian-bookworm" ;;
+        bullseye)   mergerfs_distro="debian-bullseye" ;;
+        jammy|noble) mergerfs_distro="ubuntu-jammy" ;;
+        focal)      mergerfs_distro="ubuntu-focal" ;;
+    esac
 
-    # Determine correct package name based on distro and arch
-    MERGERFS_DISTRO="debian-bookworm"
-    if [ "$DEBIAN_VERSION" = "trixie" ] || [ "$DEBIAN_VERSION" = "sid" ]; then
-        # Try trixie first, fall back to bookworm
-        MERGERFS_DISTRO="debian-trixie"
-    fi
+    local mergerfs_deb="mergerfs_${MERGERFS_VERSION}.${mergerfs_distro}_${ARCH}.deb"
+    echo -e "${BLUE}Downloading: $mergerfs_deb${NC}"
 
-    MERGERFS_DEB="mergerfs_${MERGERFS_VERSION}.${MERGERFS_DISTRO}_${ARCH}.deb"
-    echo -e "${BLUE}Downloading MergerFS: $MERGERFS_DEB${NC}"
-
-    curl -L -o /tmp/mergerfs.deb "https://github.com/trapexit/mergerfs/releases/download/${MERGERFS_VERSION}/${MERGERFS_DEB}" || {
-        # If trixie package doesn't exist, try bookworm
-        if [ "$MERGERFS_DISTRO" = "debian-trixie" ]; then
-            echo -e "${YELLOW}Trixie package not found, trying bookworm...${NC}"
-            MERGERFS_DEB="mergerfs_${MERGERFS_VERSION}.debian-bookworm_${ARCH}.deb"
-            curl -L -o /tmp/mergerfs.deb "https://github.com/trapexit/mergerfs/releases/download/${MERGERFS_VERSION}/${MERGERFS_DEB}" || {
-                # Fallback to apt if GitHub download fails
-                apt-get install -y $APT_OPTS mergerfs || echo -e "${YELLOW}MergerFS installation from apt${NC}"
-            }
-        else
-            # Fallback to apt if GitHub download fails
-            apt-get install -y $APT_OPTS mergerfs || echo -e "${YELLOW}MergerFS installation from apt${NC}"
-        fi
-    }
-    if [ -f /tmp/mergerfs.deb ]; then
+    if curl -L -o /tmp/mergerfs.deb "https://github.com/trapexit/mergerfs/releases/download/${MERGERFS_VERSION}/${mergerfs_deb}" 2>/dev/null; then
         dpkg -i /tmp/mergerfs.deb || apt-get install -f -y $APT_OPTS
         rm -f /tmp/mergerfs.deb
+        echo -e "${GREEN}MergerFS installed${NC}"
+    else
+        # Try bookworm as fallback
+        echo -e "${YELLOW}Trying bookworm package as fallback...${NC}"
+        mergerfs_deb="mergerfs_${MERGERFS_VERSION}.debian-bookworm_${ARCH}.deb"
+        if curl -L -o /tmp/mergerfs.deb "https://github.com/trapexit/mergerfs/releases/download/${MERGERFS_VERSION}/${mergerfs_deb}" 2>/dev/null; then
+            dpkg -i /tmp/mergerfs.deb || apt-get install -f -y $APT_OPTS
+            rm -f /tmp/mergerfs.deb
+            echo -e "${GREEN}MergerFS installed${NC}"
+        else
+            # Last resort: apt
+            apt-get install -y $APT_OPTS mergerfs || echo -e "${RED}MergerFS installation failed${NC}"
+        fi
     fi
-else
-    echo -e "${GREEN}MergerFS already installed${NC}"
-fi
+}
+
+install_mergerfs
 
 # Install SnapRAID
-if ! command -v snapraid &> /dev/null; then
+install_snapraid() {
+    if command -v snapraid &> /dev/null; then
+        echo -e "${GREEN}SnapRAID already installed${NC}"
+        return 0
+    fi
+
     echo -e "${BLUE}Installing SnapRAID...${NC}"
-    apt-get install -y $APT_OPTS snapraid 2>/dev/null || {
-        # Build from source if not in repos
-        echo -e "${YELLOW}Building SnapRAID from source...${NC}"
 
-        # Ensure we have updated package lists and build tools
-        apt-get update
-        apt-get install -y $APT_OPTS build-essential 2>/dev/null || true
+    # Try apt first
+    if apt-get install -y $APT_OPTS snapraid 2>/dev/null; then
+        echo -e "${GREEN}SnapRAID installed from repos${NC}"
+        return 0
+    fi
 
-        # Try to install autotools (may have different names in Trixie)
-        apt-get install -y $APT_OPTS autoconf automake 2>/dev/null || \
-        apt-get install -y $APT_OPTS autotools-dev 2>/dev/null || true
+    # Build from source
+    echo -e "${YELLOW}Building SnapRAID from source...${NC}"
 
-        cd /tmp
-        # Get latest snapraid version from GitHub
-        SNAPRAID_VERSION=$(curl -s https://api.github.com/repos/amadvance/snapraid/releases/latest | grep -oP '"tag_name": "v\K[^"]+' || echo "12.3")
-        echo -e "${BLUE}Building SnapRAID v${SNAPRAID_VERSION}...${NC}"
-        curl -L -o snapraid.tar.gz "https://github.com/amadvance/snapraid/releases/download/v${SNAPRAID_VERSION}/snapraid-${SNAPRAID_VERSION}.tar.gz"
-        tar xzf snapraid.tar.gz
-        cd snapraid-${SNAPRAID_VERSION}
+    # Get version
+    local snapraid_version=$(curl -s https://api.github.com/repos/amadvance/snapraid/releases/latest | grep -oP '"tag_name": "v\K[^"]+' || echo "12.3")
+    echo -e "${BLUE}Building SnapRAID v${snapraid_version}...${NC}"
 
-        # SnapRAID releases include a pre-generated configure script, no need for autoconf
-        if [ -f configure ]; then
-            ./configure
-            make -j$(nproc)
-            make install
-        else
-            echo -e "${RED}SnapRAID configure script not found${NC}"
-        fi
+    cd /tmp
+    curl -L -o snapraid.tar.gz "https://github.com/amadvance/snapraid/releases/download/v${snapraid_version}/snapraid-${snapraid_version}.tar.gz"
+    tar xzf snapraid.tar.gz
+    cd "snapraid-${snapraid_version}"
 
-        cd /tmp
-        rm -rf snapraid-${SNAPRAID_VERSION} snapraid.tar.gz
-    }
-else
-    echo -e "${GREEN}SnapRAID already installed${NC}"
-fi
+    # Configure and build (releases include pre-generated configure)
+    if [ -f configure ]; then
+        ./configure
+        make -j$(nproc)
+        make install
+        echo -e "${GREEN}SnapRAID installed${NC}"
+    else
+        echo -e "${RED}SnapRAID build failed${NC}"
+    fi
 
-# Configure Samba for NAS sharing
-echo -e "${BLUE}Configuring Samba...${NC}"
+    cd /tmp
+    rm -rf "snapraid-${snapraid_version}" snapraid.tar.gz
+}
 
-# Check if Samba is installed
-if ! command -v smbd &> /dev/null; then
-    echo -e "${YELLOW}Samba not installed, attempting to install...${NC}"
-    apt-get update
-    apt-get install -y $APT_OPTS samba samba-common-bin || {
-        echo -e "${RED}Failed to install Samba. Network sharing will not be available.${NC}"
-        echo -e "${YELLOW}You can install Samba manually later: sudo apt install samba${NC}"
-    }
-fi
+install_snapraid
+
+#######################################
+# PHASE 5: CONFIGURE SAMBA
+#######################################
+echo -e "${BLUE}[5/7] Configuring Samba...${NC}"
 
 # Only configure Samba if it's installed
 if command -v smbd &> /dev/null; then
+    echo -e "${BLUE}Setting up Samba file sharing...${NC}"
     # Create /etc/samba directory if it doesn't exist
     mkdir -p /etc/samba
 
@@ -309,7 +496,11 @@ done
 mkdir -p "${STORAGE_MOUNT_BASE}/cache1"
 mkdir -p "${STORAGE_MOUNT_BASE}/cache2"
 
-# 3. Project Deployment
+#######################################
+# PHASE 6: DEPLOY APPLICATION
+#######################################
+echo -e "${BLUE}[6/7] Deploying HomePiNAS application...${NC}"
+
 cd /tmp
 
 if [ -d "$TARGET_DIR" ]; then
@@ -317,33 +508,39 @@ if [ -d "$TARGET_DIR" ]; then
     rm -rf "$TARGET_DIR"
 fi
 
-echo -e "${BLUE}[3/7] Cloning repository (branch: $BRANCH)...${NC}"
+# Check if git is available
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}Git is not installed. Cannot clone repository.${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}Cloning repository (branch: $BRANCH)...${NC}"
 git clone -b $BRANCH $REPO_URL $TARGET_DIR
 
 cd $TARGET_DIR
 
 # Update package.json version to match installer
-sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" package.json
+sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" package.json 2>/dev/null || true
 
 # CRITICAL CHECK: Verify structure
 if [ ! -d "backend" ]; then
     echo -e "${RED}FATAL: Repository cloned but 'backend' folder is missing!${NC}"
     echo -e "Files found in $TARGET_DIR:"
-    ls -R
+    ls -la
     exit 1
 fi
 
-# 4. Node.js Check/Install
+# Install Node.js if needed
 if ! command -v node &> /dev/null; then
-    echo -e "${BLUE}[4/7] Installing Node.js...${NC}"
+    echo -e "${BLUE}Installing Node.js...${NC}"
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
     apt-get install -y $APT_OPTS nodejs
 else
-    echo -e "${BLUE}[4/7] Node.js already installed${NC}"
+    echo -e "${GREEN}Node.js already installed${NC}"
 fi
 
-# 5. App Setup
-echo -e "${BLUE}[5/8] Building application...${NC}"
+# Build application
+echo -e "${BLUE}Installing npm dependencies...${NC}"
 npm install
 
 # Generate self-signed SSL certificates for HTTPS
@@ -365,15 +562,21 @@ chown -R $REAL_USER:$REAL_USER $TARGET_DIR
 chmod -R 755 $TARGET_DIR
 chmod 600 $TARGET_DIR/backend/certs/server.key
 
-# 6. Fan Control Setup (for Raspberry Pi CM5 with EMC2305)
-echo -e "${BLUE}[6/8] Configuring Fan Control...${NC}"
+#######################################
+# PHASE 7: CONFIGURE SERVICES
+#######################################
+echo -e "${BLUE}[7/7] Configuring system services...${NC}"
 
-# Check and add I2C configuration
+# Fan Control Setup (only for Raspberry Pi)
 NEEDS_REBOOT=0
-I2C_LINE="dtparam=i2c_arm=on"
-OVERLAY_LINE="dtoverlay=i2c-fan,emc2301,addr=0x2e,i2c_csi_dsi0"
 
-if [ -f "$CONFIG_FILE" ]; then
+if [ "$IS_RASPBERRY_PI" = true ]; then
+    echo -e "${BLUE}Configuring Raspberry Pi fan control...${NC}"
+
+    I2C_LINE="dtparam=i2c_arm=on"
+    OVERLAY_LINE="dtoverlay=i2c-fan,emc2301,addr=0x2e,i2c_csi_dsi0"
+
+    if [ -f "$CONFIG_FILE" ]; then
     if ! grep -q "^${I2C_LINE}$" "$CONFIG_FILE" 2>/dev/null; then
         echo -e "${YELLOW}Adding I2C support to config.txt...${NC}"
         echo "" >> "$CONFIG_FILE"
@@ -636,9 +839,13 @@ EOF
     echo -e "${GREEN}Fan control service configured${NC}"
 fi
 
-# 7. Permissions & Services
-echo -e "${BLUE}[7/8] Configuring Systemd services...${NC}"
-usermod -aG docker $REAL_USER
+else
+    echo -e "${YELLOW}Skipping fan control (not a Raspberry Pi)${NC}"
+fi  # End IS_RASPBERRY_PI check
+
+# Configure user permissions
+echo -e "${BLUE}Configuring user permissions...${NC}"
+usermod -aG docker $REAL_USER 2>/dev/null || true
 
 # Sudoers for system control, fan PWM, storage and Samba management
 cat > /etc/sudoers.d/homepinas <<EOF
