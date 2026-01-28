@@ -7,7 +7,7 @@
 set -e
 
 # Version - CHANGE THIS FOR EACH RELEASE
-VERSION="2.0.2"
+VERSION="2.0.3"
 
 # Colors
 RED='\033[0;31m'
@@ -62,7 +62,7 @@ echo -e "${BLUE}[1/7] Detecting operating system...${NC}"
 
 # Initialize detection variables
 OS_ID=""
-OS_VERSION=""
+OS_VERSION="2.0.3"
 OS_CODENAME=""
 OS_PRETTY=""
 ARCH=""
@@ -87,7 +87,7 @@ fi
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS_ID="$ID"
-    OS_VERSION="$VERSION_ID"
+    OS_VERSION="2.0.3"
     OS_CODENAME="$VERSION_CODENAME"
     OS_PRETTY="$PRETTY_NAME"
 fi
