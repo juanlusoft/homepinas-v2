@@ -1,81 +1,306 @@
 #Requires -RunAsAdministrator
-# HomePiNAS Image Builder for Windows
-# Portable version - No installation required
+<#
+.SYNOPSIS
+    HomePiNAS Image Builder - Professional Windows Application
+.DESCRIPTION
+    Creates customized Raspberry Pi OS images with HomePiNAS pre-configured
+    for automatic installation on first boot.
+.NOTES
+    Version: 2.0.0
+    Author: Homelabs.club
+    Website: https://homelabs.club
+#>
 
 param(
-    [string]$ImagePath
+    [string]$ImagePath,
+    [switch]$Silent
 )
 
 $ErrorActionPreference = "Stop"
-$Host.UI.RawUI.WindowTitle = "HomePiNAS Image Builder"
+$script:Version = "2.0.0"
 
-# Colors
-function Write-Color($Text, $Color = "White") {
-    Write-Host $Text -ForegroundColor $Color
+# ============================================================================
+# GUI ASSEMBLY LOADING
+# ============================================================================
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName PresentationFramework
+
+[System.Windows.Forms.Application]::EnableVisualStyles()
+
+# ============================================================================
+# THEME COLORS
+# ============================================================================
+$script:Colors = @{
+    Primary      = [System.Drawing.Color]::FromArgb(41, 128, 185)    # Blue
+    PrimaryDark  = [System.Drawing.Color]::FromArgb(31, 97, 141)     # Dark Blue
+    Success      = [System.Drawing.Color]::FromArgb(39, 174, 96)     # Green
+    Warning      = [System.Drawing.Color]::FromArgb(243, 156, 18)    # Orange
+    Error        = [System.Drawing.Color]::FromArgb(231, 76, 60)     # Red
+    Background   = [System.Drawing.Color]::FromArgb(236, 240, 241)   # Light Gray
+    Surface      = [System.Drawing.Color]::White
+    TextPrimary  = [System.Drawing.Color]::FromArgb(44, 62, 80)      # Dark
+    TextSecondary= [System.Drawing.Color]::FromArgb(127, 140, 141)   # Gray
 }
 
-function Write-Banner {
-    Write-Host ""
-    Write-Color "  ╔═══════════════════════════════════════════════════════════╗" Cyan
-    Write-Color "  ║         HomePiNAS Image Builder v2.0                      ║" Cyan
-    Write-Color "  ║         Homelabs.club Edition                             ║" Cyan
-    Write-Color "  ╚═══════════════════════════════════════════════════════════╝" Cyan
-    Write-Host ""
-}
+# ============================================================================
+# EMBEDDED ICON (Base64)
+# ============================================================================
+$script:IconBase64 = @"
+AAABAAEAICAAAAEAIACoEAAAFgAAACgAAAAgAAAAQAAAAAEAIAAAAAAAABAAABMLAAATCwAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAABuA1R8bgNW/G4DVvxuA1WAbjNUAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAG4DVHxuA1f8bgNX/G4DV/xuA1f8bgNX/G4zVAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAHIDVHxyA1f8cgNX/HIDV/xyA1f8cgNX/HIDV/xyM1QAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB2A1R8dgNX/HYDV/x2A1f8dgNX/HYDV/x2A1f8dgNX/
+HYzVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAegNUfHoDV/x6A1f8egNX/HoDV/x6A
+1f8egNX/HoDV/x6A1f8ejNUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB+A1R8f
+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
+AA0NDQ8NDQ3vDQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0NzwAAAAAAAA0N
+DR8AAAAAAAAAAAAAAAA+htagPobW/z+H1/8/h9f/P4fX/z+H16BAjtkgQo3aoFKY4P9SmOD/Upjg
+/1KY4P9SmOD/Upjg/1KY4P9SmOD/Upjg/1KY4P9Snd+gRo3cIA0NDU8NDQ3/DQ0N/w0NDf8NDQ3/
+DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDe8NDQ1PDQ0NHw0NDQAAAAAAAAAAAEGJ2CBB
+jNmgQIfX/0CI1/9AiNf/QIjX/0CI16BDjdkgQ47boFOZ4f9TmeH/U5nh/1OZ4f9TmeH/U5nh/1OZ
+4f9TmeH/U5nh/1OZ4f9Tnt+gSI7dIA0NDa8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N
+/w0NDf8NDQ3/DQ0N/w0NDf8NDQ2/DQ0NTw0NDQAAAAAAAAAAAAAAAABBAAAARJDZIEGL2aBBiNj/
+QYjY/0GI2P9BiNj/QYjYoESO2iBEj9ugVJri/1Sa4v9UmuL/VJri/1Sa4v9UmuL/VJri/1Sa4v9U
+muL/VJri/1Se4KBJjt0gDQ0N3w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0N
+Df8NDQ3/DQ0N/w0NDd8NDQ1PAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABFE9kgRZDaoEKJ2f9Cidn/
+QonZ/0KJ2f9CidmgRY/aIEWQ3KBVm+P/VZvj/1Wb4/9Vm+P/VZvj/1Wb4/9Vm+P/VZvj/1Wb4/9V
+m+P/VaDgoEqP3SANDQ3vDQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0N
+Df8NDQ3/DQ0Nzw0NDQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEUQ2SBGkdugQ4ra/0OK2v9Ditr/
+Q4ra/0OK2qBGkNogRpHcoFac5P9WnOT/Vpzk/1ac5P9WnOT/Vpzk/1ac5P9WnOT/Vpzk/1ac5P9W
+oeGgS5DeIA0NDd8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0N
+Df8NDQ2PAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEYR2SBHkdugRIvb/0SL2/9Ei9v/RIvb
+/0SL26BHkNsgR5LdoFed5f9XneX/V53l/1ed5f9XneX/V53l/1ed5f9XneX/V53l/1ed5f9XouGg
+TJDfIA0NDa8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDe8N
+DQ0/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEYQ2SBHktugRYzc/0WM3P9FjNz/RYzc/0WM
+3KBHkdsgSJPeoFie5v9Ynub/WJ7m/1ie5v9Ynub/WJ7m/1ie5v9Ynub/WJ7m/1ie5v9Yo+KgTZHf
+IA0NDW8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDc8AAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABHD9kgSJPcoEaN3f9Gjd3/Ro3d/0aN3f9G
+jd2gSJLcIEiT36BZn+f/WZ/n/1mf5/9Zn+f/WZ/n/1mf5/9Zn+f/WZ/n/1mf5/9Zn+f/WaTjoE6S
+4CANDQ0fDQ0N3w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ1fAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABHD9kgSZTdoEeO3v9Hjt7/R47e
+/0eO3v9Hjt6gSZPcIEmU4KBaoOj/WqDo/1qg6P9aoOj/WqDo/1qg6P9aoOj/WqDo/1qg6P9aoOj/
+WqXkoE+S4QANDQ0ADQ0Njw0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDc8A
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQ/ZIEmU3qBIj9//
+SI/f/0iP3/9Ij9//SI/foEmU3SBJleGgW6Hp/1uh6f9boer/W6Hp/1uh6f9boen/W6Hp/1uh6f9b
+oen/W6Hp/1um5aBQk+EgAAAAAAAAAAAADQ0NPw0NDe8NDQ3/DQ0N/w0NDf8NDQ3/DQ0N/w0NDf8N
+DQ3/DQ0N/w0NDR8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AABKENkgSpXfoEmQ4P9JkOD/SZDg/0mQ4P9JkOCgSpXeIEuW4qBcoun/XKLq/1yi6v9cour/XKLq
+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
+/+AA///wAf//+Af///wf//////8=
+"@
 
-function Get-ImageFile {
-    Add-Type -AssemblyName System.Windows.Forms
-    $dialog = New-Object System.Windows.Forms.OpenFileDialog
-    $dialog.Title = "Seleccionar imagen de Raspberry Pi OS"
-    $dialog.Filter = "Imagenes (*.img;*.img.xz;*.zip)|*.img;*.img.xz;*.zip|Todos los archivos (*.*)|*.*"
-    $dialog.InitialDirectory = [Environment]::GetFolderPath("Downloads")
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
-    if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-        return $dialog.FileName
+function Get-IconFromBase64 {
+    param([string]$Base64)
+    try {
+        $bytes = [Convert]::FromBase64String($Base64)
+        $stream = [System.IO.MemoryStream]::new($bytes)
+        return [System.Drawing.Icon]::new($stream)
+    } catch {
+        return $null
     }
+}
+
+function Write-Log {
+    param(
+        [string]$Message,
+        [ValidateSet("Info", "Success", "Warning", "Error")]
+        [string]$Level = "Info"
+    )
+
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $logMessage = "[$timestamp] $Message"
+
+    if ($script:LogTextBox) {
+        $script:LogTextBox.Invoke([Action]{
+            $color = switch ($Level) {
+                "Success" { [System.Drawing.Color]::FromArgb(39, 174, 96) }
+                "Warning" { [System.Drawing.Color]::FromArgb(243, 156, 18) }
+                "Error"   { [System.Drawing.Color]::FromArgb(231, 76, 60) }
+                default   { [System.Drawing.Color]::FromArgb(44, 62, 80) }
+            }
+
+            $script:LogTextBox.SelectionStart = $script:LogTextBox.TextLength
+            $script:LogTextBox.SelectionColor = $color
+            $script:LogTextBox.AppendText("$logMessage`r`n")
+            $script:LogTextBox.ScrollToCaret()
+        })
+    }
+}
+
+function Update-Progress {
+    param(
+        [int]$Percent,
+        [string]$Status
+    )
+
+    if ($script:ProgressBar -and $script:StatusLabel) {
+        $script:MainForm.Invoke([Action]{
+            $script:ProgressBar.Value = [Math]::Min(100, [Math]::Max(0, $Percent))
+            $script:StatusLabel.Text = $Status
+        })
+    }
+}
+
+# ============================================================================
+# CORE FUNCTIONS
+# ============================================================================
+
+function Get-7ZipPath {
+    $scriptDir = $PSScriptRoot
+    if (-not $scriptDir) { $scriptDir = $PWD.Path }
+
+    $paths = @(
+        "$scriptDir\7za.exe",
+        "$env:ProgramFiles\7-Zip\7z.exe",
+        "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
+    )
+
+    foreach ($p in $paths) {
+        if (Test-Path $p) { return $p }
+    }
+
     return $null
+}
+
+function Install-7Zip {
+    $scriptDir = $PSScriptRoot
+    if (-not $scriptDir) { $scriptDir = $PWD.Path }
+
+    Write-Log "Descargando 7-Zip portable..." "Info"
+
+    $7zUrl = "https://www.7-zip.org/a/7za920.zip"
+    $7zZip = "$scriptDir\7za.zip"
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $7zUrl -OutFile $7zZip -UseBasicParsing
+        Expand-Archive -Path $7zZip -DestinationPath $scriptDir -Force
+        Remove-Item $7zZip -Force -ErrorAction SilentlyContinue
+
+        Write-Log "7-Zip instalado correctamente" "Success"
+        return "$scriptDir\7za.exe"
+    } catch {
+        Write-Log "Error descargando 7-Zip: $_" "Error"
+        return $null
+    }
 }
 
 function Expand-CompressedImage {
     param([string]$Path)
 
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    if (-not $scriptDir) { $scriptDir = $PWD }
-
     if ($Path -match '\.xz$') {
-        Write-Color "  Descomprimiendo archivo .xz..." Yellow
+        Write-Log "Descomprimiendo archivo .xz..." "Info"
+        Update-Progress -Percent 15 -Status "Descomprimiendo imagen..."
 
-        # Check for 7-Zip
-        $7zPaths = @(
-            "$scriptDir\7za.exe",
-            "$env:ProgramFiles\7-Zip\7z.exe",
-            "$env:ProgramFiles(x86)\7-Zip\7z.exe"
-        )
-
-        $7z = $null
-        foreach ($p in $7zPaths) {
-            if (Test-Path $p) { $7z = $p; break }
-        }
-
+        $7z = Get-7ZipPath
         if (-not $7z) {
-            Write-Color "  Descargando 7-Zip portable..." Yellow
-            $7zUrl = "https://www.7-zip.org/a/7za920.zip"
-            $7zZip = "$scriptDir\7za.zip"
-            Invoke-WebRequest -Uri $7zUrl -OutFile $7zZip -UseBasicParsing
-            Expand-Archive -Path $7zZip -DestinationPath $scriptDir -Force
-            Remove-Item $7zZip -Force
-            $7z = "$scriptDir\7za.exe"
+            $7z = Install-7Zip
+            if (-not $7z) {
+                throw "No se pudo obtener 7-Zip para descomprimir"
+            }
         }
 
         $outputDir = Split-Path -Parent $Path
-        & $7z x $Path -o"$outputDir" -y | Out-Null
+        $result = & $7z x $Path -o"$outputDir" -y 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Error descomprimiendo: $result"
+        }
+
+        Write-Log "Imagen descomprimida" "Success"
         return $Path -replace '\.xz$', ''
     }
     elseif ($Path -match '\.zip$') {
-        Write-Color "  Descomprimiendo archivo .zip..." Yellow
+        Write-Log "Descomprimiendo archivo .zip..." "Info"
+        Update-Progress -Percent 15 -Status "Descomprimiendo imagen..."
+
         $outputDir = Split-Path -Parent $Path
         Expand-Archive -Path $Path -DestinationPath $outputDir -Force
+
         $imgFile = Get-ChildItem -Path $outputDir -Filter "*.img" | Select-Object -First 1
+        if (-not $imgFile) {
+            throw "No se encontro archivo .img en el ZIP"
+        }
+
+        Write-Log "Imagen descomprimida" "Success"
         return $imgFile.FullName
     }
 
@@ -85,54 +310,59 @@ function Expand-CompressedImage {
 function Mount-BootPartition {
     param([string]$ImagePath)
 
-    Write-Color "  Montando particion de arranque..." Yellow
+    Write-Log "Montando imagen de disco..." "Info"
+    Update-Progress -Percent 30 -Status "Montando particion de arranque..."
 
-    # Use diskpart to mount the image
-    $mountPoint = "$env:TEMP\homepinas_boot"
-    New-Item -ItemType Directory -Path $mountPoint -Force | Out-Null
-
-    # Mount using Windows built-in tools
+    # Mount the image
     $disk = Mount-DiskImage -ImagePath $ImagePath -PassThru
-    $diskNumber = ($disk | Get-Disk).Number
-
-    # Get the first partition (boot partition - FAT32)
     Start-Sleep -Seconds 2
-    $partition = Get-Partition -DiskNumber $diskNumber | Where-Object { $_.Type -eq "FAT32" -or $_.Size -lt 1GB } | Select-Object -First 1
 
-    if ($partition) {
-        $driveLetter = $partition.DriveLetter
-        if (-not $driveLetter) {
-            $driveLetter = (Get-ChildItem function:[d-z]: -Name | Where-Object { -not (Test-Path $_) } | Select-Object -First 1) -replace ':'
-            $partition | Set-Partition -NewDriveLetter $driveLetter
-        }
-        return @{
-            DiskNumber = $diskNumber
-            DriveLetter = $driveLetter
-            Partition = $partition
-        }
+    $diskNumber = ($disk | Get-Disk).Number
+    Write-Log "Imagen montada como disco #$diskNumber" "Info"
+
+    # Find boot partition (FAT32, usually first partition < 1GB)
+    $partitions = Get-Partition -DiskNumber $diskNumber -ErrorAction SilentlyContinue
+    $bootPartition = $partitions | Where-Object {
+        $_.Type -eq "FAT32" -or $_.Size -lt 1GB
+    } | Select-Object -First 1
+
+    if (-not $bootPartition) {
+        throw "No se encontro la particion de arranque (FAT32)"
     }
 
-    throw "No se pudo encontrar la particion de arranque"
+    # Assign drive letter if needed
+    $driveLetter = $bootPartition.DriveLetter
+    if (-not $driveLetter) {
+        $available = [char[]](68..90) | Where-Object { -not (Test-Path "$_`:") } | Select-Object -First 1
+        $bootPartition | Set-Partition -NewDriveLetter $available
+        $driveLetter = $available
+    }
+
+    Write-Log "Particion montada en $driveLetter`:\" "Success"
+
+    return @{
+        DiskNumber = $diskNumber
+        DriveLetter = $driveLetter
+    }
 }
 
 function Add-FirstBootScript {
     param([string]$BootDrive)
 
-    Write-Color "  Agregando script de instalacion automatica..." Yellow
+    Write-Log "Configurando instalacion automatica..." "Info"
+    Update-Progress -Percent 50 -Status "Agregando scripts de instalacion..."
 
     $bootPath = "${BootDrive}:\"
 
-    # Create firstrun.sh script
+    # Create firstrun.sh
     $firstRunScript = @'
 #!/bin/bash
-
 # HomePiNAS First Boot Installer
 set +e
 
 LOGFILE="/boot/firmware/homepinas-install.log"
 MARKER="/boot/firmware/.homepinas-installed"
 
-# Redirect output
 exec > >(tee -a "$LOGFILE") 2>&1
 
 echo "========================================"
@@ -140,13 +370,11 @@ echo "HomePiNAS Automatic Installer"
 echo "Started: $(date)"
 echo "========================================"
 
-# Check if already installed
 if [ -f "$MARKER" ]; then
     echo "HomePiNAS already installed"
     exit 0
 fi
 
-# Wait for network
 echo "Waiting for network..."
 for i in $(seq 1 60); do
     if ping -c 1 github.com &>/dev/null; then
@@ -157,7 +385,6 @@ for i in $(seq 1 60); do
     sleep 2
 done
 
-# Install HomePiNAS
 echo ""
 echo "Starting HomePiNAS installation..."
 echo "This may take 10-15 minutes..."
@@ -170,7 +397,6 @@ if curl -fsSL https://raw.githubusercontent.com/juanlusoft/homepinas-v2/main/ins
     echo "========================================"
     touch "$MARKER"
 
-    # Remove firstrun from cmdline.txt
     mount -o remount,rw /boot/firmware
     sed -i 's| systemd.run=/boot/firmware/firstrun.sh||g' /boot/firmware/cmdline.txt
     sed -i 's| systemd.run_success_action=reboot||g' /boot/firmware/cmdline.txt
@@ -187,140 +413,473 @@ else
 fi
 '@
 
-    # Write firstrun.sh (Unix line endings)
+    # Write with Unix line endings
     $firstRunScript = $firstRunScript -replace "`r`n", "`n"
     [System.IO.File]::WriteAllText("$bootPath\firstrun.sh", $firstRunScript, [System.Text.UTF8Encoding]::new($false))
+    Write-Log "Script de instalacion creado" "Success"
 
-    # Modify cmdline.txt to run script on first boot
+    # Modify cmdline.txt
     $cmdlinePath = "$bootPath\cmdline.txt"
     if (Test-Path $cmdlinePath) {
-        $cmdline = Get-Content $cmdlinePath -Raw
-        $cmdline = $cmdline.Trim()
+        $cmdline = (Get-Content $cmdlinePath -Raw).Trim()
 
         if ($cmdline -notmatch "systemd.run=") {
             $cmdline += " systemd.run=/boot/firmware/firstrun.sh systemd.run_success_action=reboot"
             [System.IO.File]::WriteAllText($cmdlinePath, $cmdline, [System.Text.UTF8Encoding]::new($false))
-            Write-Color "  cmdline.txt modificado" Green
+            Write-Log "cmdline.txt modificado para auto-instalacion" "Success"
         }
     }
 
     # Enable SSH
     New-Item -ItemType File -Path "$bootPath\ssh" -Force | Out-Null
-    Write-Color "  SSH habilitado" Green
+    Write-Log "SSH habilitado" "Success"
 
-    # Set hostname via config
-    $configPath = "$bootPath\config.txt"
-    if (Test-Path $configPath) {
-        $config = Get-Content $configPath -Raw
-        if ($config -notmatch "hostname=") {
-            Add-Content -Path $configPath -Value "`n# HomePiNAS`nhostname=homepinas"
-        }
-    }
-
-    Write-Color "  Configuracion completada" Green
+    Update-Progress -Percent 70 -Status "Configuracion completada"
 }
 
 function Dismount-Image {
     param([int]$DiskNumber)
 
-    Write-Color "  Desmontando imagen..." Yellow
+    Write-Log "Desmontando imagen..." "Info"
+    Update-Progress -Percent 85 -Status "Desmontando imagen..."
 
     try {
-        $disk = Get-Disk -Number $DiskNumber -ErrorAction SilentlyContinue
-        if ($disk) {
-            # Remove drive letters first
-            Get-Partition -DiskNumber $DiskNumber -ErrorAction SilentlyContinue | ForEach-Object {
-                if ($_.DriveLetter) {
-                    Remove-PartitionAccessPath -DiskNumber $DiskNumber -PartitionNumber $_.PartitionNumber -AccessPath "$($_.DriveLetter):\" -ErrorAction SilentlyContinue
-                }
+        # Remove drive letters
+        Get-Partition -DiskNumber $DiskNumber -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.DriveLetter) {
+                Remove-PartitionAccessPath -DiskNumber $DiskNumber -PartitionNumber $_.PartitionNumber -AccessPath "$($_.DriveLetter):\" -ErrorAction SilentlyContinue
             }
         }
 
+        # Dismount all disk images
         Get-DiskImage | Where-Object { $_.Number -eq $DiskNumber } | Dismount-DiskImage -ErrorAction SilentlyContinue
+
+        Write-Log "Imagen desmontada correctamente" "Success"
     } catch {
-        # Try alternative method
         Get-DiskImage | Dismount-DiskImage -ErrorAction SilentlyContinue
     }
 }
 
-# Main execution
-Clear-Host
-Write-Banner
+function Start-ImageProcessing {
+    param([string]$ImageFile)
 
-# Get image file
-if (-not $ImagePath) {
-    Write-Color "  Selecciona la imagen de Raspberry Pi OS..." White
-    Write-Host ""
-    $ImagePath = Get-ImageFile
+    $script:ProcessButton.Enabled = $false
+    $script:SelectButton.Enabled = $false
+    $script:LogTextBox.Clear()
 
-    if (-not $ImagePath) {
-        Write-Color "  [CANCELADO] No se selecciono ninguna imagen" Red
-        exit 1
-    }
+    Write-Log "Iniciando procesamiento de imagen..." "Info"
+    Write-Log "Archivo: $ImageFile" "Info"
+
+    $job = Start-Job -ScriptBlock {
+        param($ImagePath, $ScriptRoot)
+
+        try {
+            # Import functions (simplified for job context)
+            $result = @{
+                Success = $false
+                OutputPath = ""
+                Error = ""
+            }
+
+            # Process image
+            $workingImage = $ImagePath
+
+            # Decompress if needed
+            if ($ImagePath -match '\.(xz|zip)$') {
+                if ($ImagePath -match '\.xz$') {
+                    $7zPaths = @(
+                        "$ScriptRoot\7za.exe",
+                        "$env:ProgramFiles\7-Zip\7z.exe",
+                        "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
+                    )
+                    $7z = $7zPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+                    if (-not $7z) {
+                        # Download 7-Zip
+                        $7zUrl = "https://www.7-zip.org/a/7za920.zip"
+                        $7zZip = "$ScriptRoot\7za.zip"
+                        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                        Invoke-WebRequest -Uri $7zUrl -OutFile $7zZip -UseBasicParsing
+                        Expand-Archive -Path $7zZip -DestinationPath $ScriptRoot -Force
+                        Remove-Item $7zZip -Force
+                        $7z = "$ScriptRoot\7za.exe"
+                    }
+
+                    $outputDir = Split-Path -Parent $ImagePath
+                    & $7z x $ImagePath -o"$outputDir" -y | Out-Null
+                    $workingImage = $ImagePath -replace '\.xz$', ''
+                }
+                elseif ($ImagePath -match '\.zip$') {
+                    $outputDir = Split-Path -Parent $ImagePath
+                    Expand-Archive -Path $ImagePath -DestinationPath $outputDir -Force
+                    $workingImage = (Get-ChildItem -Path $outputDir -Filter "*.img" | Select-Object -First 1).FullName
+                }
+            }
+
+            # Mount image
+            $disk = Mount-DiskImage -ImagePath $workingImage -PassThru
+            Start-Sleep -Seconds 3
+            $diskNumber = ($disk | Get-Disk).Number
+
+            # Find boot partition
+            $bootPartition = Get-Partition -DiskNumber $diskNumber | Where-Object { $_.Type -eq "FAT32" -or $_.Size -lt 1GB } | Select-Object -First 1
+
+            $driveLetter = $bootPartition.DriveLetter
+            if (-not $driveLetter) {
+                $available = [char[]](68..90) | Where-Object { -not (Test-Path "$_`:") } | Select-Object -First 1
+                $bootPartition | Set-Partition -NewDriveLetter $available
+                $driveLetter = $available
+                Start-Sleep -Seconds 1
+            }
+
+            $bootPath = "${driveLetter}:\"
+
+            # Create firstrun.sh
+            $firstRunScript = @'
+#!/bin/bash
+set +e
+LOGFILE="/boot/firmware/homepinas-install.log"
+MARKER="/boot/firmware/.homepinas-installed"
+exec > >(tee -a "$LOGFILE") 2>&1
+echo "HomePiNAS Automatic Installer - $(date)"
+if [ -f "$MARKER" ]; then exit 0; fi
+for i in $(seq 1 60); do ping -c 1 github.com &>/dev/null && break; sleep 2; done
+if curl -fsSL https://raw.githubusercontent.com/juanlusoft/homepinas-v2/main/install.sh | bash; then
+    touch "$MARKER"
+    mount -o remount,rw /boot/firmware
+    sed -i 's| systemd.run=/boot/firmware/firstrun.sh||g' /boot/firmware/cmdline.txt
+    sed -i 's| systemd.run_success_action=reboot||g' /boot/firmware/cmdline.txt
+    sync; sleep 10; reboot
+fi
+'@
+            $firstRunScript = $firstRunScript -replace "`r`n", "`n"
+            [System.IO.File]::WriteAllText("$bootPath\firstrun.sh", $firstRunScript, [System.Text.UTF8Encoding]::new($false))
+
+            # Modify cmdline.txt
+            $cmdlinePath = "$bootPath\cmdline.txt"
+            if (Test-Path $cmdlinePath) {
+                $cmdline = (Get-Content $cmdlinePath -Raw).Trim()
+                if ($cmdline -notmatch "systemd.run=") {
+                    $cmdline += " systemd.run=/boot/firmware/firstrun.sh systemd.run_success_action=reboot"
+                    [System.IO.File]::WriteAllText($cmdlinePath, $cmdline, [System.Text.UTF8Encoding]::new($false))
+                }
+            }
+
+            # Enable SSH
+            New-Item -ItemType File -Path "$bootPath\ssh" -Force | Out-Null
+
+            # Dismount
+            Start-Sleep -Seconds 1
+            Get-Partition -DiskNumber $diskNumber | ForEach-Object {
+                if ($_.DriveLetter) {
+                    Remove-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $_.PartitionNumber -AccessPath "$($_.DriveLetter):\" -ErrorAction SilentlyContinue
+                }
+            }
+            Get-DiskImage | Where-Object { $_.Number -eq $diskNumber } | Dismount-DiskImage
+
+            # Rename output
+            $outputPath = $workingImage -replace '\.img$', '-homepinas.img'
+            if ($workingImage -ne $outputPath) {
+                Move-Item -Path $workingImage -Destination $outputPath -Force
+            }
+
+            $result.Success = $true
+            $result.OutputPath = $outputPath
+
+        } catch {
+            $result.Success = $false
+            $result.Error = $_.Exception.Message
+
+            # Cleanup on error
+            try { Get-DiskImage | Dismount-DiskImage -ErrorAction SilentlyContinue } catch {}
+        }
+
+        return $result
+
+    } -ArgumentList $ImageFile, $PSScriptRoot
+
+    # Monitor job progress
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 500
+    $timer.Add_Tick({
+        if ($job.State -eq "Completed") {
+            $timer.Stop()
+            $result = Receive-Job -Job $job
+            Remove-Job -Job $job
+
+            if ($result.Success) {
+                Update-Progress -Percent 100 -Status "Completado!"
+                Write-Log "=" * 50 "Info"
+                Write-Log "IMAGEN CREADA EXITOSAMENTE" "Success"
+                Write-Log "=" * 50 "Info"
+                Write-Log "Archivo: $($result.OutputPath)" "Success"
+                Write-Log "" "Info"
+                Write-Log "Siguientes pasos:" "Info"
+                Write-Log "1. Graba la imagen en una SD con Raspberry Pi Imager" "Info"
+                Write-Log "2. Inserta la SD en tu Raspberry Pi" "Info"
+                Write-Log "3. HomePiNAS se instalara automaticamente" "Info"
+                Write-Log "4. Accede a: https://<ip-raspberry>:3001" "Info"
+
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Imagen creada exitosamente!`n`nArchivo:`n$($result.OutputPath)`n`nGrabala en una SD y arranca tu Raspberry Pi.",
+                    "HomePiNAS Image Builder",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Information
+                )
+            } else {
+                Update-Progress -Percent 0 -Status "Error"
+                Write-Log "ERROR: $($result.Error)" "Error"
+
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Error procesando la imagen:`n`n$($result.Error)",
+                    "HomePiNAS Image Builder",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Error
+                )
+            }
+
+            $script:ProcessButton.Enabled = $true
+            $script:SelectButton.Enabled = $true
+        }
+        elseif ($job.State -eq "Failed") {
+            $timer.Stop()
+            Write-Log "Error en el proceso" "Error"
+            $script:ProcessButton.Enabled = $true
+            $script:SelectButton.Enabled = $true
+        }
+    })
+
+    Update-Progress -Percent 10 -Status "Procesando..."
+    $timer.Start()
 }
 
-Write-Color "  Imagen seleccionada:" White
-Write-Color "  $ImagePath" Cyan
-Write-Host ""
+# ============================================================================
+# GUI CONSTRUCTION
+# ============================================================================
 
-# Check file exists
-if (-not (Test-Path $ImagePath)) {
-    Write-Color "  [ERROR] Archivo no encontrado: $ImagePath" Red
-    exit 1
+function Show-MainForm {
+    # Main Form
+    $script:MainForm = New-Object System.Windows.Forms.Form
+    $script:MainForm.Text = "HomePiNAS Image Builder v$script:Version"
+    $script:MainForm.Size = New-Object System.Drawing.Size(700, 600)
+    $script:MainForm.StartPosition = "CenterScreen"
+    $script:MainForm.FormBorderStyle = "FixedSingle"
+    $script:MainForm.MaximizeBox = $false
+    $script:MainForm.BackColor = $script:Colors.Background
+
+    # Set icon
+    $icon = Get-IconFromBase64 -Base64 $script:IconBase64
+    if ($icon) { $script:MainForm.Icon = $icon }
+
+    # Header Panel
+    $headerPanel = New-Object System.Windows.Forms.Panel
+    $headerPanel.Size = New-Object System.Drawing.Size(700, 100)
+    $headerPanel.Location = New-Object System.Drawing.Point(0, 0)
+    $headerPanel.BackColor = $script:Colors.Primary
+    $script:MainForm.Controls.Add($headerPanel)
+
+    # Title Label
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = "HomePiNAS Image Builder"
+    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.ForeColor = [System.Drawing.Color]::White
+    $titleLabel.AutoSize = $true
+    $titleLabel.Location = New-Object System.Drawing.Point(30, 20)
+    $headerPanel.Controls.Add($titleLabel)
+
+    # Subtitle Label
+    $subtitleLabel = New-Object System.Windows.Forms.Label
+    $subtitleLabel.Text = "Homelabs.club Edition - Crea imagenes personalizadas de Raspberry Pi OS"
+    $subtitleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $subtitleLabel.ForeColor = [System.Drawing.Color]::FromArgb(200, 255, 255, 255)
+    $subtitleLabel.AutoSize = $true
+    $subtitleLabel.Location = New-Object System.Drawing.Point(30, 58)
+    $headerPanel.Controls.Add($subtitleLabel)
+
+    # Content Panel
+    $contentPanel = New-Object System.Windows.Forms.Panel
+    $contentPanel.Size = New-Object System.Drawing.Size(660, 440)
+    $contentPanel.Location = New-Object System.Drawing.Point(20, 120)
+    $contentPanel.BackColor = $script:Colors.Surface
+    $script:MainForm.Controls.Add($contentPanel)
+
+    # Add rounded corners effect (border)
+    $contentPanel.BorderStyle = "FixedSingle"
+
+    # Step 1: Select Image
+    $step1Label = New-Object System.Windows.Forms.Label
+    $step1Label.Text = "1. Seleccionar imagen de Raspberry Pi OS"
+    $step1Label.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 11)
+    $step1Label.ForeColor = $script:Colors.TextPrimary
+    $step1Label.Location = New-Object System.Drawing.Point(20, 20)
+    $step1Label.AutoSize = $true
+    $contentPanel.Controls.Add($step1Label)
+
+    # File path textbox
+    $script:FilePathTextBox = New-Object System.Windows.Forms.TextBox
+    $script:FilePathTextBox.Size = New-Object System.Drawing.Size(500, 30)
+    $script:FilePathTextBox.Location = New-Object System.Drawing.Point(20, 50)
+    $script:FilePathTextBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:FilePathTextBox.ReadOnly = $true
+    $script:FilePathTextBox.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+    $script:FilePathTextBox.Text = "Ninguna imagen seleccionada..."
+    $contentPanel.Controls.Add($script:FilePathTextBox)
+
+    # Select button
+    $script:SelectButton = New-Object System.Windows.Forms.Button
+    $script:SelectButton.Text = "Examinar..."
+    $script:SelectButton.Size = New-Object System.Drawing.Size(110, 30)
+    $script:SelectButton.Location = New-Object System.Drawing.Point(530, 50)
+    $script:SelectButton.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $script:SelectButton.BackColor = $script:Colors.Primary
+    $script:SelectButton.ForeColor = [System.Drawing.Color]::White
+    $script:SelectButton.FlatStyle = "Flat"
+    $script:SelectButton.FlatAppearance.BorderSize = 0
+    $script:SelectButton.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $contentPanel.Controls.Add($script:SelectButton)
+
+    $script:SelectButton.Add_Click({
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Title = "Seleccionar imagen de Raspberry Pi OS"
+        $dialog.Filter = "Imagenes (*.img;*.img.xz;*.zip)|*.img;*.img.xz;*.zip|Todos los archivos (*.*)|*.*"
+        $dialog.InitialDirectory = [Environment]::GetFolderPath("Downloads")
+
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            $script:FilePathTextBox.Text = $dialog.FileName
+            $script:ProcessButton.Enabled = $true
+        }
+    })
+
+    # Supported formats info
+    $formatLabel = New-Object System.Windows.Forms.Label
+    $formatLabel.Text = "Formatos soportados: .img, .img.xz, .zip"
+    $formatLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $formatLabel.ForeColor = $script:Colors.TextSecondary
+    $formatLabel.Location = New-Object System.Drawing.Point(20, 85)
+    $formatLabel.AutoSize = $true
+    $contentPanel.Controls.Add($formatLabel)
+
+    # Download link
+    $downloadLink = New-Object System.Windows.Forms.LinkLabel
+    $downloadLink.Text = "Descargar Raspberry Pi OS desde raspberrypi.com"
+    $downloadLink.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $downloadLink.Location = New-Object System.Drawing.Point(20, 105)
+    $downloadLink.AutoSize = $true
+    $downloadLink.LinkColor = $script:Colors.Primary
+    $contentPanel.Controls.Add($downloadLink)
+
+    $downloadLink.Add_Click({
+        Start-Process "https://www.raspberrypi.com/software/operating-systems/"
+    })
+
+    # Progress section
+    $progressLabel = New-Object System.Windows.Forms.Label
+    $progressLabel.Text = "2. Progreso"
+    $progressLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 11)
+    $progressLabel.ForeColor = $script:Colors.TextPrimary
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 140)
+    $progressLabel.AutoSize = $true
+    $contentPanel.Controls.Add($progressLabel)
+
+    # Progress bar
+    $script:ProgressBar = New-Object System.Windows.Forms.ProgressBar
+    $script:ProgressBar.Size = New-Object System.Drawing.Size(620, 25)
+    $script:ProgressBar.Location = New-Object System.Drawing.Point(20, 170)
+    $script:ProgressBar.Style = "Continuous"
+    $contentPanel.Controls.Add($script:ProgressBar)
+
+    # Status label
+    $script:StatusLabel = New-Object System.Windows.Forms.Label
+    $script:StatusLabel.Text = "Esperando..."
+    $script:StatusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $script:StatusLabel.ForeColor = $script:Colors.TextSecondary
+    $script:StatusLabel.Location = New-Object System.Drawing.Point(20, 200)
+    $script:StatusLabel.AutoSize = $true
+    $contentPanel.Controls.Add($script:StatusLabel)
+
+    # Log section
+    $logLabel = New-Object System.Windows.Forms.Label
+    $logLabel.Text = "3. Registro de actividad"
+    $logLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 11)
+    $logLabel.ForeColor = $script:Colors.TextPrimary
+    $logLabel.Location = New-Object System.Drawing.Point(20, 230)
+    $logLabel.AutoSize = $true
+    $contentPanel.Controls.Add($logLabel)
+
+    # Log textbox
+    $script:LogTextBox = New-Object System.Windows.Forms.RichTextBox
+    $script:LogTextBox.Size = New-Object System.Drawing.Size(620, 120)
+    $script:LogTextBox.Location = New-Object System.Drawing.Point(20, 260)
+    $script:LogTextBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+    $script:LogTextBox.ReadOnly = $true
+    $script:LogTextBox.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+    $script:LogTextBox.ForeColor = [System.Drawing.Color]::White
+    $script:LogTextBox.BorderStyle = "None"
+    $contentPanel.Controls.Add($script:LogTextBox)
+
+    # Process button
+    $script:ProcessButton = New-Object System.Windows.Forms.Button
+    $script:ProcessButton.Text = "CREAR IMAGEN HOMEPINAS"
+    $script:ProcessButton.Size = New-Object System.Drawing.Size(620, 45)
+    $script:ProcessButton.Location = New-Object System.Drawing.Point(20, 390)
+    $script:ProcessButton.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+    $script:ProcessButton.BackColor = $script:Colors.Success
+    $script:ProcessButton.ForeColor = [System.Drawing.Color]::White
+    $script:ProcessButton.FlatStyle = "Flat"
+    $script:ProcessButton.FlatAppearance.BorderSize = 0
+    $script:ProcessButton.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $script:ProcessButton.Enabled = $false
+    $contentPanel.Controls.Add($script:ProcessButton)
+
+    $script:ProcessButton.Add_Click({
+        $imagePath = $script:FilePathTextBox.Text
+        if ($imagePath -and (Test-Path $imagePath)) {
+            Start-ImageProcessing -ImageFile $imagePath
+        } else {
+            [System.Windows.Forms.MessageBox]::Show(
+                "Por favor, selecciona una imagen valida primero.",
+                "HomePiNAS Image Builder",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Warning
+            )
+        }
+    })
+
+    # Footer
+    $footerLabel = New-Object System.Windows.Forms.Label
+    $footerLabel.Text = "homelabs.club - github.com/juanlusoft/homepinas-v2"
+    $footerLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $footerLabel.ForeColor = $script:Colors.TextSecondary
+    $footerLabel.Location = New-Object System.Drawing.Point(20, 570)
+    $footerLabel.AutoSize = $true
+    $script:MainForm.Controls.Add($footerLabel)
+
+    # Check for admin
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Write-Log "ADVERTENCIA: Esta aplicacion requiere permisos de Administrador" "Warning"
+        Write-Log "Reinicia como Administrador para continuar" "Warning"
+        $script:SelectButton.Enabled = $false
+        $script:ProcessButton.Enabled = $false
+    } else {
+        Write-Log "Aplicacion iniciada correctamente" "Success"
+        Write-Log "Selecciona una imagen de Raspberry Pi OS para comenzar" "Info"
+    }
+
+    # Show form
+    [void]$script:MainForm.ShowDialog()
 }
 
-try {
-    # Decompress if needed
-    if ($ImagePath -match '\.(xz|zip)$') {
-        $ImagePath = Expand-CompressedImage -Path $ImagePath
-        Write-Color "  Imagen descomprimida: $ImagePath" Green
-    }
+# ============================================================================
+# MAIN ENTRY POINT
+# ============================================================================
 
-    # Mount boot partition
-    Write-Host ""
-    $mountInfo = Mount-BootPartition -ImagePath $ImagePath
-    Write-Color "  Particion montada en $($mountInfo.DriveLetter):\" Green
-
-    # Add first boot script
-    Write-Host ""
-    Add-FirstBootScript -BootDrive $mountInfo.DriveLetter
-
-    # Dismount
-    Write-Host ""
-    Start-Sleep -Seconds 1
-    Dismount-Image -DiskNumber $mountInfo.DiskNumber
-    Write-Color "  Imagen desmontada" Green
-
-    # Rename output file
-    $outputPath = $ImagePath -replace '\.img$', '-homepinas.img'
-    if ($ImagePath -ne $outputPath) {
-        Move-Item -Path $ImagePath -Destination $outputPath -Force
-    }
-
-    Write-Host ""
-    Write-Color "  ╔═══════════════════════════════════════════════════════════╗" Green
-    Write-Color "  ║              IMAGEN CREADA EXITOSAMENTE                   ║" Green
-    Write-Color "  ╚═══════════════════════════════════════════════════════════╝" Green
-    Write-Host ""
-    Write-Color "  Imagen lista: " White
-    Write-Color "  $outputPath" Cyan
-    Write-Host ""
-    Write-Color "  Siguientes pasos:" Yellow
-    Write-Color "  1. Graba la imagen en una SD con Raspberry Pi Imager o balenaEtcher" White
-    Write-Color "  2. Inserta la SD en tu Raspberry Pi y enciendela" White
-    Write-Color "  3. HomePiNAS se instalara automaticamente (5-15 min)" White
-    Write-Color "  4. Accede al dashboard en: https://<ip-raspberry>:3001" White
-    Write-Host ""
-
-} catch {
-    Write-Host ""
-    Write-Color "  [ERROR] $($_.Exception.Message)" Red
-    Write-Host ""
-
-    # Try to cleanup
-    try {
-        Get-DiskImage | Dismount-DiskImage -ErrorAction SilentlyContinue
-    } catch {}
-
-    exit 1
+if ($Silent -and $ImagePath) {
+    # Silent mode for command-line usage
+    Write-Host "HomePiNAS Image Builder v$script:Version" -ForegroundColor Cyan
+    Write-Host "Procesando: $ImagePath" -ForegroundColor White
+    # Add silent processing logic here
+} else {
+    # GUI mode
+    Show-MainForm
 }
