@@ -340,12 +340,6 @@ install_docker() {
         fi
     fi
 
-    # For stable releases, try docker.io first
-    if apt-get install -y $APT_OPTS docker.io 2>/dev/null; then
-        echo -e "${GREEN}Docker installed from system repos${NC}"
-        return 0
-    fi
-
     # Fallback to Docker official repo
     echo -e "${YELLOW}Trying Docker official repository...${NC}"
     install -m 0755 -d /etc/apt/keyrings
@@ -376,7 +370,20 @@ install_docker() {
     return 1
 }
 
-install_docker || echo -e "${YELLOW}Continuing without Docker...${NC}"
+configure_docker_permissions() {
+   # Configure user permissions
+   echo -e "${BLUE}Configuring user permissions...${NC}"
+   groupadd docker || true
+   usermod -aG docker $REAL_USER 2>/dev/null
+   newgrp docker
+   return 0
+}
+
+if install_docker 2>/dev/null; then
+   configure_docker_permissions
+else
+   echo -e "${YELLOW}Continuing without Docker...${NC}"
+fi
 
 # Fix any broken packages
 apt-get install -f -y $APT_OPTS 2>/dev/null || true
@@ -910,10 +917,6 @@ else
     echo -e "${YELLOW}Skipping fan control (not a Raspberry Pi)${NC}"
 fi  # End IS_RASPBERRY_PI check
 
-# Configure user permissions
-echo -e "${BLUE}Configuring user permissions...${NC}"
-usermod -aG docker $REAL_USER 2>/dev/null || true
-
 # Sudoers for system control, fan PWM, storage and Samba management
 cat > /etc/sudoers.d/homepinas <<EOF
 # HomePiNAS Sudoers - SECURITY HARDENED v1.5.2
@@ -1131,12 +1134,11 @@ if [ "$NEEDS_REBOOT" -eq 1 ]; then
 fi
 
 echo -e "Next steps:"
-echo -e "1. Logout and Login again for Docker permissions"
 if [ "$NEEDS_REBOOT" -eq 1 ]; then
-    echo -e "2. ${RED}REBOOT${NC} to enable fan controller hardware"
-    echo -e "3. Access the dashboard and configure your storage pool"
-else
+    echo -e "1. ${RED}REBOOT${NC} to enable fan controller hardware"
     echo -e "2. Access the dashboard and configure your storage pool"
+else
+    echo -e "1. Access the dashboard and configure your storage pool"
 fi
 echo -e ""
 echo -e "${BLUE}Logs:${NC}"
