@@ -618,7 +618,8 @@ if (saveStorageBtn) {
             // Update progress message
             const progressMsg = document.getElementById('progress-message');
             if (progressMsg) {
-                progressMsg.innerHTML = `✅ <strong>Storage Pool Created!</strong><br>Pool mounted at: ${data.poolMount}`;
+                // SECURITY: Escape poolMount to prevent XSS
+                progressMsg.innerHTML = `✅ <strong>Storage Pool Created!</strong><br>Pool mounted at: ${escapeHtml(data.poolMount)}`;
             }
 
             // Show continue button
@@ -1873,7 +1874,8 @@ async function renderNetworkManager() {
         serviceH4.textContent = service.name || 'Unknown';
         const statusInfo = document.createElement('span');
         statusInfo.style.fontSize = '0.75rem';
-        statusInfo.innerHTML = `<span class="status-dot ${isOnline ? 'status-check-online' : 'status-check-offline'}"></span>${(service.status || 'unknown').toUpperCase()}`;
+        // SECURITY: Escape service.status to prevent XSS
+        statusInfo.innerHTML = `<span class="status-dot ${isOnline ? 'status-check-online' : 'status-check-offline'}"></span>${escapeHtml((service.status || 'unknown').toUpperCase())}`;
         headerInfo.appendChild(serviceH4);
         headerInfo.appendChild(statusInfo);
 

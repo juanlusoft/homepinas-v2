@@ -7,7 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { exec, execSync } = require('child_process');
+const { exec, execSync, execFileSync } = require('child_process');
 const path = require('path');
 
 const { requireAuth } = require('../middleware/auth');
@@ -16,6 +16,7 @@ const { logSecurityEvent } = require('../utils/security');
 
 const INSTALL_DIR = '/opt/homepinas';
 const REPO_URL = 'https://github.com/juanlusoft/homepinas-v2.git';
+const EXPECTED_REMOTE = 'github.com/juanlusoft/homepinas-v2'; // SECURITY: Expected repo pattern
 
 // Check for updates
 router.get('/check', requireAuth, async (req, res) => {
@@ -30,22 +31,34 @@ router.get('/check', requireAuth, async (req, res) => {
         let changelog = '';
 
         try {
-            // Fetch remote tags/version
-            const remoteInfo = execSync(
-                `cd ${INSTALL_DIR} && git fetch origin --quiet && git log HEAD..origin/main --oneline 2>/dev/null | head -5`,
-                { encoding: 'utf8', timeout: 30000 }
-            ).trim();
+            // SECURITY: Use execFileSync with explicit arguments
+            execFileSync('git', ['fetch', 'origin', '--quiet'], {
+                cwd: INSTALL_DIR,
+                encoding: 'utf8',
+                timeout: 30000
+            });
+
+            // Get commits ahead of current HEAD
+            const remoteInfo = execFileSync('git', ['log', 'HEAD..origin/main', '--oneline'], {
+                cwd: INSTALL_DIR,
+                encoding: 'utf8',
+                timeout: 10000
+            }).trim();
+
+            // Limit to first 5 lines
+            const remoteLines = remoteInfo.split('\n').slice(0, 5).join('\n');
 
             if (remoteInfo) {
                 updateAvailable = true;
-                changelog = remoteInfo;
+                changelog = remoteLines;
 
                 // Try to get latest version from remote package.json
                 try {
-                    const remotePackage = execSync(
-                        `cd ${INSTALL_DIR} && git show origin/main:package.json 2>/dev/null`,
-                        { encoding: 'utf8', timeout: 10000 }
-                    );
+                    const remotePackage = execFileSync('git', ['show', 'origin/main:package.json'], {
+                        cwd: INSTALL_DIR,
+                        encoding: 'utf8',
+                        timeout: 10000
+                    });
                     const remotePkg = JSON.parse(remotePackage);
                     latestVersion = remotePkg.version;
                 } catch (e) {
@@ -74,6 +87,29 @@ router.get('/check', requireAuth, async (req, res) => {
 router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
     logSecurityEvent('UPDATE_STARTED', { user: req.user.username }, req.ip);
 
+    // SECURITY: Verify we're updating from the expected repository
+    try {
+        const remoteUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
+            cwd: INSTALL_DIR,
+            encoding: 'utf8',
+            timeout: 5000
+        }).trim();
+
+        if (!remoteUrl.includes(EXPECTED_REMOTE)) {
+            logSecurityEvent('UPDATE_REJECTED_WRONG_REPO', { remoteUrl, user: req.user.username }, req.ip);
+            return res.status(400).json({
+                success: false,
+                error: 'Update rejected: Repository does not match expected source'
+            });
+        }
+    } catch (e) {
+        logSecurityEvent('UPDATE_REJECTED_VERIFY_FAILED', { error: e.message, user: req.user.username }, req.ip);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to verify update source'
+        });
+    }
+
     // Send response immediately, update will happen in background
     res.json({
         success: true,
@@ -85,16 +121,23 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
         try {
             console.log('[UPDATE] Starting system update...');
 
-            // 1. Pull latest changes
+            // 1. Pull latest changes - using execFileSync where possible
             console.log('[UPDATE] Pulling latest changes from GitHub...');
-            execSync(`cd ${INSTALL_DIR} && git fetch origin && git reset --hard origin/main`, {
+            execFileSync('git', ['fetch', 'origin'], {
+                cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 60000
+            });
+            execFileSync('git', ['reset', '--hard', 'origin/main'], {
+                cwd: INSTALL_DIR,
+                encoding: 'utf8',
+                timeout: 30000
             });
 
             // 2. Install/update dependencies
             console.log('[UPDATE] Installing dependencies...');
-            execSync(`cd ${INSTALL_DIR} && npm install --production`, {
+            execFileSync('npm', ['install', '--production'], {
+                cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 120000
             });
@@ -121,21 +164,40 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
 // Get update log/status
 router.get('/status', requireAuth, (req, res) => {
     try {
-        // Get git log of recent changes
-        const log = execSync(
-            `cd ${INSTALL_DIR} && git log --oneline -10 2>/dev/null || echo "No git history"`,
-            { encoding: 'utf8' }
-        ).trim();
+        // SECURITY: Use execFileSync with explicit arguments
+        let log = 'No git history';
+        let currentBranch = 'unknown';
+        let lastCommit = 'unknown';
 
-        const currentBranch = execSync(
-            `cd ${INSTALL_DIR} && git branch --show-current 2>/dev/null || echo "unknown"`,
-            { encoding: 'utf8' }
-        ).trim();
+        try {
+            log = execFileSync('git', ['log', '--oneline', '-10'], {
+                cwd: INSTALL_DIR,
+                encoding: 'utf8',
+                timeout: 10000
+            }).trim();
+        } catch (e) {
+            // Git log failed
+        }
 
-        const lastCommit = execSync(
-            `cd ${INSTALL_DIR} && git log -1 --format="%h %s (%cr)" 2>/dev/null || echo "unknown"`,
-            { encoding: 'utf8' }
-        ).trim();
+        try {
+            currentBranch = execFileSync('git', ['branch', '--show-current'], {
+                cwd: INSTALL_DIR,
+                encoding: 'utf8',
+                timeout: 5000
+            }).trim();
+        } catch (e) {
+            // Branch check failed
+        }
+
+        try {
+            lastCommit = execFileSync('git', ['log', '-1', '--format=%h %s (%cr)'], {
+                cwd: INSTALL_DIR,
+                encoding: 'utf8',
+                timeout: 5000
+            }).trim();
+        } catch (e) {
+            // Last commit check failed
+        }
 
         res.json({
             branch: currentBranch,
