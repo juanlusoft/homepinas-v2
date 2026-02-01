@@ -3,18 +3,57 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>HomePiNAS | Centro de Control Premium</title>
-    <link rel="icon" type="image/svg+xml" href="frontend/logo.svg">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="application-name" content="HomePiNAS">
+    <meta name="description" content="Premium Dashboard for Your Home NAS - Manage Docker, Storage, Network and System">
+    <meta name="theme-color" content="#84cc16" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="HomePiNAS">
+    <meta name="msapplication-TileColor" content="#84cc16">
+    <meta name="msapplication-config" content="/browserconfig.xml">
+    <meta name="format-detection" content="telephone=no">
+    
+    <!-- Favicons & Icons -->
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="mask-icon" href="icons/icon.svg" color="#84cc16">
+    <link rel="shortcut icon" href="frontend/logo.svg">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Preconnect for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    
+    <!-- Stylesheets -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="frontend/style.css">
+    <link rel="stylesheet" href="frontend/responsive.css">
     <!-- xterm.js for web terminal -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
 </head>
 
 <body>
+    <!-- Mobile Menu Toggle (Hamburger) -->
+    <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Abrir menú" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
     <!-- Settings Controls (Theme + Language) -->
     <div class="settings-controls" id="settings-controls">
         <button class="settings-btn" id="lang-toggle" title="Cambiar idioma">
@@ -355,6 +394,95 @@
         })();
     </script>
     <script type="module" src="frontend/main.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('[PWA] Service Worker registered:', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('[PWA] Service Worker update found');
+                            
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New version available
+                                    console.log('[PWA] New version available');
+                                    // Could show update notification here
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('[PWA] Service Worker registration failed:', error);
+                    });
+            });
+        }
+
+        // Mobile Menu Toggle Handler
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuToggle = document.getElementById('mobile-menu-toggle');
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            
+            function toggleMobileMenu() {
+                const isOpen = sidebar?.classList.toggle('open');
+                menuToggle?.classList.toggle('active', isOpen);
+                overlay?.classList.toggle('active', isOpen);
+                menuToggle?.setAttribute('aria-expanded', isOpen);
+                
+                // Prevent body scroll when menu is open
+                document.body.style.overflow = isOpen ? 'hidden' : '';
+            }
+            
+            function closeMobileMenu() {
+                sidebar?.classList.remove('open');
+                menuToggle?.classList.remove('active');
+                overlay?.classList.remove('active');
+                menuToggle?.setAttribute('aria-expanded', 'false');
+                document.body.style.overflow = '';
+            }
+            
+            menuToggle?.addEventListener('click', toggleMobileMenu);
+            overlay?.addEventListener('click', closeMobileMenu);
+            
+            // Close menu when clicking nav links
+            document.querySelectorAll('.nav-links li').forEach(link => {
+                link.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        closeMobileMenu();
+                    }
+                });
+            });
+            
+            // Close menu on window resize if larger than mobile
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 768) {
+                    closeMobileMenu();
+                }
+            });
+            
+            // Handle escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && sidebar?.classList.contains('open')) {
+                    closeMobileMenu();
+                }
+            });
+        });
+
+        // PWA Install Prompt Handler
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('[PWA] Install prompt available');
+        });
+    </script>
 </body>
 
 </html>

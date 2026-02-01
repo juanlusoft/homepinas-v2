@@ -7,7 +7,7 @@
 set -e
 
 # Version - CHANGE THIS FOR EACH RELEASE
-VERSION="2.1.1"
+VERSION="2.2.0"
 
 # Colors
 RED='\033[0;31m'
@@ -279,6 +279,9 @@ BASE_PACKAGES=(
     "sudo"
     "parted"
     "python3"
+    "avahi-daemon"
+    "avahi-utils"
+    "libnss-mdns"
 )
 
 # Packages that might have different names
@@ -548,6 +551,118 @@ else
     echo -e "${YELLOW}Skipping Samba configuration (not installed)${NC}"
     # Still create sambashare group for later use
     getent group sambashare > /dev/null || groupadd sambashare
+fi
+
+#######################################
+# PHASE 5.5: CONFIGURE mDNS / AVAHI
+#######################################
+echo -e "${BLUE}[5.5/7] Configuring mDNS (Avahi)...${NC}"
+
+# Configure Avahi for local network discovery
+if command -v avahi-daemon &> /dev/null; then
+    echo -e "${BLUE}Setting up mDNS/Zeroconf discovery...${NC}"
+    
+    # Create Avahi services directory
+    mkdir -p /etc/avahi/services
+    
+    # Install HomePiNAS service file
+    cat > /etc/avahi/services/homepinas.service <<'AVAHIEOF'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  HomePiNAS mDNS/Zeroconf Service Configuration
+  This file announces HomePiNAS on the local network as homepinas.local
+  Version: 2.2.0
+-->
+<service-group>
+  <name replace-wildcards="yes">HomePiNAS on %h</name>
+
+  <!-- HTTP Service (port 3000) -->
+  <service>
+    <type>_http._tcp</type>
+    <port>3000</port>
+    <txt-record>path=/</txt-record>
+    <txt-record>version=2.2.0</txt-record>
+    <txt-record>product=HomePiNAS</txt-record>
+  </service>
+
+  <!-- HTTPS Service (port 3001) -->
+  <service>
+    <type>_https._tcp</type>
+    <port>3001</port>
+    <txt-record>path=/</txt-record>
+    <txt-record>version=2.2.0</txt-record>
+    <txt-record>product=HomePiNAS</txt-record>
+  </service>
+
+  <!-- Web Admin Interface -->
+  <service>
+    <type>_http-alt._tcp</type>
+    <port>3001</port>
+    <txt-record>txtvers=1</txt-record>
+    <txt-record>type=NAS Dashboard</txt-record>
+  </service>
+
+  <!-- SMB/CIFS File Sharing -->
+  <service>
+    <type>_smb._tcp</type>
+    <port>445</port>
+  </service>
+
+  <!-- Device Info Service -->
+  <service>
+    <type>_device-info._tcp</type>
+    <port>0</port>
+    <txt-record>model=HomePiNAS</txt-record>
+  </service>
+</service-group>
+AVAHIEOF
+
+    # Configure Avahi daemon
+    if [ -f /etc/avahi/avahi-daemon.conf ]; then
+        # Enable publishing
+        sed -i 's/^#*publish-workstation=.*/publish-workstation=yes/' /etc/avahi/avahi-daemon.conf 2>/dev/null || true
+        sed -i 's/^#*publish-hinfo=.*/publish-hinfo=yes/' /etc/avahi/avahi-daemon.conf 2>/dev/null || true
+        
+        # Ensure IPv4 is enabled
+        sed -i 's/^#*use-ipv4=.*/use-ipv4=yes/' /etc/avahi/avahi-daemon.conf 2>/dev/null || true
+    fi
+
+    # Configure NSS for mDNS resolution
+    if [ -f /etc/nsswitch.conf ]; then
+        if ! grep -q "mdns" /etc/nsswitch.conf; then
+            # Add mdns4_minimal to hosts line
+            sed -i 's/^hosts:.*/hosts:          files mdns4_minimal [NOTFOUND=return] dns/' /etc/nsswitch.conf
+            echo -e "${GREEN}mDNS name resolution configured${NC}"
+        fi
+    fi
+
+    # Set hostname to homepinas if not already set
+    CURRENT_HOSTNAME=$(hostname)
+    if [ "$CURRENT_HOSTNAME" != "homepinas" ]; then
+        echo -e "${YELLOW}Note: Current hostname is '$CURRENT_HOSTNAME'${NC}"
+        echo -e "${YELLOW}To access via homepinas.local, you may want to change hostname:${NC}"
+        echo -e "  sudo hostnamectl set-hostname homepinas"
+    fi
+
+    # Enable and start Avahi
+    systemctl enable avahi-daemon
+    systemctl restart avahi-daemon || true
+
+    echo -e "${GREEN}mDNS/Avahi configured${NC}"
+    echo -e "${CYAN}Your NAS will be discoverable as: ${CURRENT_HOSTNAME}.local${NC}"
+else
+    echo -e "${YELLOW}Skipping mDNS configuration (avahi-daemon not installed)${NC}"
+fi
+
+# Try to install WSDD for Windows discovery (optional)
+echo -e "${BLUE}Installing WSDD for Windows network discovery...${NC}"
+if apt-get install -y $APT_OPTS wsdd 2>/dev/null; then
+    systemctl enable wsdd
+    systemctl start wsdd || true
+    echo -e "${GREEN}WSDD (Windows discovery) configured${NC}"
+else
+    echo -e "${YELLOW}WSDD not available - Windows may need IP address to find NAS${NC}"
 fi
 
 # Create mount directories
@@ -1082,9 +1197,11 @@ echo -e "${GREEN}      HomePiNAS v${VERSION}                  ${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo -e ""
 IP_ADDR=$(hostname -I | awk '{print $1}')
+CURRENT_HOSTNAME=$(hostname)
 echo -e "${YELLOW}Dashboard Access:${NC}"
-echo -e "  HTTPS (Recommended): ${GREEN}https://${IP_ADDR}:3001${NC}"
-echo -e "  HTTP  (Fallback):    ${BLUE}http://${IP_ADDR}:3000${NC}"
+echo -e "  ${CYAN}mDNS (Local):${NC}      ${GREEN}https://${CURRENT_HOSTNAME}.local:3001${NC}"
+echo -e "  HTTPS (IP):         ${GREEN}https://${IP_ADDR}:3001${NC}"
+echo -e "  HTTP  (Fallback):   ${BLUE}http://${IP_ADDR}:3000${NC}"
 echo -e ""
 echo -e "${YELLOW}Note:${NC} Your browser will show a certificate warning for HTTPS."
 echo -e "      This is normal for self-signed certificates. Click 'Advanced'"
@@ -1092,6 +1209,8 @@ echo -e "      and 'Proceed' to access the dashboard securely."
 echo -e ""
 echo -e "${YELLOW}Features enabled:${NC}"
 echo -e "  - ${GREEN}HTTPS${NC} with self-signed certificates"
+echo -e "  - ${GREEN}PWA${NC} Progressive Web App (install on mobile/desktop)"
+echo -e "  - ${GREEN}mDNS${NC} Local network discovery (${CURRENT_HOSTNAME}.local)"
 echo -e "  - Bcrypt password hashing"
 echo -e "  - ${GREEN}Persistent sessions${NC} (SQLite-backed)"
 echo -e "  - Rate limiting protection"
@@ -1102,6 +1221,7 @@ echo -e "  - ${GREEN}OTA updates${NC} from dashboard"
 echo -e "  - ${GREEN}SnapRAID${NC} parity protection"
 echo -e "  - ${GREEN}MergerFS${NC} disk pooling"
 echo -e "  - ${GREEN}Samba${NC} network file sharing"
+echo -e "  - ${GREEN}Responsive UI${NC} for mobile devices"
 echo -e ""
 echo -e "${YELLOW}Storage:${NC}"
 echo -e "  - Data disks mount: ${STORAGE_MOUNT_BASE}/disk[1-6]"

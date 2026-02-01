@@ -1,0 +1,52 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  HomePiNAS mDNS/Zeroconf Service Configuration
+  This file announces HomePiNAS on the local network as homepinas.local
+  
+  Install to: /etc/avahi/services/homepinas.service
+  Version: 2.2.0
+-->
+<service-group>
+  <!-- Service name visible to clients -->
+  <name replace-wildcards="yes">HomePiNAS on %h</name>
+
+  <!-- HTTP Service (port 3000) -->
+  <service>
+    <type>_http._tcp</type>
+    <port>3000</port>
+    <txt-record>path=/</txt-record>
+    <txt-record>version=2.2.0</txt-record>
+    <txt-record>product=HomePiNAS</txt-record>
+  </service>
+
+  <!-- HTTPS Service (port 3001) -->
+  <service>
+    <type>_https._tcp</type>
+    <port>3001</port>
+    <txt-record>path=/</txt-record>
+    <txt-record>version=2.2.0</txt-record>
+    <txt-record>product=HomePiNAS</txt-record>
+  </service>
+
+  <!-- Web Admin Interface -->
+  <service>
+    <type>_http-alt._tcp</type>
+    <port>3001</port>
+    <txt-record>txtvers=1</txt-record>
+    <txt-record>type=NAS Dashboard</txt-record>
+  </service>
+
+  <!-- SMB/CIFS File Sharing -->
+  <service>
+    <type>_smb._tcp</type>
+    <port>445</port>
+  </service>
+
+  <!-- Device Info Service -->
+  <service>
+    <type>_device-info._tcp</type>
+    <port>0</port>
+    <txt-record>model=HomePiNAS</txt-record>
+  </service>
+</service-group>
