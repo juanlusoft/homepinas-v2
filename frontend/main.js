@@ -1425,14 +1425,14 @@ async function renderDockerManager() {
             const actionsRow = document.createElement('div');
             actionsRow.className = 'docker-actions-row';
 
-            if (isRunning) {
-                // Logs button
-                const logsBtn = document.createElement('button');
-                logsBtn.className = 'docker-action-btn logs';
-                logsBtn.innerHTML = '📜 ' + t('docker.viewLogs', 'Logs');
-                logsBtn.addEventListener('click', () => openContainerLogs(container.id, container.name));
-                actionsRow.appendChild(logsBtn);
+            // Logs button (always show, works for running and stopped)
+            const logsBtn = document.createElement('button');
+            logsBtn.className = 'docker-action-btn logs';
+            logsBtn.innerHTML = '📜 ' + t('docker.viewLogs', 'Logs');
+            logsBtn.addEventListener('click', () => openContainerLogs(container.id, container.name));
+            actionsRow.appendChild(logsBtn);
 
+            if (isRunning) {
                 // Open Web button (if has public ports)
                 const webPort = container.ports?.find(p => p.public);
                 if (webPort) {
@@ -1444,15 +1444,15 @@ async function renderDockerManager() {
                     });
                     actionsRow.appendChild(webBtn);
                 }
-            } else {
-                // Edit compose button (for stopped containers with compose)
-                if (container.compose) {
-                    const editBtn = document.createElement('button');
-                    editBtn.className = 'docker-action-btn edit';
-                    editBtn.innerHTML = '✏️ ' + t('docker.editCompose', 'Editar');
-                    editBtn.addEventListener('click', () => openEditComposeModal(container.compose.name));
-                    actionsRow.appendChild(editBtn);
-                }
+            }
+
+            // Edit compose button (always show if container has compose file)
+            if (container.compose) {
+                const editBtn = document.createElement('button');
+                editBtn.className = 'docker-action-btn edit';
+                editBtn.innerHTML = '✏️ ' + t('docker.editCompose', 'Editar');
+                editBtn.addEventListener('click', () => openEditComposeModal(container.compose.name));
+                actionsRow.appendChild(editBtn);
             }
 
             if (actionsRow.children.length > 0) {
@@ -3146,7 +3146,7 @@ async function openContainerLogs(containerId, containerName) {
         <div class="glass-card logs-modal-content">
             <header class="modal-header" style="padding: 15px 20px; border-bottom: 1px solid var(--card-border);">
                 <h3>📜 Logs: ${escapeHtml(containerName)}</h3>
-                <button class="btn-close" onclick="this.closest('.modal').remove()">&times;</button>
+                <button id="close-logs-modal" class="btn-close">&times;</button>
             </header>
             <div class="logs-container" id="logs-content">
                 <span style="color: var(--text-dim);">${t('common.loading', 'Cargando...')}</span>
@@ -3155,8 +3155,15 @@ async function openContainerLogs(containerId, containerName) {
     `;
     document.body.appendChild(modal);
 
+    // Close handlers
+    const closeModal = () => modal.remove();
+    document.getElementById('close-logs-modal').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
     try {
-        const res = await authFetch(`${API_BASE}/docker/logs/${containerId}?tail=200`);
+        const res = await authFetch(`${API_BASE}/docker/logs/${encodeURIComponent(containerId)}?tail=200`);
         const data = await res.json();
         
         const logsEl = document.getElementById('logs-content');
@@ -3179,11 +3186,14 @@ window.openContainerLogs = openContainerLogs;
 
 async function saveContainerNotes(containerId, notes) {
     try {
-        const res = await authFetch(`${API_BASE}/docker/notes/${containerId}`, {
+        const res = await authFetch(`${API_BASE}/docker/notes/${encodeURIComponent(containerId)}`, {
             method: 'POST',
             body: JSON.stringify({ notes })
         });
-        if (!res.ok) throw new Error('Failed to save notes');
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to save notes');
+        }
         return true;
     } catch (e) {
         console.error('Save notes error:', e);
