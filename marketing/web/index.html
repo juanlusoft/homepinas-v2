@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomePiNAS - Tu NAS Profesional en Raspberry Pi</title>
+    <meta name="description" content="Convierte tu Raspberry Pi en un NAS profesional en 5 minutos. Gratis, open source, sin complicaciones.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0a0a0a;
+            --bg-card: #111111;
+            --primary: #84cc16;
+            --primary-dim: #65a30d;
+            --text: #ffffff;
+            --text-dim: #a1a1aa;
+            --border: rgba(255,255,255,0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            background: radial-gradient(ellipse at top, #1a1a2e 0%, var(--bg-dark) 70%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(132, 204, 22, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 2rem;
+            letter-spacing: 2px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, var(--primary) 0%, #a3e635 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-dim);
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dim) 100%);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(132, 204, 22, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            background: rgba(132, 204, 22, 0.1);
+        }
+
+        /* Install Command */
+        .install-section {
+            padding: 4rem 2rem;
+            text-align: center;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .install-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-dim);
+        }
+
+        .install-command {
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            background: #000;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.95rem;
+            color: var(--primary);
+        }
+
+        .install-command button {
+            background: var(--primary);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .install-command button:hover {
+            background: #a3e635;
+        }
+
+        /* Features */
+        .features {
+            padding: 6rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .features > p {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 4rem;
+            font-size: 1.1rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+
+        /* Comparison */
+        .comparison {
+            padding: 6rem 2rem;
+            background: var(--bg-card);
+        }
+
+        .comparison h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .comparison-table {
+            max-width: 900px;
+            margin: 0 auto;
+            overflow-x: auto;
+        }
+
+        .comparison-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .comparison-table th {
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .comparison-table th:first-child,
+        .comparison-table td:first-child {
+            text-align: left;
+        }
+
+        .comparison-table .highlight {
+            background: rgba(132, 204, 22, 0.1);
+        }
+
+        .comparison-table .highlight th {
+            color: var(--primary);
+        }
+
+        .check {
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+
+        .cross {
+            color: #ef4444;
+            font-size: 1.2rem;
+        }
+
+        /* Testimonials / Use Cases */
+        .use-cases {
+            padding: 6rem 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .use-cases h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .use-case {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            margin-bottom: 4rem;
+            flex-wrap: wrap;
+        }
+
+        .use-case:nth-child(even) {
+            flex-direction: row-reverse;
+        }
+
+        .use-case-icon {
+            font-size: 4rem;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .use-case-content h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .use-case-content p {
+            color: var(--text-dim);
+        }
+
+        /* Footer CTA */
+        .footer-cta {
+            padding: 6rem 2rem;
+            text-align: center;
+            background: linear-gradient(180deg, var(--bg-dark) 0%, #0f1a0a 100%);
+        }
+
+        .footer-cta h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-cta p {
+            color: var(--text-dim);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border);
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .install-command {
+                flex-direction: column;
+                font-size: 0.8rem;
+            }
+
+            .use-case {
+                flex-direction: column !important;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero -->
+    <section class="hero">
+        <div class="logo">🏠 HOMEPINAS</div>
+        <h1>Tu NAS Profesional<br>en <span>5 Minutos</span></h1>
+        <p>Convierte tu Raspberry Pi en un servidor de almacenamiento con interfaz premium. Gratis, open source, sin complicaciones.</p>
+        <div class="cta-buttons">
+            <a href="#install" class="btn btn-primary">Instalar Ahora</a>
+            <a href="https://github.com/juanlusoft/homepinas-v2" class="btn btn-secondary">Ver en GitHub</a>
+        </div>
+    </section>
+
+    <!-- Install -->
+    <section class="install-section" id="install">
+        <h2>Un solo comando. Eso es todo.</h2>
+        <div class="install-command">
+            <code>curl -fsSL https://raw.githubusercontent.com/juanlusoft/homepinas-v2/main/install.sh | sudo bash</code>
+            <button onclick="navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/juanlusoft/homepinas-v2/main/install.sh | sudo bash')">Copiar</button>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features">
+        <h2>Todo lo que necesitas</h2>
+        <p>Sin configuraciones complicadas. Funciona desde el primer momento.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <h3>Interfaz Premium</h3>
+                <p>Dashboard moderno con tema oscuro, responsive para móvil y soporte PWA. Instálalo como app.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <h3>SnapRAID + MergerFS</h3>
+                <p>Protección de datos con paridad y pool de discos unificado. Tus archivos seguros.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🐳</div>
+                <h3>Docker Integrado</h3>
+                <p>Gestiona contenedores, importa compose files, ve logs y actualiza con un click.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💻</div>
+                <h3>Terminal Web</h3>
+                <p>Acceso SSH desde el navegador. htop, mc, nano... todo sin salir del dashboard.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📁</div>
+                <h3>Samba Incluido</h3>
+                <p>Comparte archivos en tu red local. Accede desde Windows, Mac o Linux.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🌡️</div>
+                <h3>Control de Ventiladores</h3>
+                <p>PWM automático con curvas personalizables. Silencioso o máximo rendimiento.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison -->
+    <section class="comparison">
+        <h2>¿Por qué HomePiNAS?</h2>
+        <div class="comparison-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Synology</th>
+                        <th>TrueNAS</th>
+                        <th class="highlight">HomePiNAS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Precio hardware</td>
+                        <td>400€+</td>
+                        <td>300€+</td>
+                        <td class="highlight">~100€</td>
+                    </tr>
+                    <tr>
+                        <td>Software</td>
+                        <td>Propietario</td>
+                        <td>Open Source</td>
+                        <td class="highlight">Open Source</td>
+                    </tr>
+                    <tr>
+                        <td>Instalación</td>
+                        <td>Fácil</td>
+                        <td>Compleja</td>
+                        <td class="highlight">1 comando</td>
+                    </tr>
+                    <tr>
+                        <td>Docker nativo</td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td class="highlight"><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Consumo energético</td>
+                        <td>~30W</td>
+                        <td>~50W+</td>
+                        <td class="highlight">~5W</td>
+                    </tr>
+                    <tr>
+                        <td>Raspberry Pi</td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td class="highlight"><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Use Cases -->
+    <section class="use-cases">
+        <h2>Perfecto para...</h2>
+        <div class="use-case">
+            <div class="use-case-icon">🏠</div>
+            <div class="use-case-content">
+                <h3>Tu Homelab</h3>
+                <p>El centro de tu infraestructura doméstica. Almacena, comparte y ejecuta servicios con una interfaz que da gusto usar.</p>
+            </div>
+        </div>
+        <div class="use-case">
+            <div class="use-case-icon">💼</div>
+            <div class="use-case-content">
+                <h3>Pequeña Oficina</h3>
+                <p>Almacenamiento compartido para tu equipo sin pagar licencias ni hardware caro. Simple y efectivo.</p>
+            </div>
+        </div>
+        <div class="use-case">
+            <div class="use-case-icon">📸</div>
+            <div class="use-case-content">
+                <h3>Backup de Fotos</h3>
+                <p>Libérate de la nube. Tus recuerdos en tu casa, con redundancia y acceso desde cualquier dispositivo.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer CTA -->
+    <section class="footer-cta">
+        <h2>¿Listo para empezar?</h2>
+        <p>En 5 minutos tendrás tu NAS funcionando.</p>
+        <a href="#install" class="btn btn-primary">Instalar HomePiNAS</a>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>HomePiNAS es open source bajo licencia MIT. <a href="https://github.com/juanlusoft/homepinas-v2">GitHub</a></p>
+        <p style="margin-top: 0.5rem;">Creado con ❤️ para la comunidad homelab</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#84cc16"/>
+      <stop offset="100%" style="stop-color:#a3e635"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="900" cy="200" r="300" fill="#84cc16" opacity="0.05"/>
+  <circle cx="100" cy="500" r="200" fill="#84cc16" opacity="0.03"/>
+  
+  <!-- Grid pattern -->
+  <g opacity="0.1" stroke="#84cc16" stroke-width="0.5">
+    <line x1="0" y1="100" x2="1200" y2="100"/>
+    <line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/>
+    <line x1="0" y1="400" x2="1200" y2="400"/>
+    <line x1="0" y1="500" x2="1200" y2="500"/>
+    <line x1="200" y1="0" x2="200" y2="630"/>
+    <line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+  
+  <!-- Logo icon -->
+  <g transform="translate(100, 180)">
+    <!-- House shape -->
+    <path d="M50 80 L50 140 L130 140 L130 80 L90 50 Z" fill="none" stroke="url(#greenGrad)" stroke-width="4" filter="url(#glow)"/>
+    <!-- Door -->
+    <rect x="75" y="100" width="30" height="40" fill="none" stroke="url(#greenGrad)" stroke-width="3"/>
+    <!-- Disk icon inside -->
+    <circle cx="90" cy="95" r="15" fill="none" stroke="url(#greenGrad)" stroke-width="2"/>
+    <circle cx="90" cy="95" r="5" fill="#84cc16"/>
+  </g>
+  
+  <!-- Main text -->
+  <text x="250" y="240" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="800" fill="white">HomePiNAS</text>
+  
+  <!-- Tagline -->
+  <text x="250" y="300" font-family="Inter, Arial, sans-serif" font-size="28" fill="#a1a1aa">Tu NAS Profesional en Raspberry Pi</text>
+  
+  <!-- Feature boxes -->
+  <g transform="translate(250, 350)">
+    <!-- Box 1 -->
+    <rect x="0" y="0" width="180" height="70" rx="10" fill="#111111" stroke="#333" stroke-width="1"/>
+    <text x="20" y="30" font-family="Inter, Arial, sans-serif" font-size="24">💾</text>
+    <text x="55" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="white" font-weight="600">SnapRAID</text>
+    <text x="20" y="52" font-family="Inter, Arial, sans-serif" font-size="11" fill="#a1a1aa">Protección de datos</text>
+    
+    <!-- Box 2 -->
+    <rect x="200" y="0" width="180" height="70" rx="10" fill="#111111" stroke="#333" stroke-width="1"/>
+    <text x="220" y="30" font-family="Inter, Arial, sans-serif" font-size="24">🐳</text>
+    <text x="255" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="white" font-weight="600">Docker</text>
+    <text x="220" y="52" font-family="Inter, Arial, sans-serif" font-size="11" fill="#a1a1aa">Gestión integrada</text>
+    
+    <!-- Box 3 -->
+    <rect x="400" y="0" width="180" height="70" rx="10" fill="#111111" stroke="#333" stroke-width="1"/>
+    <text x="420" y="30" font-family="Inter, Arial, sans-serif" font-size="24">💻</text>
+    <text x="455" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="white" font-weight="600">Terminal</text>
+    <text x="420" y="52" font-family="Inter, Arial, sans-serif" font-size="11" fill="#a1a1aa">Acceso web SSH</text>
+  </g>
+  
+  <!-- Install command box -->
+  <g transform="translate(250, 460)">
+    <rect x="0" y="0" width="550" height="50" rx="8" fill="#000000" stroke="#84cc16" stroke-width="2"/>
+    <text x="20" y="32" font-family="Monaco, Consolas, monospace" font-size="13" fill="#84cc16">$ curl -fsSL https://...install.sh | sudo bash</text>
+  </g>
+  
+  <!-- CTA text -->
+  <text x="250" y="560" font-family="Inter, Arial, sans-serif" font-size="18" fill="#84cc16" font-weight="600">Instala en 5 minutos → github.com/juanlusoft/homepinas-v2</text>
+  
+  <!-- Version badge -->
+  <g transform="translate(1020, 50)">
+    <rect x="0" y="0" width="100" height="30" rx="15" fill="#84cc16"/>
+    <text x="50" y="20" font-family="Inter, Arial, sans-serif" font-size="12" fill="#000" font-weight="700" text-anchor="middle">v2.2.2</text>
+  </g>
+  
+  <!-- Open Source badge -->
+  <g transform="translate(1020, 90)">
+    <rect x="0" y="0" width="100" height="30" rx="15" fill="none" stroke="#84cc16" stroke-width="2"/>
+    <text x="50" y="20" font-family="Inter, Arial, sans-serif" font-size="11" fill="#84cc16" font-weight="600" text-anchor="middle">Open Source</text>
+  </g>
+</svg>
