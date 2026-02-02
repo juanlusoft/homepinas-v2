@@ -1,12 +1,13 @@
 /**
  * HomePiNAS - Terminal WebSocket Handler
- * v2.1.0 - PTY WebSocket integration
+ * v2.2.2 - PTY WebSocket integration with auto-install
  *
  * Handles WebSocket connections for web terminal
  */
 
 const WebSocket = require('ws');
 const pty = require('node-pty');
+const { execSync } = require('child_process');
 const { validateSession } = require('./session');
 const { logSecurityEvent } = require('./security');
 
@@ -20,10 +21,54 @@ const ALLOWED_COMMANDS = [
     'free', 'ps', 'journalctl', 'systemctl', 'docker', 'tmux'
 ];
 
+// Map commands to their package names (for auto-install)
+const COMMAND_PACKAGES = {
+    'htop': 'htop',
+    'mc': 'mc',
+    'nano': 'nano',
+    'vim': 'vim',
+    'tmux': 'tmux',
+    'docker': 'docker.io'
+};
+
 function validateCommand(cmd) {
     if (!cmd || typeof cmd !== 'string') return false;
     const baseCmd = cmd.split(' ')[0].split('/').pop();
     return ALLOWED_COMMANDS.includes(baseCmd);
+}
+
+// Check if command exists
+function commandExists(cmd) {
+    try {
+        execSync(`which ${cmd}`, { stdio: 'ignore' });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Try to install missing command
+function tryInstallCommand(cmd) {
+    const pkg = COMMAND_PACKAGES[cmd];
+    if (!pkg) return false;
+    
+    try {
+        console.log(`[Terminal] Installing missing package: ${pkg}`);
+        // Update package list first
+        execSync('sudo /usr/bin/apt-get update', { 
+            stdio: 'ignore',
+            timeout: 30000
+        });
+        // Install the specific package (must match sudoers entry exactly)
+        execSync(`sudo /usr/bin/apt-get install -y ${pkg}`, { 
+            stdio: 'ignore',
+            timeout: 60000 // 60 second timeout
+        });
+        return commandExists(cmd);
+    } catch (err) {
+        console.error(`[Terminal] Failed to install ${pkg}:`, err.message);
+        return false;
+    }
 }
 
 function setupTerminalWebSocket(server) {
@@ -56,6 +101,37 @@ function setupTerminalWebSocket(server) {
         }
 
         console.log(`[Terminal] New session: ${sessionId}, command: ${command}, user: ${session.username}`);
+
+        // Get base command (first word)
+        const baseCmd = command.split(' ')[0].split('/').pop();
+
+        // Check if command exists, try to install if missing
+        if (!commandExists(baseCmd)) {
+            console.log(`[Terminal] Command not found: ${baseCmd}`);
+            ws.send(JSON.stringify({ 
+                type: 'output', 
+                data: `\x1b[33m[HomePiNAS] Comando '${baseCmd}' no encontrado. Instalando...\x1b[0m\r\n` 
+            }));
+            
+            if (tryInstallCommand(baseCmd)) {
+                ws.send(JSON.stringify({ 
+                    type: 'output', 
+                    data: `\x1b[32m[HomePiNAS] ✓ '${baseCmd}' instalado correctamente.\x1b[0m\r\n\r\n` 
+                }));
+            } else {
+                ws.send(JSON.stringify({ 
+                    type: 'output', 
+                    data: `\x1b[31m[HomePiNAS] ✗ No se pudo instalar '${baseCmd}'.\x1b[0m\r\n` 
+                }));
+                ws.send(JSON.stringify({ 
+                    type: 'output', 
+                    data: `\x1b[33mPrueba manualmente: sudo apt install ${COMMAND_PACKAGES[baseCmd] || baseCmd}\x1b[0m\r\n` 
+                }));
+                ws.send(JSON.stringify({ type: 'exit', exitCode: 1 }));
+                ws.close(1000, 'Command not available');
+                return;
+            }
+        }
 
         // Create PTY process
         let ptyProcess;

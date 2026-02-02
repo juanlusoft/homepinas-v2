@@ -1080,6 +1080,14 @@ $REAL_USER ALL=(ALL) NOPASSWD: /sbin/mkfs.ext4 /dev/nvme[0-9]n[0-9]p[0-9]*
 $REAL_USER ALL=(ALL) NOPASSWD: /sbin/mkfs.xfs /dev/sd[a-z][0-9]*
 $REAL_USER ALL=(ALL) NOPASSWD: /sbin/mkfs.xfs /dev/nvme[0-9]n[0-9]p[0-9]*
 
+# Terminal tools installation (auto-install missing tools)
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/apt-get update
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/apt-get install -y htop
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/apt-get install -y mc
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/apt-get install -y nano
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/apt-get install -y vim
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/apt-get install -y tmux
+
 # SnapRAID and MergerFS
 $REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/snapraid *
 $REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/mergerfs *
