@@ -12,6 +12,7 @@ const DATA_FILE = path.join(__dirname, '..', 'config', 'data.json');
 
 const initialState = {
     user: null,
+    users: [],
     storageConfig: [],
     network: {
         interfaces: [
@@ -19,9 +20,23 @@ const initialState = {
             { id: 'eth1', name: 'Ethernet 2', ip: '10.0.0.15', subnet: '255.255.255.0', gateway: '10.0.0.1', dns: '10.0.0.1', dhcp: false, status: 'connected' },
             { id: 'wlan0', name: 'Wi-Fi', ip: '192.168.1.105', subnet: '255.255.255.0', gateway: '192.168.1.1', dns: '1.1.1.1', dhcp: true, status: 'disconnected' }
         ],
-        ddns: [
-            
-        ]
+        ddns: []
+    },
+    notifications: {
+        email: null,
+        telegram: null,
+        history: []
+    },
+    backups: [],
+    scheduledTasks: [],
+    ups: {
+        config: {
+            lowBatteryThreshold: 30,
+            criticalThreshold: 10,
+            notifyOnPower: true,
+            shutdownOnCritical: false
+        },
+        history: []
     }
 };
 

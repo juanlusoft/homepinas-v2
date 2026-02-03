@@ -25,7 +25,10 @@ async function safeExec(command, args = [], options = {}) {
         'sudo', 'cat', 'ls', 'df', 'mount', 'umount', 'smartctl',
         'systemctl', 'snapraid', 'mergerfs', 'smbpasswd', 'useradd',
         'usermod', 'chown', 'chmod', 'mkfs.ext4', 'mkfs.xfs', 'parted',
-        'partprobe', 'id', 'getent', 'cp', 'tee', 'mkdir'
+        'partprobe', 'id', 'getent', 'cp', 'tee', 'mkdir',
+        'journalctl', 'smbstatus', 'smbd', 'nmbd', 'userdel',
+        'apcaccess', 'apctest', 'upsc', 'upscmd', 'rsync', 'tar',
+        'crontab', 'mv', 'rm', 'grep', 'bash'
     ];
 
     const baseCommand = command.split('/').pop();

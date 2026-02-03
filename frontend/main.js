@@ -96,8 +96,12 @@ const viewsMap = {
     'dashboard': 'Resumen del Sistema',
     'docker': 'Gestor de Docker',
     'storage': 'Almacenamiento',
+    'files': 'Gestor de Archivos',
     'terminal': 'Terminal y Herramientas',
     'network': 'Gestión de Red',
+    'backup': 'Backup y Tareas',
+    'logs': 'Visor de Logs',
+    'users': 'Gestión de Usuarios',
     'system': 'System Administration'
 };
 
@@ -731,15 +735,31 @@ navLinks.forEach(link => {
     });
 });
 
-function renderContent(view) {
+async function renderContent(view) {
     state.currentView = view;
     dashboardContent.innerHTML = '';
     if (view === 'dashboard') renderDashboard();
     else if (view === 'docker') renderDockerManager();
     else if (view === 'storage') renderStorageDashboard();
+    else if (view === 'files') renderFilesView();
     else if (view === 'terminal') renderTerminalView();
-    else if (view === 'network') renderNetworkManager();
-    else if (view === 'system') renderSystemView();
+    else if (view === 'network') {
+        await renderNetworkManager();
+        // Append Samba + DDNS sections after network interfaces
+        await renderSambaSection(dashboardContent);
+        await renderDDNSSection(dashboardContent);
+    }
+    else if (view === 'backup') renderBackupView();
+    else if (view === 'logs') renderLogsView();
+    else if (view === 'users') renderUsersView();
+    else if (view === 'system') {
+        renderSystemView();
+        // Append UPS + Notifications after system view
+        setTimeout(async () => {
+            await renderUPSSection(dashboardContent);
+            await renderNotificationsSection(dashboardContent);
+        }, 100);
+    }
 }
 
 // Real-Time Dashboard
@@ -3211,6 +3231,1760 @@ window.saveContainerNotes = saveContainerNotes;
 // The function is already defined, we just need to ensure it renders properly
 
 // =============================================================================
+// FILE MANAGER (File Station)
+// =============================================================================
+
+let currentFilePath = '/';
+
+async function renderFilesView() {
+    const container = document.createElement('div');
+    container.className = 'files-container';
+    container.style.cssText = 'display: contents;';
+
+    // Toolbar
+    const toolbar = document.createElement('div');
+    toolbar.className = 'glass-card files-toolbar';
+    toolbar.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 15px 20px; flex-wrap: wrap;';
+
+    // Breadcrumb
+    const breadcrumb = document.createElement('div');
+    breadcrumb.className = 'files-breadcrumb';
+    breadcrumb.style.cssText = 'display: flex; align-items: center; gap: 4px; flex: 1; min-width: 200px; overflow-x: auto;';
+    updateBreadcrumb(breadcrumb, currentFilePath);
+
+    // Action buttons
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'btn-primary btn-sm';
+    uploadBtn.textContent = '📤 Subir';
+    uploadBtn.addEventListener('click', () => triggerFileUpload());
+
+    const newFolderBtn = document.createElement('button');
+    newFolderBtn.className = 'btn-primary btn-sm';
+    newFolderBtn.style.background = '#6366f1';
+    newFolderBtn.textContent = '📁 Nueva Carpeta';
+    newFolderBtn.addEventListener('click', () => createNewFolder());
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = '🔍 Buscar...';
+    searchInput.style.cssText = 'padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 200px;';
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') searchFiles(searchInput.value);
+    });
+
+    actions.appendChild(searchInput);
+    actions.appendChild(uploadBtn);
+    actions.appendChild(newFolderBtn);
+
+    toolbar.appendChild(breadcrumb);
+    toolbar.appendChild(actions);
+    container.appendChild(toolbar);
+
+    // File list card
+    const listCard = document.createElement('div');
+    listCard.className = 'glass-card';
+    listCard.style.cssText = 'grid-column: 1 / -1; padding: 0; overflow: hidden;';
+    listCard.id = 'files-list-card';
+
+    // Table header
+    const tableHeader = document.createElement('div');
+    tableHeader.className = 'files-table-header';
+    tableHeader.style.cssText = 'display: grid; grid-template-columns: 40px 1fr 100px 160px 60px; padding: 12px 20px; background: var(--bg-hover); font-weight: 600; font-size: 0.85rem; color: var(--text-dim);';
+    tableHeader.innerHTML = '<span></span><span>Nombre</span><span>Tamaño</span><span>Modificado</span><span></span>';
+    listCard.appendChild(tableHeader);
+
+    const filesList = document.createElement('div');
+    filesList.id = 'files-list';
+    filesList.style.cssText = 'max-height: 65vh; overflow-y: auto;';
+    listCard.appendChild(filesList);
+
+    container.appendChild(listCard);
+    dashboardContent.appendChild(container);
+
+    // Hidden file input for uploads
+    let fileInput = document.getElementById('file-upload-input');
+    if (!fileInput) {
+        fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'file-upload-input';
+        fileInput.multiple = true;
+        fileInput.style.display = 'none';
+        fileInput.addEventListener('change', handleFileUpload);
+        document.body.appendChild(fileInput);
+    }
+
+    await loadFiles(currentFilePath);
+}
+
+function updateBreadcrumb(breadcrumb, filePath) {
+    breadcrumb.innerHTML = '';
+    const parts = filePath.split('/').filter(Boolean);
+    const homeBtn = document.createElement('button');
+    homeBtn.textContent = '🏠';
+    homeBtn.className = 'breadcrumb-btn';
+    homeBtn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 1rem;';
+    homeBtn.addEventListener('click', () => { currentFilePath = '/'; renderFilesView(); });
+    breadcrumb.appendChild(homeBtn);
+
+    let accPath = '';
+    parts.forEach((part, i) => {
+        accPath += '/' + part;
+        const sep = document.createElement('span');
+        sep.textContent = '›';
+        sep.style.cssText = 'color: var(--text-dim); margin: 0 2px;';
+        breadcrumb.appendChild(sep);
+
+        const btn = document.createElement('button');
+        btn.textContent = part;
+        btn.className = 'breadcrumb-btn';
+        btn.style.cssText = `background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 0.9rem; color: ${i === parts.length - 1 ? 'var(--text)' : 'var(--text-dim)'};`;
+        const targetPath = accPath;
+        btn.addEventListener('click', () => { currentFilePath = targetPath; renderFilesView(); });
+        breadcrumb.appendChild(btn);
+    });
+}
+
+async function loadFiles(filePath) {
+    const filesList = document.getElementById('files-list');
+    if (!filesList) return;
+    filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">Cargando...</div>';
+
+    try {
+        const res = await authFetch(`${API_BASE}/files/list?path=${encodeURIComponent(filePath)}`);
+        if (!res.ok) throw new Error('Failed to load files');
+        const files = await res.json();
+
+        if (files.length === 0) {
+            filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">📂 Carpeta vacía</div>';
+            return;
+        }
+
+        // Sort: folders first, then alphabetical
+        files.sort((a, b) => {
+            if (a.type === 'directory' && b.type !== 'directory') return -1;
+            if (a.type !== 'directory' && b.type === 'directory') return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        filesList.innerHTML = '';
+        files.forEach(file => {
+            const row = document.createElement('div');
+            row.className = 'files-row';
+            row.style.cssText = 'display: grid; grid-template-columns: 40px 1fr 100px 160px 60px; padding: 10px 20px; align-items: center; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;';
+            row.addEventListener('mouseenter', () => row.style.background = 'var(--bg-hover)');
+            row.addEventListener('mouseleave', () => row.style.background = '');
+
+            const icon = document.createElement('span');
+            icon.style.fontSize = '1.2rem';
+            icon.textContent = file.type === 'directory' ? '📁' : getFileIcon(file.name);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = file.name;
+            nameSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+
+            const sizeSpan = document.createElement('span');
+            sizeSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
+            sizeSpan.textContent = file.type === 'directory' ? '—' : formatFileSize(file.size);
+
+            const dateSpan = document.createElement('span');
+            dateSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
+            dateSpan.textContent = new Date(file.modified).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'display: flex; gap: 4px;';
+
+            if (file.type !== 'directory') {
+                const dlBtn = document.createElement('button');
+                dlBtn.textContent = '⬇';
+                dlBtn.title = 'Descargar';
+                dlBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 1rem; padding: 2px;';
+                dlBtn.addEventListener('click', (e) => { e.stopPropagation(); downloadFile(filePath + '/' + file.name); });
+                actionsDiv.appendChild(dlBtn);
+            }
+
+            const delBtn = document.createElement('button');
+            delBtn.textContent = '🗑';
+            delBtn.title = 'Eliminar';
+            delBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 1rem; padding: 2px; opacity: 0.5;';
+            delBtn.addEventListener('mouseenter', () => delBtn.style.opacity = '1');
+            delBtn.addEventListener('mouseleave', () => delBtn.style.opacity = '0.5');
+            delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteFile(filePath + '/' + file.name, file.name); });
+            actionsDiv.appendChild(delBtn);
+
+            row.appendChild(icon);
+            row.appendChild(nameSpan);
+            row.appendChild(sizeSpan);
+            row.appendChild(dateSpan);
+            row.appendChild(actionsDiv);
+
+            // Click to navigate into folder or preview file
+            row.addEventListener('click', () => {
+                if (file.type === 'directory') {
+                    currentFilePath = filePath + '/' + file.name;
+                    renderFilesView();
+                }
+            });
+
+            // Right-click context menu
+            row.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                showFileContextMenu(e, filePath + '/' + file.name, file);
+            });
+
+            filesList.appendChild(row);
+        });
+    } catch (e) {
+        console.error('Load files error:', e);
+        filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: #ef4444;">Error al cargar archivos</div>';
+    }
+}
+
+function getFileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    const iconMap = {
+        jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', svg: '🖼️', webp: '🖼️',
+        mp4: '🎬', mkv: '🎬', avi: '🎬', mov: '🎬',
+        mp3: '🎵', flac: '🎵', wav: '🎵', ogg: '🎵',
+        pdf: '📕', doc: '📄', docx: '📄', txt: '📄', md: '📄',
+        zip: '📦', tar: '📦', gz: '📦', rar: '📦', '7z': '📦',
+        js: '⚙️', py: '⚙️', sh: '⚙️', json: '⚙️', yml: '⚙️', yaml: '⚙️',
+        iso: '💿', img: '💿',
+    };
+    return iconMap[ext] || '📄';
+}
+
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+function triggerFileUpload() {
+    const input = document.getElementById('file-upload-input');
+    if (input) input.click();
+}
+
+async function handleFileUpload(e) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('path', currentFilePath);
+
+        try {
+            const res = await fetch(`${API_BASE}/files/upload`, {
+                method: 'POST',
+                headers: { 'X-Session-Id': state.sessionId },
+                body: formData
+            });
+            if (!res.ok) throw new Error('Upload failed');
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert(`Error al subir ${file.name}`);
+        }
+    }
+    e.target.value = '';
+    await loadFiles(currentFilePath);
+}
+
+async function createNewFolder() {
+    const name = prompt('Nombre de la carpeta:');
+    if (!name) return;
+    try {
+        const res = await authFetch(`${API_BASE}/files/mkdir`, {
+            method: 'POST',
+            body: JSON.stringify({ path: currentFilePath + '/' + name })
+        });
+        if (!res.ok) throw new Error('Failed');
+        await loadFiles(currentFilePath);
+    } catch (e) {
+        alert('Error al crear carpeta');
+    }
+}
+
+async function downloadFile(filePath) {
+    window.open(`${API_BASE}/files/download?path=${encodeURIComponent(filePath)}&sessionId=${state.sessionId}`, '_blank');
+}
+
+async function deleteFile(filePath, name) {
+    if (!confirm(`¿Eliminar "${name}"?`)) return;
+    try {
+        const res = await authFetch(`${API_BASE}/files/delete`, {
+            method: 'POST',
+            body: JSON.stringify({ path: filePath })
+        });
+        if (!res.ok) throw new Error('Failed');
+        await loadFiles(currentFilePath);
+    } catch (e) {
+        alert('Error al eliminar');
+    }
+}
+
+async function renameFile(filePath, oldName) {
+    const newName = prompt('Nuevo nombre:', oldName);
+    if (!newName || newName === oldName) return;
+    const dir = filePath.substring(0, filePath.lastIndexOf('/'));
+    try {
+        const res = await authFetch(`${API_BASE}/files/rename`, {
+            method: 'POST',
+            body: JSON.stringify({ oldPath: filePath, newPath: dir + '/' + newName })
+        });
+        if (!res.ok) throw new Error('Failed');
+        await loadFiles(currentFilePath);
+    } catch (e) {
+        alert('Error al renombrar');
+    }
+}
+
+async function searchFiles(query) {
+    if (!query.trim()) { await loadFiles(currentFilePath); return; }
+    const filesList = document.getElementById('files-list');
+    if (!filesList) return;
+    filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">🔍 Buscando...</div>';
+    try {
+        const res = await authFetch(`${API_BASE}/files/search?path=${encodeURIComponent(currentFilePath)}&query=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error('Search failed');
+        const results = await res.json();
+        if (results.length === 0) {
+            filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">Sin resultados</div>';
+            return;
+        }
+        filesList.innerHTML = '';
+        results.forEach(file => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: grid; grid-template-columns: 40px 1fr 100px; padding: 10px 20px; align-items: center; border-bottom: 1px solid var(--border);';
+            const icon = document.createElement('span');
+            icon.textContent = file.type === 'directory' ? '📁' : getFileIcon(file.name);
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = file.path;
+            nameSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem;';
+            const sizeSpan = document.createElement('span');
+            sizeSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
+            sizeSpan.textContent = file.type === 'directory' ? '—' : formatFileSize(file.size);
+            row.appendChild(icon);
+            row.appendChild(nameSpan);
+            row.appendChild(sizeSpan);
+            filesList.appendChild(row);
+        });
+    } catch (e) {
+        filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: #ef4444;">Error en la búsqueda</div>';
+    }
+}
+
+function showFileContextMenu(e, filePath, file) {
+    // Remove existing context menu
+    document.querySelectorAll('.file-context-menu').forEach(m => m.remove());
+    
+    const menu = document.createElement('div');
+    menu.className = 'file-context-menu';
+    menu.style.cssText = `position: fixed; top: ${e.clientY}px; left: ${e.clientX}px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 9999; min-width: 160px;`;
+    
+    const items = [
+        { icon: '✏️', label: 'Renombrar', action: () => renameFile(filePath, file.name) },
+        ...(file.type !== 'directory' ? [{ icon: '⬇️', label: 'Descargar', action: () => downloadFile(filePath) }] : []),
+        { icon: '🗑️', label: 'Eliminar', action: () => deleteFile(filePath, file.name) }
+    ];
+    
+    items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.style.cssText = 'display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 16px; background: none; border: none; cursor: pointer; color: var(--text); font-size: 0.9rem; text-align: left;';
+        btn.addEventListener('mouseenter', () => btn.style.background = 'var(--bg-hover)');
+        btn.addEventListener('mouseleave', () => btn.style.background = '');
+        btn.innerHTML = `<span>${item.icon}</span><span>${item.label}</span>`;
+        btn.addEventListener('click', () => { menu.remove(); item.action(); });
+        menu.appendChild(btn);
+    });
+    
+    document.body.appendChild(menu);
+    document.addEventListener('click', () => menu.remove(), { once: true });
+}
+
+// =============================================================================
+// USERS & 2FA VIEW
+// =============================================================================
+
+async function renderUsersView() {
+    const container = document.createElement('div');
+    container.style.cssText = 'display: contents;';
+
+    // Users card
+    const usersCard = document.createElement('div');
+    usersCard.className = 'glass-card';
+    usersCard.style.cssText = 'grid-column: 1 / -1;';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;';
+    
+    const title = document.createElement('h3');
+    title.textContent = '👥 Gestión de Usuarios';
+    
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary btn-sm';
+    addBtn.textContent = '+ Añadir Usuario';
+    addBtn.addEventListener('click', () => showUserForm());
+    
+    header.appendChild(title);
+    header.appendChild(addBtn);
+    usersCard.appendChild(header);
+
+    // Users table
+    const table = document.createElement('div');
+    table.id = 'users-table';
+    table.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; overflow: hidden;';
+    
+    const tableHeader = document.createElement('div');
+    tableHeader.style.cssText = 'display: grid; grid-template-columns: 1fr 120px 160px 160px 80px; padding: 12px 20px; background: var(--bg-hover); font-weight: 600; font-size: 0.85rem; color: var(--text-dim);';
+    tableHeader.innerHTML = '<span>Usuario</span><span>Rol</span><span>Creado</span><span>Último Acceso</span><span></span>';
+    table.appendChild(tableHeader);
+    
+    const usersList = document.createElement('div');
+    usersList.id = 'users-list';
+    table.appendChild(usersList);
+    usersCard.appendChild(table);
+    container.appendChild(usersCard);
+
+    // 2FA Card
+    const tfaCard = document.createElement('div');
+    tfaCard.className = 'glass-card';
+    tfaCard.style.cssText = 'grid-column: 1 / -1;';
+    
+    const tfaTitle = document.createElement('h3');
+    tfaTitle.textContent = '🔐 Autenticación de Dos Factores (2FA)';
+    tfaTitle.style.marginBottom = '15px';
+    tfaCard.appendChild(tfaTitle);
+    
+    const tfaContent = document.createElement('div');
+    tfaContent.id = 'tfa-content';
+    tfaContent.innerHTML = '<p style="color: var(--text-dim);">Cargando...</p>';
+    tfaCard.appendChild(tfaContent);
+    container.appendChild(tfaCard);
+
+    dashboardContent.appendChild(container);
+    await loadUsers();
+    await load2FAStatus();
+}
+
+async function loadUsers() {
+    const usersList = document.getElementById('users-list');
+    if (!usersList) return;
+
+    try {
+        const res = await authFetch(`${API_BASE}/users`);
+        let users = [];
+        if (res.ok) {
+            users = await res.json();
+        } else {
+            // Fallback: show current user only
+            users = [{ username: state.user?.username || 'admin', role: 'admin', createdAt: null, lastLogin: null }];
+        }
+
+        usersList.innerHTML = '';
+        users.forEach(user => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: grid; grid-template-columns: 1fr 120px 160px 160px 80px; padding: 12px 20px; align-items: center; border-top: 1px solid var(--border);';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.style.fontWeight = '500';
+            nameSpan.textContent = user.username;
+            if (user.username === state.user?.username) {
+                const badge = document.createElement('span');
+                badge.textContent = ' (tú)';
+                badge.style.cssText = 'color: var(--accent); font-size: 0.8rem;';
+                nameSpan.appendChild(badge);
+            }
+
+            const roleSpan = document.createElement('span');
+            const roleBadge = document.createElement('span');
+            roleBadge.style.cssText = `padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 500; ${
+                user.role === 'admin' ? 'background: rgba(239,68,68,0.15); color: #ef4444;' :
+                user.role === 'user' ? 'background: rgba(99,102,241,0.15); color: #6366f1;' :
+                'background: rgba(148,163,184,0.15); color: #94a3b8;'
+            }`;
+            roleBadge.textContent = user.role === 'admin' ? 'Admin' : user.role === 'user' ? 'Usuario' : 'Solo lectura';
+            roleSpan.appendChild(roleBadge);
+
+            const createdSpan = document.createElement('span');
+            createdSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
+            createdSpan.textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '—';
+
+            const lastLoginSpan = document.createElement('span');
+            lastLoginSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
+            lastLoginSpan.textContent = user.lastLogin ? new Date(user.lastLogin).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'display: flex; gap: 6px;';
+            if (user.username !== state.user?.username) {
+                const delBtn = document.createElement('button');
+                delBtn.textContent = '🗑';
+                delBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 1rem; opacity: 0.5;';
+                delBtn.addEventListener('mouseenter', () => delBtn.style.opacity = '1');
+                delBtn.addEventListener('mouseleave', () => delBtn.style.opacity = '0.5');
+                delBtn.addEventListener('click', () => deleteUser(user.username));
+                actionsDiv.appendChild(delBtn);
+            }
+
+            row.appendChild(nameSpan);
+            row.appendChild(roleSpan);
+            row.appendChild(createdSpan);
+            row.appendChild(lastLoginSpan);
+            row.appendChild(actionsDiv);
+            usersList.appendChild(row);
+        });
+    } catch (e) {
+        usersList.innerHTML = '<div style="padding: 20px; color: var(--text-dim);">Error cargando usuarios</div>';
+    }
+}
+
+function showUserForm(editUser = null) {
+    const existing = document.getElementById('user-form-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'user-form-modal';
+    modal.className = 'modal active';
+    modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
+
+    modal.innerHTML = `
+        <div class="glass-card modal-content" style="max-width: 450px; width: 90%;">
+            <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>${editUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
+                <button class="btn-close" id="close-user-form">&times;</button>
+            </header>
+            <form id="user-create-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                <div class="input-group">
+                    <input type="text" id="uf-username" required placeholder=" " value="${editUser?.username || ''}" ${editUser ? 'readonly' : ''}>
+                    <label>Usuario</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="uf-password" ${editUser ? '' : 'required'} placeholder=" ">
+                    <label>${editUser ? 'Nueva contraseña (dejar vacía para mantener)' : 'Contraseña'}</label>
+                </div>
+                <div class="input-group">
+                    <select id="uf-role" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 100%;">
+                        <option value="admin" ${editUser?.role === 'admin' ? 'selected' : ''}>Administrador</option>
+                        <option value="user" ${(!editUser || editUser?.role === 'user') ? 'selected' : ''}>Usuario</option>
+                        <option value="readonly" ${editUser?.role === 'readonly' ? 'selected' : ''}>Solo Lectura</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">${editUser ? 'Guardar Cambios' : 'Crear Usuario'}</button>
+            </form>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.getElementById('close-user-form').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('user-create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('uf-username').value.trim();
+        const password = document.getElementById('uf-password').value;
+        const role = document.getElementById('uf-role').value;
+
+        try {
+            const url = editUser ? `${API_BASE}/users/${encodeURIComponent(username)}` : `${API_BASE}/users`;
+            const method = editUser ? 'PUT' : 'POST';
+            const body = editUser ? { role, ...(password ? { password } : {}) } : { username, password, role };
+
+            const res = await authFetch(url, { method, body: JSON.stringify(body) });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || 'Failed');
+            }
+            modal.remove();
+            await loadUsers();
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    });
+}
+
+async function deleteUser(username) {
+    if (!confirm(`¿Eliminar usuario "${username}"?`)) return;
+    try {
+        const res = await authFetch(`${API_BASE}/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed');
+        await loadUsers();
+    } catch (e) {
+        alert('Error al eliminar usuario');
+    }
+}
+
+async function load2FAStatus() {
+    const content = document.getElementById('tfa-content');
+    if (!content) return;
+
+    try {
+        const res = await authFetch(`${API_BASE}/totp/status`);
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        if (data.enabled) {
+            content.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span style="font-size: 2rem;">✅</span>
+                    <div>
+                        <p style="font-weight: 600; color: #10b981;">2FA Activado</p>
+                        <p style="color: var(--text-dim); font-size: 0.9rem;">Tu cuenta está protegida con autenticación de dos factores.</p>
+                    </div>
+                    <button class="btn-primary btn-sm" style="margin-left: auto; background: #ef4444;" id="disable-2fa-btn">Desactivar</button>
+                </div>
+            `;
+            document.getElementById('disable-2fa-btn').addEventListener('click', disable2FA);
+        } else {
+            content.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span style="font-size: 2rem;">🔓</span>
+                    <div>
+                        <p style="font-weight: 600;">2FA Desactivado</p>
+                        <p style="color: var(--text-dim); font-size: 0.9rem;">Protege tu cuenta con una app de autenticación (Google Authenticator, Authy, etc.)</p>
+                    </div>
+                    <button class="btn-primary btn-sm" id="enable-2fa-btn" style="margin-left: auto;">Activar 2FA</button>
+                </div>
+            `;
+            document.getElementById('enable-2fa-btn').addEventListener('click', setup2FA);
+        }
+    } catch (e) {
+        content.innerHTML = '<p style="color: var(--text-dim);">No se pudo cargar el estado de 2FA</p>';
+    }
+}
+
+async function setup2FA() {
+    const content = document.getElementById('tfa-content');
+    if (!content) return;
+
+    try {
+        const res = await authFetch(`${API_BASE}/totp/setup`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        content.innerHTML = `
+            <div style="text-align: center; max-width: 400px; margin: 0 auto;">
+                <p style="margin-bottom: 15px;">Escanea este código QR con tu app de autenticación:</p>
+                <div style="background: white; padding: 20px; border-radius: 12px; display: inline-block; margin-bottom: 15px;">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.uri)}" alt="QR Code" style="display: block;">
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-dim); word-break: break-all; margin-bottom: 20px;">Secret: ${escapeHtml(data.secret)}</p>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <input type="text" id="totp-verify-code" placeholder="Código de 6 dígitos" maxlength="6" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 160px; text-align: center; font-size: 1.2rem; letter-spacing: 4px;">
+                    <button class="btn-primary" id="verify-totp-btn">Verificar</button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('verify-totp-btn').addEventListener('click', async () => {
+            const token = document.getElementById('totp-verify-code').value.trim();
+            if (token.length !== 6) { alert('Introduce un código de 6 dígitos'); return; }
+            try {
+                const vRes = await authFetch(`${API_BASE}/totp/verify`, {
+                    method: 'POST',
+                    body: JSON.stringify({ token, secret: data.secret })
+                });
+                if (!vRes.ok) { alert('Código incorrecto. Inténtalo de nuevo.'); return; }
+                await load2FAStatus();
+            } catch (err) {
+                alert('Error al verificar');
+            }
+        });
+    } catch (e) {
+        alert('Error al configurar 2FA');
+    }
+}
+
+async function disable2FA() {
+    const password = prompt('Introduce tu contraseña para desactivar 2FA:');
+    if (!password) return;
+    try {
+        const res = await authFetch(`${API_BASE}/totp/disable`, {
+            method: 'DELETE',
+            body: JSON.stringify({ password })
+        });
+        if (!res.ok) { alert('Contraseña incorrecta'); return; }
+        await load2FAStatus();
+    } catch (e) {
+        alert('Error al desactivar 2FA');
+    }
+}
+
+// =============================================================================
+// BACKUP & SCHEDULER VIEW
+// =============================================================================
+
+async function renderBackupView() {
+    const container = document.createElement('div');
+    container.style.cssText = 'display: contents;';
+
+    // === Backup Jobs Card ===
+    const backupCard = document.createElement('div');
+    backupCard.className = 'glass-card';
+    backupCard.style.cssText = 'grid-column: 1 / -1;';
+
+    const bHeader = document.createElement('div');
+    bHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;';
+    const bTitle = document.createElement('h3');
+    bTitle.textContent = '💾 Trabajos de Backup';
+    const addJobBtn = document.createElement('button');
+    addJobBtn.className = 'btn-primary btn-sm';
+    addJobBtn.textContent = '+ Nuevo Backup';
+    addJobBtn.addEventListener('click', () => showBackupJobForm());
+    bHeader.appendChild(bTitle);
+    bHeader.appendChild(addJobBtn);
+    backupCard.appendChild(bHeader);
+
+    const jobsList = document.createElement('div');
+    jobsList.id = 'backup-jobs-list';
+    backupCard.appendChild(jobsList);
+    container.appendChild(backupCard);
+
+    // === Task Scheduler Card ===
+    const schedCard = document.createElement('div');
+    schedCard.className = 'glass-card';
+    schedCard.style.cssText = 'grid-column: 1 / -1;';
+
+    const sHeader = document.createElement('div');
+    sHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;';
+    const sTitle = document.createElement('h3');
+    sTitle.textContent = '⏰ Programador de Tareas';
+    const addTaskBtn = document.createElement('button');
+    addTaskBtn.className = 'btn-primary btn-sm';
+    addTaskBtn.textContent = '+ Nueva Tarea';
+    addTaskBtn.addEventListener('click', () => showTaskForm());
+    sHeader.appendChild(sTitle);
+    sHeader.appendChild(addTaskBtn);
+    schedCard.appendChild(sHeader);
+
+    const tasksList = document.createElement('div');
+    tasksList.id = 'scheduler-tasks-list';
+    schedCard.appendChild(tasksList);
+    container.appendChild(schedCard);
+
+    dashboardContent.appendChild(container);
+    await loadBackupJobs();
+    await loadSchedulerTasks();
+}
+
+async function loadBackupJobs() {
+    const list = document.getElementById('backup-jobs-list');
+    if (!list) return;
+    list.innerHTML = '<div style="padding: 20px; color: var(--text-dim);">Cargando...</div>';
+
+    try {
+        const res = await authFetch(`${API_BASE}/backup/jobs`);
+        if (!res.ok) throw new Error('Failed');
+        const jobs = await res.json();
+
+        if (!jobs || jobs.length === 0) {
+            list.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-dim);">No hay trabajos de backup configurados</div>';
+            return;
+        }
+
+        list.innerHTML = '';
+        jobs.forEach(job => {
+            const card = document.createElement('div');
+            card.style.cssText = 'display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px;';
+
+            const statusDot = document.createElement('span');
+            statusDot.style.cssText = `width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: ${
+                job.lastStatus === 'running' ? '#f59e0b' : job.lastStatus === 'success' ? '#10b981' : job.lastStatus === 'failed' ? '#ef4444' : '#94a3b8'
+            };`;
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex: 1; min-width: 0;';
+            info.innerHTML = `
+                <div style="font-weight: 600;">${escapeHtml(job.name)}</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim);">${escapeHtml(job.type)} • ${escapeHtml(job.source)} → ${escapeHtml(job.destination)}</div>
+                <div style="font-size: 0.8rem; color: var(--text-dim);">${job.schedule?.enabled ? '⏰ ' + escapeHtml(job.schedule.cron) : 'Manual'}${job.lastRun ? ' • Última: ' + new Date(job.lastRun).toLocaleString('es-ES') : ''}</div>
+            `;
+
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display: flex; gap: 6px; flex-shrink: 0;';
+
+            const runBtn = document.createElement('button');
+            runBtn.className = 'btn-primary btn-sm';
+            runBtn.textContent = '▶ Ejecutar';
+            runBtn.style.cssText = 'padding: 5px 12px; font-size: 0.8rem;';
+            runBtn.addEventListener('click', () => runBackupJob(job.id));
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-primary btn-sm';
+            delBtn.style.cssText = 'padding: 5px 12px; font-size: 0.8rem; background: #ef4444;';
+            delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', () => deleteBackupJob(job.id));
+
+            actions.appendChild(runBtn);
+            actions.appendChild(delBtn);
+
+            card.appendChild(statusDot);
+            card.appendChild(info);
+            card.appendChild(actions);
+            list.appendChild(card);
+        });
+    } catch (e) {
+        list.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error cargando backups</div>';
+    }
+}
+
+function showBackupJobForm(editJob = null) {
+    const existing = document.getElementById('backup-form-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'backup-form-modal';
+    modal.className = 'modal active';
+    modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
+
+    modal.innerHTML = `
+        <div class="glass-card modal-content" style="max-width: 500px; width: 90%;">
+            <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>${editJob ? 'Editar Backup' : 'Nuevo Backup'}</h3>
+                <button class="btn-close" id="close-backup-form">&times;</button>
+            </header>
+            <form id="backup-create-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <div class="input-group">
+                    <input type="text" id="bj-name" required placeholder=" " value="${editJob?.name || ''}">
+                    <label>Nombre</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="bj-source" required placeholder=" " value="${editJob?.source || '/mnt/storage'}">
+                    <label>Origen</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="bj-dest" required placeholder=" " value="${editJob?.destination || '/mnt/backup'}">
+                    <label>Destino</label>
+                </div>
+                <select id="bj-type" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+                    <option value="rsync" ${editJob?.type === 'rsync' ? 'selected' : ''}>Rsync (incremental)</option>
+                    <option value="tar" ${editJob?.type === 'tar' ? 'selected' : ''}>Tar (comprimido)</option>
+                </select>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="checkbox" id="bj-scheduled" ${editJob?.schedule?.enabled ? 'checked' : ''}>
+                    <label for="bj-scheduled" style="margin: 0;">Programar</label>
+                    <input type="text" id="bj-cron" placeholder="0 2 * * *" value="${editJob?.schedule?.cron || '0 2 * * *'}" style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="bj-excludes" placeholder=" " value="${editJob?.excludes?.join(', ') || ''}">
+                    <label>Exclusiones (separadas por coma)</label>
+                </div>
+                <button type="submit" class="btn-primary">${editJob ? 'Guardar' : 'Crear Backup'}</button>
+            </form>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.getElementById('close-backup-form').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('backup-create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+            name: document.getElementById('bj-name').value.trim(),
+            source: document.getElementById('bj-source').value.trim(),
+            destination: document.getElementById('bj-dest').value.trim(),
+            type: document.getElementById('bj-type').value,
+            schedule: {
+                enabled: document.getElementById('bj-scheduled').checked,
+                cron: document.getElementById('bj-cron').value.trim()
+            },
+            excludes: document.getElementById('bj-excludes').value.split(',').map(s => s.trim()).filter(Boolean)
+        };
+
+        try {
+            const url = editJob ? `${API_BASE}/backup/jobs/${editJob.id}` : `${API_BASE}/backup/jobs`;
+            const method = editJob ? 'PUT' : 'POST';
+            const res = await authFetch(url, { method, body: JSON.stringify(body) });
+            if (!res.ok) throw new Error('Failed');
+            modal.remove();
+            await loadBackupJobs();
+        } catch (err) {
+            alert('Error al guardar backup');
+        }
+    });
+}
+
+async function runBackupJob(id) {
+    try {
+        const res = await authFetch(`${API_BASE}/backup/jobs/${id}/run`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed');
+        alert('Backup iniciado');
+        setTimeout(() => loadBackupJobs(), 2000);
+    } catch (e) {
+        alert('Error al ejecutar backup');
+    }
+}
+
+async function deleteBackupJob(id) {
+    if (!confirm('¿Eliminar este trabajo de backup?')) return;
+    try {
+        await authFetch(`${API_BASE}/backup/jobs/${id}`, { method: 'DELETE' });
+        await loadBackupJobs();
+    } catch (e) {
+        alert('Error al eliminar');
+    }
+}
+
+// --- Task Scheduler ---
+
+async function loadSchedulerTasks() {
+    const list = document.getElementById('scheduler-tasks-list');
+    if (!list) return;
+    list.innerHTML = '<div style="padding: 20px; color: var(--text-dim);">Cargando...</div>';
+
+    try {
+        const res = await authFetch(`${API_BASE}/scheduler/tasks`);
+        if (!res.ok) throw new Error('Failed');
+        const tasks = await res.json();
+
+        if (!tasks || tasks.length === 0) {
+            list.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-dim);">No hay tareas programadas</div>';
+            return;
+        }
+
+        list.innerHTML = '';
+        tasks.forEach(task => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: flex; align-items: center; gap: 15px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;';
+
+            const toggle = document.createElement('input');
+            toggle.type = 'checkbox';
+            toggle.checked = task.enabled;
+            toggle.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
+            toggle.addEventListener('change', () => toggleTask(task.id));
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex: 1; min-width: 0;';
+            info.innerHTML = `
+                <div style="font-weight: 600;">${escapeHtml(task.name)}</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim); font-family: monospace;">${escapeHtml(task.command)}</div>
+                <div style="font-size: 0.8rem; color: var(--text-dim);">⏰ ${escapeHtml(task.schedule)}</div>
+            `;
+
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display: flex; gap: 6px; flex-shrink: 0;';
+
+            const runBtn = document.createElement('button');
+            runBtn.className = 'btn-primary btn-sm';
+            runBtn.style.cssText = 'padding: 5px 12px; font-size: 0.8rem;';
+            runBtn.textContent = '▶';
+            runBtn.addEventListener('click', () => runTask(task.id));
+
+            const delBtn = document.createElement('button');
+            delBtn.style.cssText = 'padding: 5px 12px; font-size: 0.8rem; background: #ef4444; border: none; color: white; border-radius: 6px; cursor: pointer;';
+            delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', () => deleteTask(task.id));
+
+            actions.appendChild(runBtn);
+            actions.appendChild(delBtn);
+
+            row.appendChild(toggle);
+            row.appendChild(info);
+            row.appendChild(actions);
+            list.appendChild(row);
+        });
+    } catch (e) {
+        list.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error cargando tareas</div>';
+    }
+}
+
+function showTaskForm() {
+    const existing = document.getElementById('task-form-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'task-form-modal';
+    modal.className = 'modal active';
+    modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
+
+    modal.innerHTML = `
+        <div class="glass-card modal-content" style="max-width: 450px; width: 90%;">
+            <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Nueva Tarea Programada</h3>
+                <button class="btn-close" id="close-task-form">&times;</button>
+            </header>
+            <form id="task-create-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <div class="input-group">
+                    <input type="text" id="tf-name" required placeholder=" ">
+                    <label>Nombre</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="tf-command" required placeholder=" ">
+                    <label>Comando</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="tf-schedule" required placeholder=" " value="0 * * * *">
+                    <label>Expresión Cron</label>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-dim); padding: 0 4px;">
+                    Formato: minuto hora día mes día-semana (ej: <code>0 2 * * *</code> = cada día a las 2:00)
+                </div>
+                <button type="submit" class="btn-primary">Crear Tarea</button>
+            </form>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.getElementById('close-task-form').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('task-create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const res = await authFetch(`${API_BASE}/scheduler/tasks`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: document.getElementById('tf-name').value.trim(),
+                    command: document.getElementById('tf-command').value.trim(),
+                    schedule: document.getElementById('tf-schedule').value.trim(),
+                    enabled: true
+                })
+            });
+            if (!res.ok) throw new Error('Failed');
+            modal.remove();
+            await loadSchedulerTasks();
+        } catch (err) {
+            alert('Error al crear tarea');
+        }
+    });
+}
+
+async function toggleTask(id) {
+    try {
+        await authFetch(`${API_BASE}/scheduler/tasks/${id}/toggle`, { method: 'POST' });
+    } catch (e) { console.error('Toggle task error:', e); }
+}
+
+async function runTask(id) {
+    try {
+        const res = await authFetch(`${API_BASE}/scheduler/tasks/${id}/run`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+        alert(data.output ? `Resultado:\n${data.output.substring(0, 500)}` : 'Tarea ejecutada');
+    } catch (e) {
+        alert('Error al ejecutar tarea');
+    }
+}
+
+async function deleteTask(id) {
+    if (!confirm('¿Eliminar esta tarea?')) return;
+    try {
+        await authFetch(`${API_BASE}/scheduler/tasks/${id}`, { method: 'DELETE' });
+        await loadSchedulerTasks();
+    } catch (e) {
+        alert('Error al eliminar tarea');
+    }
+}
+
+// =============================================================================
+// LOG VIEWER
+// =============================================================================
+
+let currentLogTab = 'system';
+
+async function renderLogsView() {
+    const container = document.createElement('div');
+    container.style.cssText = 'display: contents;';
+
+    const card = document.createElement('div');
+    card.className = 'glass-card';
+    card.style.cssText = 'grid-column: 1 / -1;';
+
+    // Tabs
+    const tabs = document.createElement('div');
+    tabs.style.cssText = 'display: flex; gap: 4px; margin-bottom: 15px; flex-wrap: wrap;';
+    
+    const logTabs = [
+        { id: 'system', label: '🖥️ Sistema', icon: '' },
+        { id: 'app', label: '📱 Aplicación', icon: '' },
+        { id: 'auth', label: '🔐 Auth', icon: '' },
+        { id: 'docker', label: '🐳 Docker', icon: '' },
+        { id: 'samba', label: '📂 Samba', icon: '' }
+    ];
+
+    logTabs.forEach(tab => {
+        const btn = document.createElement('button');
+        btn.className = `btn-sm ${tab.id === currentLogTab ? 'btn-primary' : ''}`;
+        btn.style.cssText = `padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; ${
+            tab.id === currentLogTab ? '' : 'background: var(--bg-card); color: var(--text);'
+        }`;
+        btn.textContent = tab.label;
+        btn.addEventListener('click', () => {
+            currentLogTab = tab.id;
+            renderLogsView();
+        });
+        tabs.appendChild(btn);
+    });
+
+    card.appendChild(tabs);
+
+    // Controls
+    const controls = document.createElement('div');
+    controls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; align-items: center; flex-wrap: wrap;';
+
+    const linesSelect = document.createElement('select');
+    linesSelect.id = 'log-lines';
+    linesSelect.style.cssText = 'padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);';
+    [50, 100, 200, 500, 1000].forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n; opt.textContent = `${n} líneas`;
+        if (n === 100) opt.selected = true;
+        linesSelect.appendChild(opt);
+    });
+
+    const filterInput = document.createElement('input');
+    filterInput.type = 'text';
+    filterInput.id = 'log-filter';
+    filterInput.placeholder = 'Filtrar...';
+    filterInput.style.cssText = 'padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); flex: 1; min-width: 150px;';
+
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'btn-primary btn-sm';
+    refreshBtn.textContent = '🔄 Actualizar';
+    refreshBtn.addEventListener('click', () => fetchLogs());
+
+    controls.appendChild(linesSelect);
+    controls.appendChild(filterInput);
+    controls.appendChild(refreshBtn);
+    card.appendChild(controls);
+
+    // Log output
+    const logOutput = document.createElement('pre');
+    logOutput.id = 'log-output';
+    logOutput.style.cssText = 'background: #0d1117; color: #c9d1d9; padding: 15px; border-radius: 8px; overflow: auto; max-height: 60vh; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all;';
+    logOutput.textContent = 'Cargando...';
+    card.appendChild(logOutput);
+
+    container.appendChild(card);
+    dashboardContent.appendChild(container);
+
+    await fetchLogs();
+}
+
+async function fetchLogs() {
+    const output = document.getElementById('log-output');
+    if (!output) return;
+    output.textContent = 'Cargando...';
+
+    const lines = document.getElementById('log-lines')?.value || 100;
+    const filter = document.getElementById('log-filter')?.value || '';
+
+    try {
+        let url = `${API_BASE}/logs/${currentLogTab}?lines=${lines}`;
+        if (filter) url += `&filter=${encodeURIComponent(filter)}`;
+
+        const res = await authFetch(url);
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        output.textContent = data.logs || data.content || 'Sin datos';
+        output.scrollTop = output.scrollHeight;
+    } catch (e) {
+        output.textContent = 'Error al cargar logs: ' + e.message;
+    }
+}
+
+// =============================================================================
+// SAMBA SHARES (added to Network view)
+// =============================================================================
+
+async function renderSambaSection(container) {
+    const section = document.createElement('div');
+    section.style.marginTop = '40px';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;';
+    
+    const title = document.createElement('h3');
+    title.textContent = '📂 Carpetas Compartidas (Samba)';
+    
+    const btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'display: flex; gap: 8px;';
+    
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary btn-sm';
+    addBtn.textContent = '+ Nueva Compartición';
+    addBtn.addEventListener('click', () => showSambaForm());
+
+    const restartBtn = document.createElement('button');
+    restartBtn.className = 'btn-primary btn-sm';
+    restartBtn.style.background = '#f59e0b';
+    restartBtn.textContent = '🔄 Reiniciar Samba';
+    restartBtn.addEventListener('click', async () => {
+        try {
+            await authFetch(`${API_BASE}/samba/restart`, { method: 'POST' });
+            alert('Samba reiniciado');
+        } catch (e) { alert('Error'); }
+    });
+
+    btnGroup.appendChild(addBtn);
+    btnGroup.appendChild(restartBtn);
+    header.appendChild(title);
+    header.appendChild(btnGroup);
+    section.appendChild(header);
+
+    // Status
+    try {
+        const statusRes = await authFetch(`${API_BASE}/samba/status`);
+        if (statusRes.ok) {
+            const status = await statusRes.json();
+            const statusBadge = document.createElement('div');
+            statusBadge.style.cssText = `display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; margin-bottom: 15px; ${
+                status.active ? 'background: rgba(16,185,129,0.15); color: #10b981;' : 'background: rgba(239,68,68,0.15); color: #ef4444;'
+            }`;
+            statusBadge.textContent = status.active ? `✅ Activo • ${status.connections || 0} conexiones` : '❌ Inactivo';
+            section.appendChild(statusBadge);
+        }
+    } catch (e) {}
+
+    // Shares list
+    const sharesGrid = document.createElement('div');
+    sharesGrid.id = 'samba-shares-grid';
+    sharesGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;';
+    section.appendChild(sharesGrid);
+
+    container.appendChild(section);
+    await loadSambaShares();
+}
+
+async function loadSambaShares() {
+    const grid = document.getElementById('samba-shares-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    try {
+        const res = await authFetch(`${API_BASE}/samba/shares`);
+        if (!res.ok) throw new Error('Failed');
+        const shares = await res.json();
+
+        if (!shares || shares.length === 0) {
+            grid.innerHTML = '<div style="padding: 20px; color: var(--text-dim); grid-column: 1 / -1; text-align: center;">No hay comparticiones configuradas</div>';
+            return;
+        }
+
+        shares.forEach(share => {
+            const card = document.createElement('div');
+            card.className = 'glass-card';
+            card.style.cssText = 'padding: 15px;';
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                    <div>
+                        <h4 style="margin: 0;">📂 ${escapeHtml(share.name)}</h4>
+                        <span style="font-size: 0.8rem; color: var(--text-dim);">${escapeHtml(share.path)}</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                    ${share.readOnly ? '<span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: rgba(245,158,11,0.15); color: #f59e0b;">Solo lectura</span>' : '<span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: rgba(16,185,129,0.15); color: #10b981;">Lectura/Escritura</span>'}
+                    ${share.guestOk ? '<span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: rgba(148,163,184,0.15); color: #94a3b8;">Invitados</span>' : ''}
+                </div>
+                ${share.comment ? `<p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 8px;">${escapeHtml(share.comment)}</p>` : ''}
+            `;
+
+            const delBtn = document.createElement('button');
+            delBtn.textContent = '🗑';
+            delBtn.style.cssText = 'position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; opacity: 0.5; font-size: 1rem;';
+            delBtn.addEventListener('mouseenter', () => delBtn.style.opacity = '1');
+            delBtn.addEventListener('mouseleave', () => delBtn.style.opacity = '0.5');
+            delBtn.addEventListener('click', () => deleteSambaShare(share.name));
+            card.style.position = 'relative';
+            card.appendChild(delBtn);
+
+            grid.appendChild(card);
+        });
+    } catch (e) {
+        grid.innerHTML = '<div style="padding: 20px; color: #ef4444; grid-column: 1 / -1;">Error cargando comparticiones</div>';
+    }
+}
+
+function showSambaForm() {
+    const existing = document.getElementById('samba-form-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'samba-form-modal';
+    modal.className = 'modal active';
+    modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
+
+    modal.innerHTML = `
+        <div class="glass-card modal-content" style="max-width: 450px; width: 90%;">
+            <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Nueva Compartición Samba</h3>
+                <button class="btn-close" id="close-samba-form">&times;</button>
+            </header>
+            <form id="samba-create-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <div class="input-group">
+                    <input type="text" id="sf-name" required placeholder=" ">
+                    <label>Nombre</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="sf-path" required placeholder=" " value="/mnt/storage/">
+                    <label>Ruta</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="sf-comment" placeholder=" ">
+                    <label>Comentario</label>
+                </div>
+                <div style="display: flex; gap: 20px;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="checkbox" id="sf-readonly"> Solo lectura
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="checkbox" id="sf-guest"> Acceso invitados
+                    </label>
+                </div>
+                <button type="submit" class="btn-primary">Crear Compartición</button>
+            </form>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.getElementById('close-samba-form').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('samba-create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const res = await authFetch(`${API_BASE}/samba/shares`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: document.getElementById('sf-name').value.trim(),
+                    path: document.getElementById('sf-path').value.trim(),
+                    comment: document.getElementById('sf-comment').value.trim(),
+                    readOnly: document.getElementById('sf-readonly').checked,
+                    guestOk: document.getElementById('sf-guest').checked
+                })
+            });
+            if (!res.ok) throw new Error('Failed');
+            modal.remove();
+            await loadSambaShares();
+        } catch (err) {
+            alert('Error al crear compartición');
+        }
+    });
+}
+
+async function deleteSambaShare(name) {
+    if (!confirm(`¿Eliminar compartición "${name}"?`)) return;
+    try {
+        await authFetch(`${API_BASE}/samba/shares/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        await loadSambaShares();
+    } catch (e) {
+        alert('Error al eliminar');
+    }
+}
+
+// =============================================================================
+// UPS MONITOR (added to System view)
+// =============================================================================
+
+async function renderUPSSection(container) {
+    const card = document.createElement('div');
+    card.className = 'glass-card';
+    card.style.cssText = 'grid-column: 1 / -1;';
+
+    const title = document.createElement('h3');
+    title.textContent = '🔋 Monitor UPS';
+    title.style.marginBottom = '15px';
+    card.appendChild(title);
+
+    const content = document.createElement('div');
+    content.id = 'ups-content';
+    content.innerHTML = '<p style="color: var(--text-dim);">Cargando estado del UPS...</p>';
+    card.appendChild(content);
+    container.appendChild(card);
+
+    try {
+        const res = await authFetch(`${API_BASE}/ups/status`);
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        if (!data.available) {
+            content.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px; padding: 15px; background: var(--bg-hover); border-radius: 8px;">
+                    <span style="font-size: 2rem;">🔌</span>
+                    <div>
+                        <p style="font-weight: 500;">No se detectó UPS</p>
+                        <p style="color: var(--text-dim); font-size: 0.9rem;">Instala <code>apcupsd</code> o <code>nut</code> para monitorizar tu UPS.</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const batteryColor = data.batteryCharge > 50 ? '#10b981' : data.batteryCharge > 20 ? '#f59e0b' : '#ef4444';
+        content.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                <div style="padding: 15px; background: var(--bg-hover); border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">🔋</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: ${batteryColor};">${data.batteryCharge || '—'}%</div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);">Batería</div>
+                </div>
+                <div style="padding: 15px; background: var(--bg-hover); border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">⏱️</div>
+                    <div style="font-size: 1.5rem; font-weight: 700;">${data.runtime || '—'}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);">Autonomía</div>
+                </div>
+                <div style="padding: 15px; background: var(--bg-hover); border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">⚡</div>
+                    <div style="font-size: 1.5rem; font-weight: 700;">${data.load || '—'}%</div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);">Carga</div>
+                </div>
+                <div style="padding: 15px; background: var(--bg-hover); border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 5px;">🔌</div>
+                    <div style="font-size: 1.5rem; font-weight: 700;">${data.inputVoltage || '—'}V</div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);">Voltaje</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding: 12px; background: var(--bg-hover); border-radius: 8px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9rem;">
+                <span><strong>Estado:</strong> ${escapeHtml(data.status || 'Unknown')}</span>
+                <span><strong>Modelo:</strong> ${escapeHtml(data.model || 'Unknown')}</span>
+                <span><strong>Driver:</strong> ${escapeHtml(data.driver || 'Unknown')}</span>
+            </div>
+        `;
+    } catch (e) {
+        content.innerHTML = '<p style="color: #ef4444;">Error al cargar estado del UPS</p>';
+    }
+}
+
+// =============================================================================
+// NOTIFICATIONS CONFIG (added to System view)
+// =============================================================================
+
+async function renderNotificationsSection(container) {
+    const card = document.createElement('div');
+    card.className = 'glass-card';
+    card.style.cssText = 'grid-column: 1 / -1;';
+
+    const title = document.createElement('h3');
+    title.textContent = '🔔 Notificaciones';
+    title.style.marginBottom = '20px';
+    card.appendChild(title);
+
+    const content = document.createElement('div');
+    content.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px;';
+
+    // Email config
+    const emailSection = document.createElement('div');
+    emailSection.innerHTML = `
+        <h4 style="margin-bottom: 12px;">📧 Email (SMTP)</h4>
+        <form id="notif-email-form" style="display: flex; flex-direction: column; gap: 10px;">
+            <input type="text" id="ne-host" placeholder="Servidor SMTP" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <div style="display: flex; gap: 8px;">
+                <input type="number" id="ne-port" placeholder="Puerto" value="587" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 100px;">
+                <label style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" id="ne-secure"> SSL</label>
+            </div>
+            <input type="text" id="ne-user" placeholder="Usuario" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <input type="password" id="ne-pass" placeholder="Contraseña" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <input type="email" id="ne-from" placeholder="Remitente" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <input type="email" id="ne-to" placeholder="Destinatario" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn-primary btn-sm">Guardar</button>
+                <button type="button" class="btn-primary btn-sm" id="test-email-btn" style="background: #6366f1;">Probar</button>
+            </div>
+        </form>
+    `;
+
+    // Telegram config
+    const telegramSection = document.createElement('div');
+    telegramSection.innerHTML = `
+        <h4 style="margin-bottom: 12px;">📱 Telegram</h4>
+        <form id="notif-telegram-form" style="display: flex; flex-direction: column; gap: 10px;">
+            <input type="text" id="nt-token" placeholder="Bot Token" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <input type="text" id="nt-chatid" placeholder="Chat ID" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+            <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="nt-enabled"> Activado</label>
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn-primary btn-sm">Guardar</button>
+                <button type="button" class="btn-primary btn-sm" id="test-telegram-btn" style="background: #6366f1;">Probar</button>
+            </div>
+        </form>
+    `;
+
+    content.appendChild(emailSection);
+    content.appendChild(telegramSection);
+    card.appendChild(content);
+    container.appendChild(card);
+
+    // Load existing config
+    try {
+        const res = await authFetch(`${API_BASE}/notifications/config`);
+        if (res.ok) {
+            const config = await res.json();
+            if (config.email) {
+                if (config.email.host) document.getElementById('ne-host').value = config.email.host;
+                if (config.email.port) document.getElementById('ne-port').value = config.email.port;
+                document.getElementById('ne-secure').checked = config.email.secure || false;
+                if (config.email.user) document.getElementById('ne-user').value = config.email.user;
+                if (config.email.from) document.getElementById('ne-from').value = config.email.from;
+                if (config.email.to) document.getElementById('ne-to').value = config.email.to;
+            }
+            if (config.telegram) {
+                if (config.telegram.botToken) document.getElementById('nt-token').value = config.telegram.botToken;
+                if (config.telegram.chatId) document.getElementById('nt-chatid').value = config.telegram.chatId;
+                document.getElementById('nt-enabled').checked = config.telegram.enabled || false;
+            }
+        }
+    } catch (e) {}
+
+    // Wire up forms
+    document.getElementById('notif-email-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            await authFetch(`${API_BASE}/notifications/config/email`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    host: document.getElementById('ne-host').value,
+                    port: parseInt(document.getElementById('ne-port').value) || 587,
+                    secure: document.getElementById('ne-secure').checked,
+                    user: document.getElementById('ne-user').value,
+                    password: document.getElementById('ne-pass').value,
+                    from: document.getElementById('ne-from').value,
+                    to: document.getElementById('ne-to').value
+                })
+            });
+            alert('Configuración email guardada');
+        } catch (e) { alert('Error'); }
+    });
+
+    document.getElementById('notif-telegram-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            await authFetch(`${API_BASE}/notifications/config/telegram`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    botToken: document.getElementById('nt-token').value,
+                    chatId: document.getElementById('nt-chatid').value,
+                    enabled: document.getElementById('nt-enabled').checked
+                })
+            });
+            alert('Configuración Telegram guardada');
+        } catch (e) { alert('Error'); }
+    });
+
+    document.getElementById('test-email-btn').addEventListener('click', async () => {
+        try {
+            const res = await authFetch(`${API_BASE}/notifications/test/email`, { method: 'POST' });
+            alert(res.ok ? '¡Email de prueba enviado!' : 'Error al enviar');
+        } catch (e) { alert('Error'); }
+    });
+
+    document.getElementById('test-telegram-btn').addEventListener('click', async () => {
+        try {
+            const res = await authFetch(`${API_BASE}/notifications/test/telegram`, { method: 'POST' });
+            alert(res.ok ? '¡Mensaje de prueba enviado!' : 'Error al enviar');
+        } catch (e) { alert('Error'); }
+    });
+}
+
+// =============================================================================
+// DDNS SECTION (enhanced for Network view)
+// =============================================================================
+
+async function renderDDNSSection(container) {
+    const section = document.createElement('div');
+    section.style.marginTop = '40px';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;';
+    
+    const title = document.createElement('h3');
+    title.textContent = '🌐 DNS Dinámico (DDNS)';
+    
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary btn-sm';
+    addBtn.textContent = '+ Añadir Servicio';
+    addBtn.addEventListener('click', () => showDDNSForm());
+    
+    header.appendChild(title);
+    header.appendChild(addBtn);
+    section.appendChild(header);
+
+    // Current IP
+    const ipDiv = document.createElement('div');
+    ipDiv.style.cssText = 'padding: 10px 15px; background: var(--bg-hover); border-radius: 8px; display: inline-flex; gap: 10px; align-items: center; margin-bottom: 15px;';
+    ipDiv.innerHTML = `<strong>IP Pública:</strong> <span id="ddns-public-ip">Obteniendo...</span>`;
+    section.appendChild(ipDiv);
+
+    const servicesGrid = document.createElement('div');
+    servicesGrid.id = 'ddns-services-grid';
+    servicesGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;';
+    section.appendChild(servicesGrid);
+
+    container.appendChild(section);
+
+    // Fetch public IP
+    try {
+        const ipRes = await authFetch(`${API_BASE}/ddns/public-ip`);
+        if (ipRes.ok) {
+            const ipData = await ipRes.json();
+            const ipEl = document.getElementById('ddns-public-ip');
+            if (ipEl) ipEl.textContent = ipData.ip || 'Desconocida';
+        }
+    } catch (e) {}
+
+    await loadDDNSServices();
+}
+
+async function loadDDNSServices() {
+    const grid = document.getElementById('ddns-services-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    try {
+        const res = await authFetch(`${API_BASE}/ddns/services`);
+        if (!res.ok) throw new Error('Failed');
+        const services = await res.json();
+
+        if (!services || services.length === 0) {
+            grid.innerHTML = '<div style="padding: 20px; color: var(--text-dim); grid-column: 1 / -1; text-align: center;">No hay servicios DDNS configurados</div>';
+            return;
+        }
+
+        services.forEach(svc => {
+            const card = document.createElement('div');
+            card.className = 'glass-card';
+            card.style.cssText = 'padding: 15px; position: relative;';
+
+            const providerLogos = { duckdns: '🦆', cloudflare: '☁️', noip: '🔗', dynu: '🌐' };
+            card.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span style="font-size: 1.5rem;">${providerLogos[svc.provider] || '🌐'}</span>
+                    <div>
+                        <h4 style="margin: 0;">${escapeHtml(svc.domain || svc.hostname || 'Unknown')}</h4>
+                        <span style="font-size: 0.8rem; color: var(--text-dim);">${escapeHtml(svc.provider)}</span>
+                    </div>
+                    <span style="margin-left: auto; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; ${
+                        svc.enabled ? 'background: rgba(16,185,129,0.15); color: #10b981;' : 'background: rgba(148,163,184,0.15); color: #94a3b8;'
+                    }">${svc.enabled ? 'Activo' : 'Inactivo'}</span>
+                </div>
+                ${svc.lastUpdate ? `<div style="font-size: 0.8rem; color: var(--text-dim);">Última actualización: ${new Date(svc.lastUpdate).toLocaleString('es-ES')}</div>` : ''}
+                ${svc.lastIP ? `<div style="font-size: 0.8rem; color: var(--text-dim);">IP: ${escapeHtml(svc.lastIP)}</div>` : ''}
+            `;
+
+            const btnGroup = document.createElement('div');
+            btnGroup.style.cssText = 'display: flex; gap: 6px; margin-top: 10px;';
+
+            const updateBtn = document.createElement('button');
+            updateBtn.className = 'btn-primary btn-sm';
+            updateBtn.style.cssText = 'padding: 4px 10px; font-size: 0.8rem;';
+            updateBtn.textContent = '🔄 Actualizar';
+            updateBtn.addEventListener('click', async () => {
+                try {
+                    const r = await authFetch(`${API_BASE}/ddns/services/${svc.id}/update`, { method: 'POST' });
+                    alert(r.ok ? 'IP actualizada' : 'Error');
+                    await loadDDNSServices();
+                } catch (e) { alert('Error'); }
+            });
+
+            const delBtn = document.createElement('button');
+            delBtn.style.cssText = 'padding: 4px 10px; font-size: 0.8rem; background: #ef4444; border: none; color: white; border-radius: 6px; cursor: pointer;';
+            delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', async () => {
+                if (!confirm('¿Eliminar este servicio DDNS?')) return;
+                try {
+                    await authFetch(`${API_BASE}/ddns/services/${svc.id}`, { method: 'DELETE' });
+                    await loadDDNSServices();
+                } catch (e) { alert('Error'); }
+            });
+
+            btnGroup.appendChild(updateBtn);
+            btnGroup.appendChild(delBtn);
+            card.appendChild(btnGroup);
+            grid.appendChild(card);
+        });
+    } catch (e) {
+        grid.innerHTML = '<div style="padding: 20px; color: #ef4444; grid-column: 1 / -1;">Error cargando servicios DDNS</div>';
+    }
+}
+
+function showDDNSForm() {
+    const existing = document.getElementById('ddns-form-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'ddns-form-modal';
+    modal.className = 'modal active';
+    modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
+
+    modal.innerHTML = `
+        <div class="glass-card modal-content" style="max-width: 450px; width: 90%;">
+            <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Añadir Servicio DDNS</h3>
+                <button class="btn-close" id="close-ddns-form">&times;</button>
+            </header>
+            <form id="ddns-create-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <select id="df-provider" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+                    <option value="duckdns">🦆 DuckDNS</option>
+                    <option value="cloudflare">☁️ Cloudflare</option>
+                    <option value="noip">🔗 No-IP</option>
+                    <option value="dynu">🌐 Dynu</option>
+                </select>
+                <div id="ddns-provider-fields"></div>
+                <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="df-enabled" checked> Activado</label>
+                <button type="submit" class="btn-primary">Guardar Servicio</button>
+            </form>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.getElementById('close-ddns-form').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    const providerSelect = modal.querySelector('#df-provider');
+    const fieldsDiv = modal.querySelector('#ddns-provider-fields');
+
+    function updateProviderFields() {
+        const provider = providerSelect.value;
+        const fieldDefs = {
+            duckdns: [{ id: 'df-domain', label: 'Subdominio (.duckdns.org)', type: 'text' }, { id: 'df-token', label: 'Token', type: 'text' }],
+            cloudflare: [{ id: 'df-domain', label: 'Dominio', type: 'text' }, { id: 'df-zoneid', label: 'Zone ID', type: 'text' }, { id: 'df-apitoken', label: 'API Token', type: 'password' }],
+            noip: [{ id: 'df-hostname', label: 'Hostname', type: 'text' }, { id: 'df-username', label: 'Usuario', type: 'text' }, { id: 'df-password', label: 'Contraseña', type: 'password' }],
+            dynu: [{ id: 'df-hostname', label: 'Hostname', type: 'text' }, { id: 'df-apikey', label: 'API Key', type: 'password' }]
+        };
+        fieldsDiv.innerHTML = '';
+        (fieldDefs[provider] || []).forEach(f => {
+            fieldsDiv.innerHTML += `<div class="input-group"><input type="${f.type}" id="${f.id}" required placeholder=" "><label>${f.label}</label></div>`;
+        });
+    }
+    providerSelect.addEventListener('change', updateProviderFields);
+    updateProviderFields();
+
+    document.getElementById('ddns-create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const provider = providerSelect.value;
+        const body = { provider, enabled: document.getElementById('df-enabled').checked };
+        
+        if (provider === 'duckdns') {
+            body.domain = document.getElementById('df-domain').value.trim();
+            body.token = document.getElementById('df-token').value.trim();
+        } else if (provider === 'cloudflare') {
+            body.domain = document.getElementById('df-domain').value.trim();
+            body.zoneId = document.getElementById('df-zoneid').value.trim();
+            body.apiToken = document.getElementById('df-apitoken').value.trim();
+        } else if (provider === 'noip') {
+            body.hostname = document.getElementById('df-hostname').value.trim();
+            body.username = document.getElementById('df-username').value.trim();
+            body.password = document.getElementById('df-password').value.trim();
+        } else if (provider === 'dynu') {
+            body.hostname = document.getElementById('df-hostname').value.trim();
+            body.apiKey = document.getElementById('df-apikey').value.trim();
+        }
+
+        try {
+            const res = await authFetch(`${API_BASE}/ddns/services`, { method: 'POST', body: JSON.stringify(body) });
+            if (!res.ok) throw new Error('Failed');
+            modal.remove();
+            await loadDDNSServices();
+        } catch (err) {
+            alert('Error al guardar servicio DDNS');
+        }
+    });
+}
+
+// =============================================================================
 // INITIALIZATION
 // =============================================================================
 
@@ -3234,4 +5008,4 @@ window.addEventListener('i18n-updated', () => {
 });
 
 init();
-console.log("HomePiNAS Core v2.1.0 Loaded - (Secure Auth + Terminal + i18n Active)");
+console.log("HomePiNAS Core v2.3.0 Loaded - (Files + Users + 2FA + Samba + DDNS + Backup + Scheduler + Logs + UPS + Notifications)");

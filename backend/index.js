@@ -42,6 +42,16 @@ const powerRoutes = require('./routes/power');
 const updateRoutes = require('./routes/update');
 const terminalRoutes = require('./routes/terminal');
 const shortcutsRoutes = require('./routes/shortcuts');
+const filesRoutes = require('./routes/files');
+const usersRoutes = require('./routes/users');
+const sambaRoutes = require('./routes/samba');
+const notificationsRoutes = require('./routes/notifications');
+const totpRoutes = require('./routes/totp');
+const logsRoutes = require('./routes/logs');
+const backupRoutes = require('./routes/backup');
+const schedulerRoutes = require('./routes/scheduler');
+const upsRoutes = require('./routes/ups');
+const ddnsRoutes = require('./routes/ddns');
 
 // Import terminal WebSocket handler
 let setupTerminalWebSocket;
@@ -53,7 +63,7 @@ try {
 }
 
 // Configuration
-const VERSION = '2.1.0';
+const VERSION = '2.3.0';
 const HTTPS_PORT = process.env.HTTPS_PORT || 3001;
 const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const SSL_CERT_PATH = path.join(__dirname, 'certs', 'server.crt');
@@ -143,7 +153,7 @@ app.use('/frontend', express.static(path.join(__dirname, '../frontend')));
 app.use('/frontend/i18n', express.static(path.join(__dirname, '../frontend/i18n')));
 
 // SPA routes - serve index.html for frontend views
-const spaRoutes = ['/', '/dashboard', '/docker', '/storage', '/network', '/system', '/terminal', '/shortcuts'];
+const spaRoutes = ['/', '/dashboard', '/docker', '/storage', '/files', '/network', '/system', '/terminal', '/shortcuts', '/backup', '/logs', '/users'];
 spaRoutes.forEach(route => {
     app.get(route, (req, res) => {
         res.sendFile(path.join(__dirname, '../index.html'));
@@ -180,6 +190,36 @@ app.use('/api/terminal', terminalRoutes);
 
 // Shortcuts routes (configurable program shortcuts)
 app.use('/api/shortcuts', shortcutsRoutes);
+
+// File Manager routes (File Station)
+app.use('/api/files', filesRoutes);
+
+// User Management routes
+app.use('/api/users', usersRoutes);
+
+// Samba Share Management routes
+app.use('/api/samba', sambaRoutes);
+
+// Notification routes (email + Telegram)
+app.use('/api/notifications', notificationsRoutes);
+
+// TOTP 2FA routes
+app.use('/api/totp', totpRoutes);
+
+// Log Viewer routes
+app.use('/api/logs', logsRoutes);
+
+// Backup Management routes
+app.use('/api/backup', backupRoutes);
+
+// Task Scheduler routes
+app.use('/api/scheduler', schedulerRoutes);
+
+// UPS Monitor routes
+app.use('/api/ups', upsRoutes);
+
+// Dynamic DNS routes
+app.use('/api/ddns', ddnsRoutes);
 
 // =============================================================================
 // SERVER STARTUP
@@ -220,15 +260,25 @@ httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
         console.log('\n[WARN]  HTTPS not configured. Run install.sh to generate SSL certificates.');
     }
     console.log('\n[INFO]  Modular architecture loaded:');
-    console.log('        - routes/system.js    (stats, fans, disks)');
-    console.log('        - routes/storage.js   (pool, snapraid)');
-    console.log('        - routes/docker.js    (containers)');
-    console.log('        - routes/auth.js      (login, setup)');
-    console.log('        - routes/network.js   (interfaces)');
-    console.log('        - routes/power.js     (reboot, shutdown)');
-    console.log('        - routes/update.js    (OTA updates)');
-    console.log('        - routes/terminal.js  (web terminal)');
-    console.log('        - routes/shortcuts.js (custom shortcuts)');
+    console.log('        - routes/system.js         (stats, fans, disks)');
+    console.log('        - routes/storage.js        (pool, snapraid)');
+    console.log('        - routes/docker.js         (containers)');
+    console.log('        - routes/auth.js           (login, setup)');
+    console.log('        - routes/network.js        (interfaces)');
+    console.log('        - routes/power.js          (reboot, shutdown)');
+    console.log('        - routes/update.js         (OTA updates)');
+    console.log('        - routes/terminal.js       (web terminal)');
+    console.log('        - routes/shortcuts.js      (custom shortcuts)');
+    console.log('        - routes/files.js          (file manager)');
+    console.log('        - routes/users.js          (user management)');
+    console.log('        - routes/samba.js          (samba shares)');
+    console.log('        - routes/notifications.js  (email/telegram)');
+    console.log('        - routes/totp.js           (2FA)');
+    console.log('        - routes/logs.js           (log viewer)');
+    console.log('        - routes/backup.js         (backup jobs)');
+    console.log('        - routes/scheduler.js      (task scheduler)');
+    console.log('        - routes/ups.js            (UPS monitor)');
+    console.log('        - routes/ddns.js           (dynamic DNS)');
     console.log('');
     
     // Setup Terminal WebSocket on HTTP server

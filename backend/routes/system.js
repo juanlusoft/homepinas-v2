@@ -340,7 +340,8 @@ router.get('/disks', async (req, res) => {
             })
             .map(dev => {
                 const layoutInfo = diskLayout.find(d => d.device === dev.device) || {};
-                const sizeGB = (dev.size / 1024 / 1024 / 1024).toFixed(0);
+                const sizeGBraw = dev.size / 1024 / 1024 / 1024;
+                const sizeGB = sizeGBraw.toFixed(0);
 
                 let diskType = 'HDD';
                 if (layoutInfo.interfaceType === 'NVMe' || dev.name.includes('nvme')) {
@@ -402,7 +403,7 @@ router.get('/disks', async (req, res) => {
                     id: dev.name,
                     device: dev.device,
                     type: diskType,
-                    size: sizeGB + 'GB',
+                    size: sizeGBraw >= 1024 ? (sizeGBraw / 1024).toFixed(1) + ' TB' : sizeGB + ' GB',
                     model: finalModel,
                     serial: serial || 'N/A',
                     temp: temp || (35 + Math.floor(Math.random() * 10)),

@@ -1120,6 +1120,26 @@ $REAL_USER ALL=(ALL) NOPASSWD: /usr/sbin/smartctl -i /dev/sd[a-z]
 $REAL_USER ALL=(ALL) NOPASSWD: /usr/sbin/smartctl -i /dev/nvme[0-9]n[0-9]
 $REAL_USER ALL=(ALL) NOPASSWD: /usr/sbin/smartctl -A /dev/sd[a-z]
 $REAL_USER ALL=(ALL) NOPASSWD: /usr/sbin/smartctl -A /dev/nvme[0-9]n[0-9]
+
+# Samba config management
+$REAL_USER ALL=(ALL) NOPASSWD: /bin/cat /etc/samba/smb.conf
+$REAL_USER ALL=(ALL) NOPASSWD: /bin/cp /etc/samba/smb.conf /etc/samba/smb.conf.bak
+$REAL_USER ALL=(ALL) NOPASSWD: /bin/mv /tmp/homepinas-smb.conf /etc/samba/smb.conf
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/smbstatus -b
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/sbin/userdel [a-zA-Z]*
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/smbpasswd -x [a-zA-Z]*
+
+# UPS monitoring
+$REAL_USER ALL=(ALL) NOPASSWD: /sbin/apcaccess
+$REAL_USER ALL=(ALL) NOPASSWD: /sbin/apctest
+$REAL_USER ALL=(ALL) NOPASSWD: /bin/upsc *
+$REAL_USER ALL=(ALL) NOPASSWD: /bin/upscmd *
+
+# Crontab management
+$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/crontab *
+
+# Journalctl (log viewing)
+$REAL_USER ALL=(ALL) NOPASSWD: /bin/journalctl *
 EOF
 
 # Create SnapRAID sync script

@@ -29,6 +29,15 @@ let snapraidSyncStatus = {
     error: null
 };
 
+// Format size: GB → TB when appropriate
+function formatSize(gb) {
+    const num = parseFloat(gb) || 0;
+    if (num >= 1024) {
+        return (num / 1024).toFixed(1) + ' TB';
+    }
+    return Math.round(num) + ' GB';
+}
+
 // Get storage pool status
 router.get('/pool/status', async (req, res) => {
     try {
@@ -71,9 +80,9 @@ router.get('/pool/status', async (req, res) => {
             configured: snapraidConfigured,
             running: mergerfsRunning,
             poolMount: POOL_MOUNT,
-            poolSize: poolSize + ' GB',
-            poolUsed: poolUsed + ' GB',
-            poolFree: poolFree + ' GB',
+            poolSize: formatSize(poolSize),
+            poolUsed: formatSize(poolUsed),
+            poolFree: formatSize(poolFree),
             lastSync
         });
     } catch (e) {
