@@ -139,6 +139,116 @@ async function notifyBackupFailure(device, error) {
   }
 }
 
+// ── Helper: create Samba share for image backup device ──
+async function createImageBackupShare(device) {
+  const shareName = device.sambaShare;
+  const sharePath = deviceDir(device.id);
+  
+  // Ensure directory exists with right permissions
+  if (!fs.existsSync(sharePath)) fs.mkdirSync(sharePath, { recursive: true });
+
+  // Add share to smb.conf
+  const smbConfPath = '/etc/samba/smb.conf';
+  const shareBlock = `\n[${shareName}]\n   path = ${sharePath}\n   browseable = no\n   writable = yes\n   guest ok = no\n   valid users = homepinas\n   create mask = 0660\n   directory mask = 0770\n   comment = HomePiNAS Image Backup - ${device.name}\n`;
+
+  try {
+    const currentConf = fs.readFileSync(smbConfPath, 'utf8');
+    if (!currentConf.includes(`[${shareName}]`)) {
+      await execFileAsync('sudo', ['tee', '-a', smbConfPath], { input: shareBlock });
+      await execFileAsync('sudo', ['systemctl', 'reload', 'smbd']);
+    }
+  } catch(e) {
+    console.error('Samba share creation error:', e.message);
+    throw e;
+  }
+}
+
+// ── Helper: generate instructions for image backup ──
+function getImageBackupInstructions(device, uncPath, nasHostname) {
+  const nasIP = '192.168.1.123'; // TODO: detect dynamically
+  const shareName = device.sambaShare;
+  
+  if (device.os === 'windows') {
+    return {
+      title: 'Configurar Backup de Imagen en Windows',
+      steps: [
+        {
+          title: '1. Programar backup automático (recomendado)',
+          description: 'Abre PowerShell como Administrador y ejecuta:',
+          command: `wbadmin start backup -backupTarget:\\\\${nasIP}\\${shareName} -user:homepinas -password:homepinas -allCritical -systemState -vssFull -quiet`,
+        },
+        {
+          title: '2. Programar con Task Scheduler',
+          description: 'Para backup automático diario, ejecuta en PowerShell (Admin):',
+          command: `$action = New-ScheduledTaskAction -Execute "wbadmin" -Argument "start backup -backupTarget:\\\\${nasIP}\\${shareName} -user:homepinas -password:homepinas -allCritical -systemState -vssFull -quiet"\n$trigger = New-ScheduledTaskTrigger -Daily -At 3am\n$settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -WakeToRun\nRegister-ScheduledTask -TaskName "HomePiNAS Backup" -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM" -RunLevel Highest`,
+        },
+        {
+          title: '3. Para restaurar',
+          description: 'Si necesitas restaurar la imagen completa:',
+          command: 'Arranca con USB de instalación de Windows → Reparar → Solucionar problemas → Recuperación de imagen del sistema → Selecciona la imagen de red',
+        },
+        {
+          title: '4. Activar Windows Server Backup (si no está)',
+          description: 'Si wbadmin no funciona, actívalo primero:',
+          command: 'En Windows 10/11 Pro: dism /online /enable-feature /featurename:WindowsServerBackup\nEn Windows Home: usa el Panel de Control → Copia de seguridad → Crear imagen del sistema → Red',
+        },
+      ],
+    };
+  } else {
+    // Linux image backup
+    return {
+      title: 'Configurar Backup de Imagen en Linux',
+      steps: [
+        {
+          title: '1. Backup completo del disco',
+          description: 'Ejecuta como root en el equipo:',
+          command: `dd if=/dev/sda bs=4M status=progress | gzip | ssh homepinas@${nasIP} "cat > /mnt/storage/active-backup/${device.id}/image-$(date +%Y%m%d).img.gz"`,
+        },
+        {
+          title: '2. Solo partición del sistema',
+          description: 'Para copiar solo la partición principal:',
+          command: `dd if=/dev/sda1 bs=4M status=progress | gzip | ssh homepinas@${nasIP} "cat > /mnt/storage/active-backup/${device.id}/sda1-$(date +%Y%m%d).img.gz"`,
+        },
+        {
+          title: '3. Con partclone (más eficiente)',
+          description: 'Instala partclone y haz backup solo de bloques usados:',
+          command: `sudo apt install partclone\nsudo partclone.ext4 -c -s /dev/sda1 | gzip | ssh homepinas@${nasIP} "cat > /mnt/storage/active-backup/${device.id}/sda1-$(date +%Y%m%d).pcl.gz"`,
+        },
+        {
+          title: '4. Restaurar',
+          description: 'Para restaurar la imagen:',
+          command: `ssh homepinas@${nasIP} "cat /mnt/storage/active-backup/${device.id}/image-FECHA.img.gz" | gunzip | sudo dd of=/dev/sda bs=4M status=progress`,
+        },
+      ],
+    };
+  }
+}
+
+// ── Helper: list image backup files for a device ──
+function getImageFiles(deviceId) {
+  const dir = deviceDir(deviceId);
+  if (!fs.existsSync(dir)) return [];
+  
+  return fs.readdirSync(dir)
+    .filter(f => {
+      const ext = f.toLowerCase();
+      return ext.endsWith('.vhd') || ext.endsWith('.vhdx') || ext.endsWith('.img') || 
+             ext.endsWith('.img.gz') || ext.endsWith('.pcl.gz') || ext.endsWith('.xml') ||
+             f === 'WindowsImageBackup' || f.startsWith('backup-');
+    })
+    .map(f => {
+      const fPath = path.join(dir, f);
+      const stat = fs.statSync(fPath);
+      return {
+        name: f,
+        size: stat.isDirectory() ? getDirSize(fPath) : stat.size,
+        modified: stat.mtime,
+        type: stat.isDirectory() ? 'directory' : 'file',
+      };
+    })
+    .sort((a, b) => new Date(b.modified) - new Date(a.modified));
+}
+
 // ══════════════════════════════════════════
 // DEVICE MANAGEMENT
 // ══════════════════════════════════════════
@@ -151,45 +261,132 @@ router.get('/devices', (req, res) => {
   const ab = data.activeBackup || { devices: [] };
   
   const devices = ab.devices.map(d => {
-    const versions = getVersions(d.id);
     const dir = deviceDir(d.id);
-    return {
-      ...d,
-      backupCount: versions.length,
-      totalSize: fs.existsSync(dir) ? getDirSize(dir) : 0,
-      versions: versions.map(v => {
-        const vPath = path.join(dir, v);
-        const stat = fs.statSync(vPath);
-        return { name: v, date: stat.mtime };
-      }),
-    };
+    const isImage = d.backupType === 'image';
+    
+    if (isImage) {
+      const images = getImageFiles(d.id);
+      return {
+        ...d,
+        backupCount: images.length,
+        totalSize: fs.existsSync(dir) ? getDirSize(dir) : 0,
+        images,
+      };
+    } else {
+      const versions = getVersions(d.id);
+      return {
+        ...d,
+        backupCount: versions.length,
+        totalSize: fs.existsSync(dir) ? getDirSize(dir) : 0,
+        versions: versions.map(v => {
+          const vPath = path.join(dir, v);
+          const stat = fs.statSync(vPath);
+          return { name: v, date: stat.mtime };
+        }),
+      };
+    }
   });
 
   res.json({ success: true, devices });
 });
 
 /**
+ * GET /devices/:id/images - List image backup files for a device
+ */
+router.get('/devices/:id/images', (req, res) => {
+  const data = getData();
+  if (!data.activeBackup) return res.json({ success: true, images: [] });
+  const device = data.activeBackup.devices.find(d => d.id === req.params.id);
+  if (!device) return res.status(404).json({ error: 'Device not found' });
+  
+  const images = getImageFiles(device.id);
+  const dir = deviceDir(device.id);
+  
+  // Also list WindowsImageBackup subdirectories
+  const wibPath = path.join(dir, 'WindowsImageBackup');
+  let windowsBackups = [];
+  if (fs.existsSync(wibPath)) {
+    try {
+      windowsBackups = fs.readdirSync(wibPath, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => {
+          const bPath = path.join(wibPath, d.name);
+          return {
+            name: d.name,
+            size: getDirSize(bPath),
+            modified: fs.statSync(bPath).mtime,
+            type: 'windows-image',
+          };
+        });
+    } catch(e) {}
+  }
+  
+  res.json({ success: true, images, windowsBackups, totalSize: getDirSize(dir) });
+});
+
+/**
+ * GET /devices/:id/instructions - Get setup instructions for a device
+ */
+router.get('/devices/:id/instructions', async (req, res) => {
+  const data = getData();
+  if (!data.activeBackup) return res.status(404).json({ error: 'No devices' });
+  const device = data.activeBackup.devices.find(d => d.id === req.params.id);
+  if (!device) return res.status(404).json({ error: 'Device not found' });
+  
+  if (device.backupType === 'image') {
+    const nasHostname = os.hostname();
+    const uncPath = `\\\\${nasHostname}\\${device.sambaShare}`;
+    const instructions = getImageBackupInstructions(device, uncPath, nasHostname);
+    res.json({ success: true, instructions });
+  } else {
+    const pubKey = await ensureSSHKey();
+    res.json({
+      success: true,
+      sshPublicKey: pubKey,
+      instructions: {
+        title: 'Configurar acceso SSH',
+        command: `mkdir -p ~/.ssh && echo '${pubKey}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`,
+      },
+    });
+  }
+});
+
+/**
  * POST /devices - Register a new device
+ * backupType: "files" (rsync) or "image" (full disk image via SMB)
  */
 router.post('/devices', async (req, res) => {
   try {
-    const { name, ip, sshUser, sshPort, paths, excludes, schedule, retention } = req.body;
+    const { name, ip, sshUser, sshPort, paths, excludes, schedule, retention, backupType, os: deviceOS } = req.body;
 
-    if (!name || !ip || !sshUser) {
-      return res.status(400).json({ error: 'name, ip, and sshUser are required' });
+    const isImage = backupType === 'image';
+
+    if (!name || !ip) {
+      return res.status(400).json({ error: 'name and ip are required' });
+    }
+    if (!isImage && !sshUser) {
+      return res.status(400).json({ error: 'sshUser is required for file backups' });
     }
 
-    const pubKey = await ensureSSHKey();
+    let pubKey = null;
+    if (!isImage) {
+      pubKey = await ensureSSHKey();
+    }
+
     const deviceId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
     const device = {
       id: deviceId,
       name: name.trim(),
       ip: ip.trim(),
-      sshUser: sshUser.trim(),
+      backupType: isImage ? 'image' : 'files',
+      os: deviceOS || (isImage ? 'windows' : 'linux'),
+      // File backup fields
+      sshUser: sshUser ? sshUser.trim() : '',
       sshPort: parseInt(sshPort) || 22,
-      paths: paths || ['/home'],
+      paths: paths || (isImage ? [] : ['/home']),
       excludes: excludes || ['.cache', '*.tmp', 'node_modules', '.Trash*', '.local/share/Trash'],
+      // Common fields
       schedule: schedule || '0 2 * * *',
       retention: parseInt(retention) || 5,
       enabled: true,
@@ -198,6 +395,8 @@ router.post('/devices', async (req, res) => {
       lastResult: null,
       lastError: null,
       lastDuration: null,
+      // Image backup: Samba share name for this device
+      sambaShare: isImage ? `backup-${deviceId.slice(0, 8)}` : null,
     };
 
     const data = getData();
@@ -209,14 +408,40 @@ router.post('/devices', async (req, res) => {
     const dir = deviceDir(deviceId);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    logSecurityEvent('active_backup_device_added', req.user.username, { device: name, ip });
+    // For image backups: create a Samba share for this device
+    let sambaSetup = null;
+    if (isImage) {
+      try {
+        await createImageBackupShare(device);
+        const nasHostname = os.hostname();
+        const shareName = device.sambaShare;
+        const uncPath = `\\\\${device.ip === '127.0.0.1' ? 'localhost' : nasHostname}\\${shareName}`;
+        
+        sambaSetup = {
+          sharePath: uncPath,
+          shareUser: 'homepinas',
+          instructions: getImageBackupInstructions(device, uncPath, nasHostname),
+        };
+      } catch (sambaErr) {
+        console.error('Failed to create Samba share for image backup:', sambaErr.message);
+      }
+    }
 
-    res.json({
+    logSecurityEvent('active_backup_device_added', req.user.username, { device: name, ip, type: device.backupType });
+
+    const response = {
       success: true,
       device,
-      sshPublicKey: pubKey,
-      setupInstructions: `En el equipo "${name}" (${ip}), ejecuta:\n\nmkdir -p ~/.ssh && echo '${pubKey}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\n\nO copia la clave pública desde el botón de abajo.`,
-    });
+    };
+
+    if (isImage) {
+      response.sambaSetup = sambaSetup;
+    } else {
+      response.sshPublicKey = pubKey;
+      response.setupInstructions = `En el equipo "${name}" (${ip}), ejecuta:\n\nmkdir -p ~/.ssh && echo '${pubKey}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`;
+    }
+
+    res.json(response);
   } catch (err) {
     console.error('Add device error:', err);
     res.status(500).json({ error: err.message });
@@ -233,7 +458,7 @@ router.put('/devices/:id', (req, res) => {
   const idx = data.activeBackup.devices.findIndex(d => d.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Device not found' });
 
-  const allowed = ['name', 'ip', 'sshUser', 'sshPort', 'paths', 'excludes', 'schedule', 'retention', 'enabled'];
+  const allowed = ['name', 'ip', 'sshUser', 'sshPort', 'paths', 'excludes', 'schedule', 'retention', 'enabled', 'os'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
       data.activeBackup.devices[idx][key] = req.body[key];

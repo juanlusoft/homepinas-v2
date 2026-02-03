@@ -5541,22 +5541,28 @@ async function loadABDevices() {
 
             const isOk = device.lastResult === 'success';
             const isFail = device.lastResult === 'failed';
-            const isNew = !device.lastResult;
+            const isImage = device.backupType === 'image';
             const statusColor = isOk ? '#10b981' : isFail ? '#ef4444' : '#94a3b8';
             const statusText = isOk ? 'OK' : isFail ? 'Error' : 'Pendiente';
-            const statusIcon = isOk ? '✅' : isFail ? '❌' : '⏳';
+            const typeIcon = isImage ? '💽' : '📁';
+            const typeLabel = isImage ? 'Imagen' : 'Archivos';
+            const osIcon = device.os === 'windows' ? '🪟' : '🐧';
+            const subtitle = isImage
+                ? `${escapeHtml(device.ip)} · ${osIcon} ${typeLabel}`
+                : `${escapeHtml(device.ip)} · ${escapeHtml(device.sshUser)}`;
 
             const lastBackup = device.lastBackup ? new Date(device.lastBackup).toLocaleString('es-ES', {
                 day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
             }) : 'Nunca';
 
             const sizeStr = formatABSize(device.totalSize || 0);
+            const countLabel = isImage ? 'imágenes' : 'versiones';
 
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                     <div>
-                        <div style="font-weight: 600; font-size: 1.05rem;">${escapeHtml(device.name)}</div>
-                        <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 2px;">${escapeHtml(device.ip)} · ${escapeHtml(device.sshUser)}</div>
+                        <div style="font-weight: 600; font-size: 1.05rem;">${typeIcon} ${escapeHtml(device.name)}</div>
+                        <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 2px;">${subtitle}</div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
@@ -5565,7 +5571,7 @@ async function loadABDevices() {
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem; color: var(--text-dim);">
                     <div>📅 ${lastBackup}</div>
-                    <div>📦 ${device.backupCount || 0} versiones</div>
+                    <div>📦 ${device.backupCount || 0} ${countLabel}</div>
                     <div>💾 ${sizeStr}</div>
                     <div>🔄 ${device.enabled ? escapeHtml(device.schedule) : 'Desactivado'}</div>
                 </div>
@@ -5575,17 +5581,27 @@ async function loadABDevices() {
             const actions = document.createElement('div');
             actions.style.cssText = 'display: flex; gap: 8px; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 12px;';
 
-            const backupBtn = document.createElement('button');
-            backupBtn.className = 'btn-primary btn-sm';
-            backupBtn.style.cssText = 'flex: 1; padding: 8px;';
-            backupBtn.textContent = '▶ Backup';
-            backupBtn.addEventListener('click', (e) => { e.stopPropagation(); triggerABBackup(device.id, backupBtn); });
+            if (!isImage) {
+                const backupBtn = document.createElement('button');
+                backupBtn.className = 'btn-primary btn-sm';
+                backupBtn.style.cssText = 'flex: 1; padding: 8px;';
+                backupBtn.textContent = '▶ Backup';
+                backupBtn.addEventListener('click', (e) => { e.stopPropagation(); triggerABBackup(device.id, backupBtn); });
+                actions.appendChild(backupBtn);
+            } else {
+                const instrBtn = document.createElement('button');
+                instrBtn.className = 'btn-primary btn-sm';
+                instrBtn.style.cssText = 'flex: 1; padding: 8px;';
+                instrBtn.textContent = '📋 Instrucciones';
+                instrBtn.addEventListener('click', (e) => { e.stopPropagation(); showABInstructions(device); });
+                actions.appendChild(instrBtn);
+            }
 
             const browseBtn = document.createElement('button');
             browseBtn.className = 'btn-primary btn-sm';
             browseBtn.style.cssText = 'flex: 1; padding: 8px; background: #6366f1;';
             browseBtn.textContent = '📂 Explorar';
-            browseBtn.addEventListener('click', (e) => { e.stopPropagation(); openABBrowse(device); });
+            browseBtn.addEventListener('click', (e) => { e.stopPropagation(); isImage ? openABImageBrowse(device) : openABBrowse(device); });
 
             const editBtn = document.createElement('button');
             editBtn.className = 'btn-primary btn-sm';
@@ -5599,7 +5615,6 @@ async function loadABDevices() {
             deleteBtn.textContent = '🗑️';
             deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteABDevice(device); });
 
-            actions.appendChild(backupBtn);
             actions.appendChild(browseBtn);
             actions.appendChild(editBtn);
             actions.appendChild(deleteBtn);
@@ -5630,40 +5645,68 @@ function showAddDeviceForm(editDevice = null) {
     modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
 
     const isEdit = !!editDevice;
+    const curType = editDevice?.backupType || 'files';
+    const curOS = editDevice?.os || 'linux';
 
     modal.innerHTML = `
-        <div class="glass-card modal-content" style="max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto;">
+        <div class="glass-card modal-content" style="max-width: 520px; width: 90%; max-height: 85vh; overflow-y: auto;">
             <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>${isEdit ? '⚙️ Editar Dispositivo' : '🖥️ Añadir Dispositivo'}</h3>
                 <button class="btn-close" id="close-ab-form">&times;</button>
             </header>
             <form id="ab-device-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                ${!isEdit ? `
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn-primary ab-type-btn ${curType === 'files' ? '' : 'ab-type-inactive'}" data-type="files" style="flex: 1; padding: 14px; text-align: center; ${curType === 'files' ? '' : 'background: var(--bg-hover); color: var(--text-dim);'}">
+                        <div style="font-size: 1.5rem;">📁</div>
+                        <div style="font-weight: 600; margin-top: 4px;">Archivos</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">Rsync + SSH</div>
+                    </button>
+                    <button type="button" class="btn-primary ab-type-btn ${curType === 'image' ? '' : 'ab-type-inactive'}" data-type="image" style="flex: 1; padding: 14px; text-align: center; ${curType === 'image' ? '' : 'background: var(--bg-hover); color: var(--text-dim);'}">
+                        <div style="font-size: 1.5rem;">💽</div>
+                        <div style="font-weight: 600; margin-top: 4px;">Imagen Completa</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">Disco entero</div>
+                    </button>
+                </div>` : ''}
+                <input type="hidden" id="ab-type" value="${curType}">
+                
+                ${!isEdit ? `
+                <div id="ab-os-select" style="display: ${curType === 'image' ? 'flex' : 'none'}; gap: 10px;">
+                    <button type="button" class="btn-primary ab-os-btn" data-os="windows" style="flex: 1; padding: 10px; ${curOS === 'windows' ? '' : 'background: var(--bg-hover); color: var(--text-dim);'}">🪟 Windows</button>
+                    <button type="button" class="btn-primary ab-os-btn" data-os="linux" style="flex: 1; padding: 10px; ${curOS === 'linux' ? '' : 'background: var(--bg-hover); color: var(--text-dim);'}">🐧 Linux</button>
+                </div>` : ''}
+                <input type="hidden" id="ab-os" value="${curOS}">
+
                 <div class="input-group">
                     <input type="text" id="ab-name" required placeholder=" " value="${escapeHtml(editDevice?.name || '')}">
                     <label>Nombre (ej: Portátil JLu)</label>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px;">
-                    <div class="input-group">
-                        <input type="text" id="ab-ip" required placeholder=" " value="${escapeHtml(editDevice?.ip || '')}">
-                        <label>IP del equipo</label>
+                <div class="input-group">
+                    <input type="text" id="ab-ip" required placeholder=" " value="${escapeHtml(editDevice?.ip || '')}">
+                    <label>IP del equipo</label>
+                </div>
+
+                <div id="ab-ssh-fields" style="display: ${curType === 'files' ? 'flex' : 'none'}; flex-direction: column; gap: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 100px; gap: 10px;">
+                        <div class="input-group">
+                            <input type="text" id="ab-user" placeholder=" " value="${escapeHtml(editDevice?.sshUser || '')}">
+                            <label>Usuario SSH</label>
+                        </div>
+                        <div class="input-group">
+                            <input type="number" id="ab-port" placeholder=" " value="${editDevice?.sshPort || 22}">
+                            <label>Puerto</label>
+                        </div>
                     </div>
                     <div class="input-group">
-                        <input type="number" id="ab-port" placeholder=" " value="${editDevice?.sshPort || 22}">
-                        <label>Puerto SSH</label>
+                        <input type="text" id="ab-paths" placeholder=" " value="${escapeHtml((editDevice?.paths || ['/home']).join(', '))}">
+                        <label>Rutas a copiar (separadas por coma)</label>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="ab-excludes" placeholder=" " value="${escapeHtml((editDevice?.excludes || ['.cache', '*.tmp', 'node_modules']).join(', '))}">
+                        <label>Excluir (separadas por coma)</label>
                     </div>
                 </div>
-                <div class="input-group">
-                    <input type="text" id="ab-user" required placeholder=" " value="${escapeHtml(editDevice?.sshUser || '')}">
-                    <label>Usuario SSH del equipo</label>
-                </div>
-                <div class="input-group">
-                    <input type="text" id="ab-paths" required placeholder=" " value="${escapeHtml((editDevice?.paths || ['/home']).join(', '))}">
-                    <label>Rutas a copiar (separadas por coma)</label>
-                </div>
-                <div class="input-group">
-                    <input type="text" id="ab-excludes" placeholder=" " value="${escapeHtml((editDevice?.excludes || ['.cache', '*.tmp', 'node_modules']).join(', '))}">
-                    <label>Excluir (separadas por coma)</label>
-                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div class="input-group">
                         <input type="text" id="ab-schedule" required placeholder=" " value="${escapeHtml(editDevice?.schedule || '0 2 * * *')}">
@@ -5674,9 +5717,9 @@ function showAddDeviceForm(editDevice = null) {
                         <label>Versiones a mantener</label>
                     </div>
                 </div>
-                <button type="submit" class="btn-primary">${isEdit ? 'Guardar Cambios' : 'Añadir Dispositivo'}</button>
+                <button type="submit" class="btn-primary" style="padding: 14px;">${isEdit ? 'Guardar Cambios' : 'Añadir Dispositivo'}</button>
             </form>
-            <div id="ab-ssh-key-info" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border);"></div>
+            <div id="ab-setup-info" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border);"></div>
         </div>
     `;
 
@@ -5684,41 +5727,91 @@ function showAddDeviceForm(editDevice = null) {
     document.getElementById('close-ab-form').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 
+    // Type toggle (files vs image)
+    modal.querySelectorAll('.ab-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const type = btn.dataset.type;
+            document.getElementById('ab-type').value = type;
+            modal.querySelectorAll('.ab-type-btn').forEach(b => {
+                b.style.background = b.dataset.type === type ? '' : 'var(--bg-hover)';
+                b.style.color = b.dataset.type === type ? '' : 'var(--text-dim)';
+            });
+            document.getElementById('ab-ssh-fields').style.display = type === 'files' ? 'flex' : 'none';
+            const osSelect = document.getElementById('ab-os-select');
+            if (osSelect) osSelect.style.display = type === 'image' ? 'flex' : 'none';
+        });
+    });
+
+    // OS toggle (windows vs linux) 
+    modal.querySelectorAll('.ab-os-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const osVal = btn.dataset.os;
+            document.getElementById('ab-os').value = osVal;
+            modal.querySelectorAll('.ab-os-btn').forEach(b => {
+                b.style.background = b.dataset.os === osVal ? '' : 'var(--bg-hover)';
+                b.style.color = b.dataset.os === osVal ? '' : 'var(--text-dim)';
+            });
+        });
+    });
+
     document.getElementById('ab-device-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const backupType = document.getElementById('ab-type').value;
+        const isImage = backupType === 'image';
+
         const body = {
             name: document.getElementById('ab-name').value.trim(),
             ip: document.getElementById('ab-ip').value.trim(),
-            sshUser: document.getElementById('ab-user').value.trim(),
-            sshPort: parseInt(document.getElementById('ab-port').value) || 22,
-            paths: document.getElementById('ab-paths').value.split(',').map(s => s.trim()).filter(Boolean),
-            excludes: document.getElementById('ab-excludes').value.split(',').map(s => s.trim()).filter(Boolean),
+            backupType,
+            os: document.getElementById('ab-os').value,
             schedule: document.getElementById('ab-schedule').value.trim(),
             retention: parseInt(document.getElementById('ab-retention').value) || 5,
         };
+
+        if (!isImage) {
+            body.sshUser = document.getElementById('ab-user').value.trim();
+            body.sshPort = parseInt(document.getElementById('ab-port').value) || 22;
+            body.paths = document.getElementById('ab-paths').value.split(',').map(s => s.trim()).filter(Boolean);
+            body.excludes = document.getElementById('ab-excludes').value.split(',').map(s => s.trim()).filter(Boolean);
+        }
 
         try {
             const url = isEdit ? `${API_BASE}/active-backup/devices/${editDevice.id}` : `${API_BASE}/active-backup/devices`;
             const method = isEdit ? 'PUT' : 'POST';
             const res = await authFetch(url, { method, body: JSON.stringify(body) });
             const data = await res.json();
-
             if (!res.ok) throw new Error(data.error || 'Failed');
 
-            if (!isEdit && data.sshPublicKey) {
+            const info = document.getElementById('ab-setup-info');
+
+            if (!isEdit && isImage && data.sambaSetup) {
+                // Show image backup instructions
+                info.style.display = 'block';
+                const instr = data.sambaSetup.instructions;
+                info.innerHTML = `
+                    <h4 style="margin-bottom: 12px; color: var(--accent);">💽 ${escapeHtml(instr.title)}</h4>
+                    ${instr.steps.map(step => `
+                        <div style="margin-bottom: 15px;">
+                            <p style="font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">${escapeHtml(step.title)}</p>
+                            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px;">${escapeHtml(step.description)}</p>
+                            <div style="background: #0a0a0a; color: #10b981; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; word-break: break-all; white-space: pre-wrap; position: relative;">${escapeHtml(step.command)}</div>
+                        </div>
+                    `).join('')}
+                    <button class="btn-primary btn-sm" style="margin-top: 5px;" onclick="this.closest('.modal').remove()">Entendido, cerrar</button>
+                `;
+                document.getElementById('ab-device-form').style.display = 'none';
+            } else if (!isEdit && !isImage && data.sshPublicKey) {
                 // Show SSH key instructions
-                const info = document.getElementById('ab-ssh-key-info');
                 info.style.display = 'block';
                 info.innerHTML = `
                     <h4 style="margin-bottom: 10px; color: var(--accent);">🔑 Configura el acceso SSH</h4>
                     <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 10px;">Ejecuta esto en <strong>${escapeHtml(body.name)}</strong> (${escapeHtml(body.ip)}):</p>
-                    <div style="background: #0a0a0a; color: #10b981; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; word-break: break-all; margin-bottom: 10px; position: relative;">
+                    <div style="background: #0a0a0a; color: #10b981; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; word-break: break-all; margin-bottom: 10px;">
                         <code id="ab-ssh-cmd">mkdir -p ~/.ssh && echo '${escapeHtml(data.sshPublicKey)}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys</code>
                     </div>
                     <button class="btn-primary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('ab-ssh-cmd').textContent);this.textContent='✅ Copiado'">📋 Copiar comando</button>
                     <button class="btn-primary btn-sm" style="margin-left: 8px; background: #6366f1;" onclick="this.closest('.modal').remove()">Listo, cerrar</button>
                 `;
-                // Hide the form
                 document.getElementById('ab-device-form').style.display = 'none';
             } else {
                 modal.remove();
@@ -5732,6 +5825,101 @@ function showAddDeviceForm(editDevice = null) {
 
 function showEditDeviceForm(device) {
     showAddDeviceForm(device);
+}
+
+async function showABInstructions(device) {
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/devices/${device.id}/instructions`);
+        const data = await res.json();
+        if (!data.success) throw new Error('Failed');
+
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);';
+
+        const instr = data.instructions;
+        modal.innerHTML = `
+            <div class="glass-card modal-content" style="max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto;">
+                <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>💽 ${escapeHtml(instr.title)}</h3>
+                    <button class="btn-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </header>
+                <div style="margin-top: 15px;">
+                    ${instr.steps.map(step => `
+                        <div style="margin-bottom: 18px;">
+                            <p style="font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">${escapeHtml(step.title)}</p>
+                            <p style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 8px;">${escapeHtml(step.description)}</p>
+                            <div style="background: #0a0a0a; color: #10b981; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; word-break: break-all; white-space: pre-wrap; cursor: pointer; position: relative;" onclick="navigator.clipboard.writeText(this.textContent.trim());this.style.border='1px solid #10b981';setTimeout(()=>this.style.border='',1000)" title="Click para copiar">${escapeHtml(step.command)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    } catch(e) {
+        alert('Error al cargar instrucciones');
+    }
+}
+
+async function openABImageBrowse(device) {
+    const panel = document.getElementById('ab-detail-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/devices/${device.id}/images`);
+        const data = await res.json();
+        const images = data.images || [];
+        const windowsBackups = data.windowsBackups || [];
+        const allItems = [...windowsBackups, ...images];
+
+        panel.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3>💽 ${escapeHtml(device.name)} — Imágenes de Backup</h3>
+                <button class="btn-close" style="font-size: 1.5rem;" onclick="document.getElementById('ab-detail-panel').style.display='none'">&times;</button>
+            </div>
+            <div style="margin-bottom: 10px; font-size: 0.85rem; color: var(--text-dim);">
+                Tamaño total: <strong>${formatABSize(data.totalSize || 0)}</strong>
+            </div>
+        `;
+
+        if (allItems.length === 0) {
+            panel.innerHTML += `
+                <div style="padding: 30px; text-align: center; color: var(--text-dim);">
+                    <p>No hay imágenes de backup todavía.</p>
+                    <p style="margin-top: 8px;">Ejecuta el comando de backup desde el equipo Windows/Linux para que aparezcan aquí.</p>
+                </div>`;
+            return;
+        }
+
+        const list = document.createElement('div');
+        list.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; overflow: hidden;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display: grid; grid-template-columns: 1fr 120px 160px 80px; padding: 10px 15px; background: var(--bg-hover); font-weight: 600; font-size: 0.8rem; color: var(--text-dim);';
+        header.innerHTML = '<span>Nombre</span><span>Tamaño</span><span>Fecha</span><span>Tipo</span>';
+        list.appendChild(header);
+
+        allItems.forEach(item => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: grid; grid-template-columns: 1fr 120px 160px 80px; padding: 10px 15px; align-items: center; border-top: 1px solid var(--border);';
+
+            const icon = item.type === 'windows-image' ? '🪟' : item.type === 'directory' ? '📁' : '💾';
+            row.innerHTML = `
+                <span style="display: flex; align-items: center; gap: 8px;">${icon} ${escapeHtml(item.name)}</span>
+                <span style="font-size: 0.85rem; color: var(--text-dim);">${formatABSize(item.size)}</span>
+                <span style="font-size: 0.85rem; color: var(--text-dim);">${new Date(item.modified).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                <span style="font-size: 0.8rem; padding: 2px 8px; border-radius: 8px; background: rgba(99,102,241,0.15); color: #6366f1;">${item.type === 'windows-image' ? 'WIM' : item.name.split('.').pop()}</span>
+            `;
+            list.appendChild(row);
+        });
+
+        panel.appendChild(list);
+    } catch(e) {
+        panel.innerHTML = '<p style="color: #ef4444;">Error al cargar imágenes</p>';
+    }
 }
 
 async function deleteABDevice(device) {
