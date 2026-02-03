@@ -10,7 +10,7 @@ const router = express.Router();
 const { TOTP, Secret } = require('otpauth');
 const { requireAuth } = require('../middleware/auth');
 const { logSecurityEvent } = require('../utils/security');
-const { sanitizeString } = require('../utils/sanitize');
+const { sanitizeForLog } = require('../utils/sanitize');
 const { getData, saveData } = require('../utils/data');
 
 // TOTP configuration constants
@@ -21,6 +21,22 @@ const TOTP_PERIOD = 30;
 
 // All TOTP routes require authentication
 router.use(requireAuth);
+
+/**
+ * Find user in both legacy and modern format
+ */
+function findUserInData(data, username) {
+  // Modern multi-user format
+  if (data.users && Array.isArray(data.users)) {
+    const found = data.users.find(u => u.username === username);
+    if (found) return { user: found, isLegacy: false };
+  }
+  // Legacy single-user format
+  if (data.user && data.user.username === username) {
+    return { user: data.user, isLegacy: true };
+  }
+  return null;
+}
 
 /**
  * Create a TOTP instance with the given secret.
@@ -46,7 +62,11 @@ function createTOTP(secretBase32, username) {
 router.get('/status', async (req, res) => {
   try {
     const data = getData();
-    const user = data.users?.find(u => u.username === req.user.username);
+    const result = findUserInData(data, req.user.username);
+    if (!result) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = result.user;
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
@@ -70,7 +90,11 @@ router.get('/status', async (req, res) => {
 router.post('/setup', async (req, res) => {
   try {
     const data = getData();
-    const user = data.users?.find(u => u.username === req.user.username);
+    const result = findUserInData(data, req.user.username);
+    if (!result) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = result.user;
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
@@ -97,9 +121,9 @@ router.post('/setup', async (req, res) => {
 
     const uri = totp.toString();
 
-    logSecurityEvent('totp', 'setup_initiated', {
+    logSecurityEvent('TOTP_SETUP', {
       user: req.user.username
-    });
+    }, req.ip);
 
     // Return secret and URI (frontend generates QR from URI)
     res.json({
@@ -142,27 +166,26 @@ router.post('/verify', async (req, res) => {
     const delta = totp.validate({ token: cleanToken, window: 1 });
 
     if (delta === null) {
-      logSecurityEvent('totp', 'setup_verification_failed', {
+      logSecurityEvent('TOTP_VERIFY_FAILED', {
         user: req.user.username
-      });
+      }, req.ip);
       return res.status(400).json({ success: false, error: 'Invalid TOTP code. Please try again.' });
     }
 
     // Token is valid - store secret and enable 2FA
     const data = getData();
-    const userIndex = data.users?.findIndex(u => u.username === req.user.username);
-
-    if (userIndex === -1 || userIndex === undefined) {
+    const found = findUserInData(data, req.user.username);
+    if (!found) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    data.users[userIndex].totpSecret = secret;
-    data.users[userIndex].totpEnabled = true;
+    found.user.totpSecret = secret;
+    found.user.totpEnabled = true;
     saveData(data);
 
-    logSecurityEvent('totp', '2fa_enabled', {
+    logSecurityEvent('TOTP_ENABLED', {
       user: req.user.username
-    });
+    }, req.ip);
 
     res.json({ success: true, message: '2FA has been enabled successfully' });
   } catch (error) {
@@ -192,7 +215,11 @@ router.post('/validate', async (req, res) => {
 
     // Get user's stored TOTP secret
     const data = getData();
-    const user = data.users?.find(u => u.username === req.user.username);
+    const result = findUserInData(data, req.user.username);
+    if (!result) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = result.user;
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
@@ -207,15 +234,15 @@ router.post('/validate', async (req, res) => {
     const delta = totp.validate({ token: cleanToken, window: 1 });
 
     if (delta === null) {
-      logSecurityEvent('totp', 'validation_failed', {
+      logSecurityEvent('TOTP_VALIDATE_FAILED', {
         user: req.user.username
-      });
+      }, req.ip);
       return res.status(401).json({ success: false, error: 'Invalid TOTP code' });
     }
 
-    logSecurityEvent('totp', 'validation_success', {
+    logSecurityEvent('TOTP_VALIDATE_SUCCESS', {
       user: req.user.username
-    });
+    }, req.ip);
 
     res.json({ success: true, message: 'TOTP code is valid' });
   } catch (error) {
@@ -239,13 +266,13 @@ router.delete('/disable', async (req, res) => {
     }
 
     const data = getData();
-    const userIndex = data.users?.findIndex(u => u.username === req.user.username);
+    const found = findUserInData(data, req.user.username);
 
-    if (userIndex === -1 || userIndex === undefined) {
+    if (!found) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    const user = data.users[userIndex];
+    const user = found.user;
 
     if (!user.totpEnabled) {
       return res.status(400).json({ success: false, error: '2FA is not currently enabled' });
@@ -256,20 +283,20 @@ router.delete('/disable', async (req, res) => {
     const passwordValid = await bcrypt.compare(password, user.password);
 
     if (!passwordValid) {
-      logSecurityEvent('totp', '2fa_disable_wrong_password', {
+      logSecurityEvent('TOTP_DISABLE_FAILED', {
         user: req.user.username
-      });
+      }, req.ip);
       return res.status(401).json({ success: false, error: 'Incorrect password' });
     }
 
     // Remove TOTP data and disable 2FA
-    delete data.users[userIndex].totpSecret;
-    data.users[userIndex].totpEnabled = false;
+    delete user.totpSecret;
+    user.totpEnabled = false;
     saveData(data);
 
-    logSecurityEvent('totp', '2fa_disabled', {
+    logSecurityEvent('TOTP_DISABLED', {
       user: req.user.username
-    });
+    }, req.ip);
 
     res.json({ success: true, message: '2FA has been disabled' });
   } catch (error) {

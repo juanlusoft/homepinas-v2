@@ -56,7 +56,13 @@ function guessMimeType(filePath) {
  * Returns null if invalid (caller should return early).
  */
 function validatePath(inputPath, res) {
-  const sanitized = sanitizePathWithinBase(inputPath, STORAGE_BASE);
+  // Treat '/' or empty as root of storage
+  let relativePath = inputPath || '/';
+  if (relativePath === '/') relativePath = '.';
+  // Remove leading slash to make it relative to STORAGE_BASE
+  if (relativePath.startsWith('/')) relativePath = relativePath.substring(1);
+  
+  const sanitized = sanitizePathWithinBase(relativePath, STORAGE_BASE);
   if (sanitized === null) {
     res.status(400).json({ error: 'Invalid path: must be within storage directory' });
     return null;
