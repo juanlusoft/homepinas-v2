@@ -67,7 +67,9 @@ function sanitizeDiskPath(diskPath) {
 function sanitizePathWithinBase(inputPath, baseDir) {
     if (!inputPath || typeof inputPath !== 'string') return null;
     if (!baseDir || typeof baseDir !== 'string') return null;
-    const sanitized = inputPath.replace(/\0/g, '');
+    let sanitized = inputPath.replace(/\0/g, '');
+    // Strip leading slashes so path.resolve treats it as relative to baseDir
+    sanitized = sanitized.replace(/^\/+/, '');
     const fullPath = path.resolve(baseDir, sanitized);
     const realBase = path.resolve(baseDir);
     if (!fullPath.startsWith(realBase + path.sep) && fullPath !== realBase) {
