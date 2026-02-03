@@ -91,8 +91,22 @@ router.get('/pool/status', async (req, res) => {
     }
 });
 
+/**
+ * Middleware: allow during initial setup (no storage configured yet) OR with valid auth.
+ * Like Synology DSM: the setup wizard doesn't require login since you just created the account.
+ */
+function requireAuthOrSetup(req, res, next) {
+    const data = getData();
+    // If no storage is configured yet, allow without auth (initial setup wizard)
+    if (!data.storageConfig || data.storageConfig.length === 0) {
+        return next();
+    }
+    // Otherwise require normal auth
+    return requireAuth(req, res, next);
+}
+
 // Apply storage configuration
-router.post('/pool/configure', requireAuth, async (req, res) => {
+router.post('/pool/configure', requireAuthOrSetup, async (req, res) => {
     const { disks } = req.body;
 
     if (!disks || !Array.isArray(disks) || disks.length === 0) {
