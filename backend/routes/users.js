@@ -97,26 +97,35 @@ function saveUsers(users) {
 
 /**
  * Create a Samba system user (for share access)
+ * Uses spawn for smbpasswd since it needs stdin for password input
  */
 async function createSambaUser(username, password) {
+  const { execFileSync, spawn } = require('child_process');
+
   try {
-    // Create system user with no login shell, no home directory
-    await safeExec('sudo', ['useradd', '-M', '-s', '/usr/sbin/nologin', username]);
+    execFileSync('sudo', ['useradd', '-M', '-s', '/sbin/nologin', username], { encoding: 'utf8' });
   } catch (err) {
-    // User might already exist in system, that's OK
-    if (!err.message.includes('already exists')) {
-      console.warn('Could not create system user:', err.message);
-    }
+    // User might already exist, that's OK
   }
 
   try {
-    // Set Samba password using smbpasswd
-    // smbpasswd reads password from stdin when using -s flag
-    await safeExec('sudo', ['smbpasswd', '-a', '-s', username], {
-      input: `${password}\n${password}\n`,
+    execFileSync('sudo', ['usermod', '-aG', 'sambashare', username], { encoding: 'utf8' });
+  } catch (err) {}
+
+  try {
+    // smbpasswd needs stdin for password - use spawn
+    await new Promise((resolve, reject) => {
+      const proc = spawn('sudo', ['smbpasswd', '-a', '-s', username], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      proc.stdin.write(password + '\n');
+      proc.stdin.write(password + '\n');
+      proc.stdin.end();
+      proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`smbpasswd exit ${code}`)));
+      proc.on('error', reject);
+      setTimeout(() => { proc.kill(); reject(new Error('smbpasswd timeout')); }, 10000);
     });
-    // Enable the Samba user
-    await safeExec('sudo', ['smbpasswd', '-e', username]);
+    execFileSync('sudo', ['smbpasswd', '-e', username], { encoding: 'utf8' });
   } catch (err) {
     console.warn('Could not set Samba password:', err.message);
   }
@@ -126,16 +135,14 @@ async function createSambaUser(username, password) {
  * Remove a Samba system user
  */
 async function removeSambaUser(username) {
+  const { execFileSync } = require('child_process');
   try {
-    // Remove from Samba
-    await safeExec('sudo', ['smbpasswd', '-x', username]);
+    execFileSync('sudo', ['smbpasswd', '-x', username], { encoding: 'utf8', timeout: 10000 });
   } catch (err) {
     console.warn('Could not remove Samba user:', err.message);
   }
-
   try {
-    // Remove system user
-    await safeExec('sudo', ['userdel', username]);
+    execFileSync('sudo', ['userdel', username], { encoding: 'utf8', timeout: 10000 });
   } catch (err) {
     console.warn('Could not remove system user:', err.message);
   }
@@ -205,11 +212,17 @@ router.put('/me/password', async (req, res) => {
 
     // Update Samba password too
     try {
-      await safeExec('sudo', ['smbpasswd', '-s', req.user.username], {
-        input: `${newPassword}\n${newPassword}\n`,
+      const { spawn } = require('child_process');
+      await new Promise((resolve, reject) => {
+        const proc = spawn('sudo', ['smbpasswd', '-s', req.user.username], { stdio: ['pipe', 'pipe', 'pipe'] });
+        proc.stdin.write(newPassword + '\n');
+        proc.stdin.write(newPassword + '\n');
+        proc.stdin.end();
+        proc.on('close', resolve);
+        proc.on('error', reject);
+        setTimeout(() => { proc.kill(); resolve(); }, 10000);
       });
     } catch {
-      // Non-fatal: Samba password update failed
       console.warn('Samba password update failed for', req.user.username);
     }
 
