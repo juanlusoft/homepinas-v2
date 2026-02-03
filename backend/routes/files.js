@@ -109,23 +109,19 @@ function searchFiles(dir, query, results, maxResults) {
   }
 }
 
-// Configure multer storage to save uploaded files within /mnt/storage
+// Configure multer to use temp directory first, then move to target
+// (req.body.path may not be available when multer processes the file in multipart)
+const os = require('os');
+const tmpUploadDir = path.join(os.tmpdir(), 'homepinas-uploads');
+if (!fs.existsSync(tmpUploadDir)) fs.mkdirSync(tmpUploadDir, { recursive: true });
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = req.body.path || '/';
-    const sanitized = sanitizePathWithinBase(uploadDir, STORAGE_BASE);
-    if (sanitized === null) {
-      return cb(new Error('Invalid upload directory'));
-    }
-    // Ensure the directory exists
-    if (!fs.existsSync(sanitized)) {
-      return cb(new Error('Upload directory does not exist'));
-    }
-    cb(null, sanitized);
+    cb(null, tmpUploadDir);
   },
   filename: (req, file, cb) => {
-    // Use original filename (multer decodes it)
-    cb(null, file.originalname);
+    // Unique temp name to avoid collisions
+    cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
 
@@ -254,18 +250,55 @@ router.post('/upload', (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
+    // Now req.body.path is available — move files from temp to target
+    const uploadPath = req.body.path || '/';
+    let targetDir;
+
+    // Handle root path
+    if (uploadPath === '/' || uploadPath === '') {
+      targetDir = STORAGE_BASE;
+    } else {
+      targetDir = sanitizePathWithinBase(uploadPath, STORAGE_BASE);
+    }
+
+    if (!targetDir) {
+      // Clean up temp files
+      req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e) {} });
+      return res.status(400).json({ error: 'Invalid upload directory' });
+    }
+
+    if (!fs.existsSync(targetDir)) {
+      req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e) {} });
+      return res.status(400).json({ error: 'Upload directory does not exist' });
+    }
+
+    // Move each file from temp to target
+    const movedFiles = [];
+    for (const f of req.files) {
+      const destPath = path.join(targetDir, f.originalname);
+      try {
+        fs.renameSync(f.path, destPath);
+        movedFiles.push({ name: f.originalname, size: f.size, path: path.relative(STORAGE_BASE, destPath) });
+      } catch (moveErr) {
+        // Try copy+delete if rename fails (cross-device)
+        try {
+          fs.copyFileSync(f.path, destPath);
+          fs.unlinkSync(f.path);
+          movedFiles.push({ name: f.originalname, size: f.size, path: path.relative(STORAGE_BASE, destPath) });
+        } catch (copyErr) {
+          console.error('Move file error:', copyErr.message);
+        }
+      }
+    }
+
     logSecurityEvent('file_upload', req.user.username, {
-      path: req.body.path || '/',
-      files: req.files.map(f => f.originalname),
+      path: uploadPath,
+      files: movedFiles.map(f => f.name),
     });
 
     res.json({
-      message: `${req.files.length} file(s) uploaded successfully`,
-      files: req.files.map(f => ({
-        name: f.originalname,
-        size: f.size,
-        path: path.relative(STORAGE_BASE, f.path),
-      })),
+      message: `${movedFiles.length} file(s) uploaded successfully`,
+      files: movedFiles,
     });
   });
 });
