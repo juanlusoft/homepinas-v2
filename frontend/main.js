@@ -3119,80 +3119,181 @@ window.saveContainerNotes = saveContainerNotes;
 // The function is already defined, we just need to ensure it renders properly
 
 // =============================================================================
-// FILE MANAGER (File Station)
+// FILE MANAGER (File Station) - Enhanced
 // =============================================================================
 
 let currentFilePath = '/';
+let fmViewMode = localStorage.getItem('fm-view-mode') || 'list'; // 'list' | 'grid'
+let fmSelectedFiles = new Set(); // Set of full file paths for multi-select
+let fmCurrentFiles = []; // current loaded file list for reference
+let fmClipboard = { action: null, files: [] }; // { action: 'copy'|'cut', files: [{path, name}] }
 
 async function renderFilesView() {
     const container = document.createElement('div');
     container.className = 'files-container';
     container.style.cssText = 'display: contents;';
 
-    // Toolbar
+    // ── Toolbar ──
     const toolbar = document.createElement('div');
-    toolbar.className = 'glass-card files-toolbar';
-    toolbar.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 15px 20px; flex-wrap: wrap;';
+    toolbar.className = 'glass-card fm-toolbar';
+    toolbar.innerHTML = '';
+
+    // Row 1: breadcrumb + actions
+    const toolbarRow1 = document.createElement('div');
+    toolbarRow1.className = 'fm-toolbar-row';
 
     // Breadcrumb
     const breadcrumb = document.createElement('div');
-    breadcrumb.className = 'files-breadcrumb';
-    breadcrumb.style.cssText = 'display: flex; align-items: center; gap: 4px; flex: 1; min-width: 200px; overflow-x: auto;';
+    breadcrumb.className = 'fm-breadcrumb';
+    breadcrumb.id = 'fm-breadcrumb';
     updateBreadcrumb(breadcrumb, currentFilePath);
 
-    // Action buttons
+    // Actions right
     const actions = document.createElement('div');
-    actions.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+    actions.className = 'fm-actions';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = '🔍 Buscar...';
+    searchInput.className = 'fm-search-input';
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') searchFiles(searchInput.value);
+    });
+    searchInput.addEventListener('input', (e) => {
+        if (!e.target.value) loadFiles(currentFilePath);
+    });
 
     const uploadBtn = document.createElement('button');
     uploadBtn.className = 'btn-primary btn-sm';
-    uploadBtn.textContent = '📤 Subir';
+    uploadBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Subir';
     uploadBtn.addEventListener('click', () => triggerFileUpload());
 
     const newFolderBtn = document.createElement('button');
     newFolderBtn.className = 'btn-primary btn-sm';
     newFolderBtn.style.background = '#6366f1';
-    newFolderBtn.textContent = '📁 Nueva Carpeta';
+    newFolderBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg> Carpeta';
     newFolderBtn.addEventListener('click', () => createNewFolder());
 
-    const searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.placeholder = '🔍 Buscar...';
-    searchInput.style.cssText = 'padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); width: 200px;';
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') searchFiles(searchInput.value);
-    });
+    // View mode toggle
+    const viewToggle = document.createElement('div');
+    viewToggle.className = 'fm-view-toggle';
+    const listBtn = document.createElement('button');
+    listBtn.className = 'fm-view-btn' + (fmViewMode === 'list' ? ' active' : '');
+    listBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+    listBtn.title = 'Vista lista';
+    listBtn.addEventListener('click', () => { fmViewMode = 'list'; localStorage.setItem('fm-view-mode', 'list'); renderFilesView(); });
+    const gridBtn = document.createElement('button');
+    gridBtn.className = 'fm-view-btn' + (fmViewMode === 'grid' ? ' active' : '');
+    gridBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+    gridBtn.title = 'Vista cuadrícula';
+    gridBtn.addEventListener('click', () => { fmViewMode = 'grid'; localStorage.setItem('fm-view-mode', 'grid'); renderFilesView(); });
+    viewToggle.appendChild(listBtn);
+    viewToggle.appendChild(gridBtn);
 
     actions.appendChild(searchInput);
     actions.appendChild(uploadBtn);
     actions.appendChild(newFolderBtn);
+    actions.appendChild(viewToggle);
 
-    toolbar.appendChild(breadcrumb);
-    toolbar.appendChild(actions);
+    toolbarRow1.appendChild(breadcrumb);
+    toolbarRow1.appendChild(actions);
+    toolbar.appendChild(toolbarRow1);
+
+    // Row 2: Bulk actions bar (hidden by default)
+    const bulkBar = document.createElement('div');
+    bulkBar.className = 'fm-bulk-bar';
+    bulkBar.id = 'fm-bulk-bar';
+    bulkBar.style.display = 'none';
+    bulkBar.innerHTML = `
+        <span class="fm-bulk-count" id="fm-bulk-count">0 seleccionados</span>
+        <button class="fm-bulk-btn" onclick="fmBulkDownload()" title="Descargar seleccionados"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Descargar</button>
+        <button class="fm-bulk-btn" onclick="fmBulkCopy()" title="Copiar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copiar</button>
+        <button class="fm-bulk-btn" onclick="fmBulkCut()" title="Mover"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Mover</button>
+        <button class="fm-bulk-btn fm-bulk-btn-danger" onclick="fmBulkDelete()" title="Eliminar seleccionados"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg> Eliminar</button>
+        <button class="fm-bulk-btn" onclick="fmClearSelection()" title="Deseleccionar">✕ Limpiar</button>
+    `;
+    toolbar.appendChild(bulkBar);
+
+    // Paste bar (when clipboard has items)
+    if (fmClipboard.action && fmClipboard.files.length > 0) {
+        const pasteBar = document.createElement('div');
+        pasteBar.className = 'fm-paste-bar';
+        pasteBar.innerHTML = `
+            <span>📋 ${fmClipboard.files.length} archivo(s) en portapapeles (${fmClipboard.action === 'copy' ? 'copiar' : 'mover'})</span>
+            <button class="btn-primary btn-sm" onclick="fmPaste()">📋 Pegar aquí</button>
+            <button class="fm-bulk-btn" onclick="fmClipboard={action:null,files:[]};renderFilesView()">✕ Cancelar</button>
+        `;
+        toolbar.appendChild(pasteBar);
+    }
+
     container.appendChild(toolbar);
 
-    // File list card
+    // ── Upload progress bar ──
+    const uploadProgress = document.createElement('div');
+    uploadProgress.className = 'glass-card fm-upload-progress';
+    uploadProgress.id = 'fm-upload-progress';
+    uploadProgress.style.display = 'none';
+    uploadProgress.innerHTML = `
+        <div class="fm-upload-info">
+            <span id="fm-upload-filename">Subiendo...</span>
+            <span id="fm-upload-percent">0%</span>
+        </div>
+        <div class="fm-progress-track">
+            <div class="fm-progress-fill" id="fm-progress-fill" style="width: 0%"></div>
+        </div>
+    `;
+    container.appendChild(uploadProgress);
+
+    // ── Drag & drop overlay ──
+    const dropZone = document.createElement('div');
+    dropZone.className = 'fm-drop-zone';
+    dropZone.id = 'fm-drop-zone';
+    dropZone.innerHTML = `
+        <div class="fm-drop-inner">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--primary, #84cc16)" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p style="margin-top: 12px; font-size: 1.1rem; font-weight: 600;">Suelta los archivos aquí</p>
+            <p style="font-size: 0.85rem; color: var(--text-dim);">Se subirán a <strong>${currentFilePath}</strong></p>
+        </div>
+    `;
+    container.appendChild(dropZone);
+
+    // ── File list card ──
     const listCard = document.createElement('div');
-    listCard.className = 'glass-card';
-    listCard.style.cssText = 'grid-column: 1 / -1; padding: 0; overflow: hidden;';
+    listCard.className = 'glass-card fm-list-card';
     listCard.id = 'files-list-card';
 
-    // Table header
-    const tableHeader = document.createElement('div');
-    tableHeader.className = 'files-table-header';
-    tableHeader.style.cssText = 'display: grid; grid-template-columns: 40px 1fr 100px 160px 60px; padding: 12px 20px; background: var(--bg-hover); font-weight: 600; font-size: 0.85rem; color: var(--text-dim);';
-    tableHeader.innerHTML = '<span></span><span>Nombre</span><span>Tamaño</span><span>Modificado</span><span></span>';
-    listCard.appendChild(tableHeader);
+    // Table header (only for list view)
+    if (fmViewMode === 'list') {
+        const tableHeader = document.createElement('div');
+        tableHeader.className = 'fm-table-header';
+        tableHeader.innerHTML = `
+            <label class="fm-checkbox-wrap"><input type="checkbox" id="fm-select-all" onchange="fmToggleSelectAll(this.checked)"><span class="fm-checkbox-custom"></span></label>
+            <span></span>
+            <span>Nombre</span>
+            <span>Tamaño</span>
+            <span class="fm-hide-mobile">Modificado</span>
+            <span class="fm-hide-mobile">Permisos</span>
+            <span></span>
+        `;
+        listCard.appendChild(tableHeader);
+    }
 
     const filesList = document.createElement('div');
     filesList.id = 'files-list';
-    filesList.style.cssText = 'max-height: 65vh; overflow-y: auto;';
+    filesList.className = fmViewMode === 'grid' ? 'fm-grid' : 'fm-list';
     listCard.appendChild(filesList);
 
     container.appendChild(listCard);
     dashboardContent.appendChild(container);
 
-    // Hidden file input for uploads
+    // ── Setup drag & drop ──
+    fmSetupDragDrop(container);
+
+    // Hidden file input
     let fileInput = document.getElementById('file-upload-input');
     if (!fileInput) {
         fileInput = document.createElement('input');
@@ -3204,16 +3305,19 @@ async function renderFilesView() {
         document.body.appendChild(fileInput);
     }
 
+    fmSelectedFiles.clear();
     await loadFiles(currentFilePath);
 }
 
+// ── Breadcrumb ──
 function updateBreadcrumb(breadcrumb, filePath) {
     breadcrumb.innerHTML = '';
     const parts = filePath.split('/').filter(Boolean);
+
     const homeBtn = document.createElement('button');
-    homeBtn.textContent = '🏠';
-    homeBtn.className = 'breadcrumb-btn';
-    homeBtn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 1rem;';
+    homeBtn.className = 'fm-breadcrumb-btn';
+    homeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
+    homeBtn.title = 'Raíz';
     homeBtn.addEventListener('click', () => { currentFilePath = '/'; renderFilesView(); });
     breadcrumb.appendChild(homeBtn);
 
@@ -3221,24 +3325,24 @@ function updateBreadcrumb(breadcrumb, filePath) {
     parts.forEach((part, i) => {
         accPath += '/' + part;
         const sep = document.createElement('span');
-        sep.textContent = '›';
-        sep.style.cssText = 'color: var(--text-dim); margin: 0 2px;';
+        sep.className = 'fm-breadcrumb-sep';
+        sep.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';
         breadcrumb.appendChild(sep);
 
         const btn = document.createElement('button');
         btn.textContent = part;
-        btn.className = 'breadcrumb-btn';
-        btn.style.cssText = `background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 0.9rem; color: ${i === parts.length - 1 ? 'var(--text)' : 'var(--text-dim)'};`;
+        btn.className = 'fm-breadcrumb-btn' + (i === parts.length - 1 ? ' active' : '');
         const targetPath = accPath;
         btn.addEventListener('click', () => { currentFilePath = targetPath; renderFilesView(); });
         breadcrumb.appendChild(btn);
     });
 }
 
+// ── Load files ──
 async function loadFiles(filePath) {
     const filesList = document.getElementById('files-list');
     if (!filesList) return;
-    filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">Cargando...</div>';
+    filesList.innerHTML = '<div class="fm-empty-state"><div class="fm-spinner"></div><p>Cargando archivos...</p></div>';
 
     try {
         const res = await authFetch(`${API_BASE}/files/list?path=${encodeURIComponent(filePath)}`);
@@ -3246,8 +3350,16 @@ async function loadFiles(filePath) {
         const data = await res.json();
         const files = data.items || data || [];
 
+        fmCurrentFiles = files;
+
         if (files.length === 0) {
-            filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">📂 Carpeta vacía</div>';
+            filesList.innerHTML = `<div class="fm-empty-state">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1" opacity="0.4">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                </svg>
+                <p style="margin-top:12px">Carpeta vacía</p>
+                <p style="font-size:0.8rem;color:var(--text-dim)">Arrastra archivos aquí o usa el botón Subir</p>
+            </div>`;
             return;
         }
 
@@ -3259,88 +3371,229 @@ async function loadFiles(filePath) {
         });
 
         filesList.innerHTML = '';
-        files.forEach(file => {
-            const row = document.createElement('div');
-            row.className = 'files-row';
-            row.style.cssText = 'display: grid; grid-template-columns: 40px 1fr 100px 160px 60px; padding: 10px 20px; align-items: center; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;';
-            row.addEventListener('mouseenter', () => row.style.background = 'var(--bg-hover)');
-            row.addEventListener('mouseleave', () => row.style.background = '');
 
-            const icon = document.createElement('span');
-            icon.style.fontSize = '1.2rem';
-            icon.textContent = file.type === 'directory' ? '📁' : getFileIcon(file.name);
-
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = file.name;
-            nameSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-
-            const sizeSpan = document.createElement('span');
-            sizeSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
-            sizeSpan.textContent = file.type === 'directory' ? '—' : formatFileSize(file.size);
-
-            const dateSpan = document.createElement('span');
-            dateSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
-            dateSpan.textContent = new Date(file.modified).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-            const actionsDiv = document.createElement('div');
-            actionsDiv.style.cssText = 'display: flex; gap: 4px;';
-
-            if (file.type !== 'directory') {
-                const dlBtn = document.createElement('button');
-                dlBtn.textContent = '⬇';
-                dlBtn.title = 'Descargar';
-                dlBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 1rem; padding: 2px;';
-                dlBtn.addEventListener('click', (e) => { e.stopPropagation(); downloadFile(filePath + '/' + file.name); });
-                actionsDiv.appendChild(dlBtn);
-            }
-
-            const delBtn = document.createElement('button');
-            delBtn.textContent = '🗑';
-            delBtn.title = 'Eliminar';
-            delBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 1rem; padding: 2px; opacity: 0.5;';
-            delBtn.addEventListener('mouseenter', () => delBtn.style.opacity = '1');
-            delBtn.addEventListener('mouseleave', () => delBtn.style.opacity = '0.5');
-            delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteFile(filePath + '/' + file.name, file.name); });
-            actionsDiv.appendChild(delBtn);
-
-            row.appendChild(icon);
-            row.appendChild(nameSpan);
-            row.appendChild(sizeSpan);
-            row.appendChild(dateSpan);
-            row.appendChild(actionsDiv);
-
-            // Click to navigate into folder or preview file
-            row.addEventListener('click', () => {
-                if (file.type === 'directory') {
-                    currentFilePath = filePath + '/' + file.name;
-                    renderFilesView();
-                }
-            });
-
-            // Right-click context menu
-            row.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                showFileContextMenu(e, filePath + '/' + file.name, file);
-            });
-
-            filesList.appendChild(row);
-        });
+        if (fmViewMode === 'grid') {
+            renderFilesGrid(filesList, files, filePath);
+        } else {
+            renderFilesList(filesList, files, filePath);
+        }
     } catch (e) {
         console.error('Load files error:', e);
-        filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: #ef4444;">Error al cargar archivos</div>';
+        filesList.innerHTML = '<div class="fm-empty-state" style="color:#ef4444"><p>❌ Error al cargar archivos</p></div>';
     }
 }
 
+// ── Render list view ──
+function renderFilesList(container, files, filePath) {
+    files.forEach(file => {
+        const fullPath = filePath + '/' + file.name;
+        const isSelected = fmSelectedFiles.has(fullPath);
+        const row = document.createElement('div');
+        row.className = 'fm-row' + (isSelected ? ' selected' : '');
+        row.dataset.path = fullPath;
+
+        const checkbox = document.createElement('label');
+        checkbox.className = 'fm-checkbox-wrap';
+        checkbox.innerHTML = `<input type="checkbox" ${isSelected ? 'checked' : ''} onchange="fmToggleSelect('${fullPath.replace(/'/g, "\\'")}', this.checked)"><span class="fm-checkbox-custom"></span>`;
+        checkbox.addEventListener('click', (e) => e.stopPropagation());
+
+        const iconWrap = document.createElement('span');
+        iconWrap.className = 'fm-file-icon';
+        iconWrap.innerHTML = file.type === 'directory' ? getFolderSVG() : getFileIconSVG(file.name);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'fm-file-name';
+        nameSpan.textContent = file.name;
+
+        const sizeSpan = document.createElement('span');
+        sizeSpan.className = 'fm-file-meta';
+        sizeSpan.textContent = file.type === 'directory' ? '—' : formatFileSize(file.size);
+
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'fm-file-meta fm-hide-mobile';
+        dateSpan.textContent = file.modified ? new Date(file.modified).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+        const permSpan = document.createElement('span');
+        permSpan.className = 'fm-file-meta fm-hide-mobile fm-file-perm';
+        permSpan.textContent = file.permissions || file.mode || '—';
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'fm-row-actions';
+
+        if (file.type !== 'directory') {
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'fm-action-btn';
+            dlBtn.title = 'Descargar';
+            dlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+            dlBtn.addEventListener('click', (e) => { e.stopPropagation(); downloadFile(fullPath); });
+            actionsDiv.appendChild(dlBtn);
+        }
+
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'fm-action-btn';
+        menuBtn.title = 'Más opciones';
+        menuBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>';
+        menuBtn.addEventListener('click', (e) => { e.stopPropagation(); showFileContextMenu(e, fullPath, file); });
+        actionsDiv.appendChild(menuBtn);
+
+        row.appendChild(checkbox);
+        row.appendChild(iconWrap);
+        row.appendChild(nameSpan);
+        row.appendChild(sizeSpan);
+        row.appendChild(dateSpan);
+        row.appendChild(permSpan);
+        row.appendChild(actionsDiv);
+
+        row.addEventListener('click', (e) => {
+            if (file.type === 'directory') {
+                currentFilePath = fullPath;
+                renderFilesView();
+            } else {
+                fmPreviewFile(file, filePath);
+            }
+        });
+
+        row.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showFileContextMenu(e, fullPath, file);
+        });
+
+        container.appendChild(row);
+    });
+}
+
+// ── Render grid view ──
+function renderFilesGrid(container, files, filePath) {
+    files.forEach(file => {
+        const fullPath = filePath + '/' + file.name;
+        const isSelected = fmSelectedFiles.has(fullPath);
+        const card = document.createElement('div');
+        card.className = 'fm-grid-item' + (isSelected ? ' selected' : '');
+        card.dataset.path = fullPath;
+
+        const checkbox = document.createElement('label');
+        checkbox.className = 'fm-checkbox-wrap fm-grid-checkbox';
+        checkbox.innerHTML = `<input type="checkbox" ${isSelected ? 'checked' : ''} onchange="fmToggleSelect('${fullPath.replace(/'/g, "\\'")}', this.checked)"><span class="fm-checkbox-custom"></span>`;
+        checkbox.addEventListener('click', (e) => e.stopPropagation());
+
+        const iconArea = document.createElement('div');
+        iconArea.className = 'fm-grid-icon';
+
+        // For images, show thumbnail
+        const ext = file.name.split('.').pop().toLowerCase();
+        const imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+        if (file.type !== 'directory' && imgExts.includes(ext)) {
+            const thumb = document.createElement('img');
+            thumb.className = 'fm-grid-thumb';
+            thumb.src = `${API_BASE}/files/download?path=${encodeURIComponent(fullPath)}&sessionId=${state.sessionId}`;
+            thumb.alt = file.name;
+            thumb.loading = 'lazy';
+            iconArea.appendChild(thumb);
+        } else {
+            iconArea.innerHTML = file.type === 'directory' ? getFolderSVG(48) : getFileIconSVG(file.name, 48);
+        }
+
+        const nameLabel = document.createElement('div');
+        nameLabel.className = 'fm-grid-name';
+        nameLabel.textContent = file.name;
+        nameLabel.title = file.name;
+
+        const metaLabel = document.createElement('div');
+        metaLabel.className = 'fm-grid-meta';
+        metaLabel.textContent = file.type === 'directory' ? 'Carpeta' : formatFileSize(file.size);
+
+        card.appendChild(checkbox);
+        card.appendChild(iconArea);
+        card.appendChild(nameLabel);
+        card.appendChild(metaLabel);
+
+        card.addEventListener('click', (e) => {
+            if (file.type === 'directory') {
+                currentFilePath = fullPath;
+                renderFilesView();
+            } else {
+                fmPreviewFile(file, filePath);
+            }
+        });
+
+        card.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showFileContextMenu(e, fullPath, file);
+        });
+
+        container.appendChild(card);
+    });
+}
+
+// ── File Icons (SVG) ──
+function getFileIconSVG(name, size) {
+    const s = size || 24;
+    const ext = name.split('.').pop().toLowerCase();
+    const colorMap = {
+        // Images
+        jpg: '#e879f9', jpeg: '#e879f9', png: '#e879f9', gif: '#e879f9', svg: '#e879f9', webp: '#e879f9', bmp: '#e879f9', ico: '#e879f9',
+        // Video
+        mp4: '#f97316', mkv: '#f97316', avi: '#f97316', mov: '#f97316', wmv: '#f97316', flv: '#f97316', webm: '#f97316',
+        // Audio
+        mp3: '#06b6d4', flac: '#06b6d4', wav: '#06b6d4', ogg: '#06b6d4', aac: '#06b6d4', wma: '#06b6d4', m4a: '#06b6d4',
+        // Documents
+        pdf: '#ef4444', doc: '#3b82f6', docx: '#3b82f6', xls: '#22c55e', xlsx: '#22c55e', ppt: '#f97316', pptx: '#f97316',
+        txt: '#94a3b8', md: '#94a3b8', csv: '#22c55e', rtf: '#3b82f6',
+        // Archives
+        zip: '#eab308', tar: '#eab308', gz: '#eab308', rar: '#eab308', '7z': '#eab308', bz2: '#eab308', xz: '#eab308',
+        // Code
+        js: '#eab308', ts: '#3b82f6', py: '#22c55e', sh: '#22c55e', json: '#eab308', yml: '#ef4444', yaml: '#ef4444',
+        html: '#f97316', css: '#3b82f6', php: '#8b5cf6', rb: '#ef4444', go: '#06b6d4', rs: '#f97316', java: '#ef4444',
+        c: '#3b82f6', cpp: '#3b82f6', h: '#3b82f6', xml: '#f97316', sql: '#3b82f6',
+        // Disk images
+        iso: '#8b5cf6', img: '#8b5cf6', dmg: '#8b5cf6',
+        // Config
+        conf: '#94a3b8', cfg: '#94a3b8', ini: '#94a3b8', env: '#94a3b8', log: '#94a3b8', toml: '#94a3b8',
+        // Fonts
+        ttf: '#e879f9', otf: '#e879f9', woff: '#e879f9', woff2: '#e879f9',
+    };
+    const labelMap = {
+        pdf: 'PDF', doc: 'DOC', docx: 'DOC', xls: 'XLS', xlsx: 'XLS', ppt: 'PPT', pptx: 'PPT',
+        zip: 'ZIP', tar: 'TAR', gz: 'GZ', rar: 'RAR', '7z': '7Z',
+        js: 'JS', ts: 'TS', py: 'PY', sh: 'SH', json: '{ }', yml: 'YML', yaml: 'YML',
+        html: 'HTML', css: 'CSS', php: 'PHP', sql: 'SQL',
+        mp3: '♪', flac: '♪', wav: '♪', ogg: '♪', aac: '♪', m4a: '♪',
+        mp4: '▶', mkv: '▶', avi: '▶', mov: '▶', webm: '▶',
+        jpg: '🖼', jpeg: '🖼', png: '🖼', gif: '🖼', svg: '🖼', webp: '🖼',
+        iso: 'ISO', img: 'IMG',
+    };
+    const color = colorMap[ext] || '#94a3b8';
+    const label = labelMap[ext] || ext.toUpperCase().slice(0, 4);
+    const labelFontSize = label.length > 3 ? (s * 0.2) : (s * 0.28);
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="${color}20" stroke="${color}" stroke-width="1.5"/>
+        <polyline points="14 2 14 8 20 8" stroke="${color}" stroke-width="1.5"/>
+        <text x="12" y="17" text-anchor="middle" fill="${color}" font-size="${labelFontSize}" font-weight="700" font-family="system-ui">${label}</text>
+    </svg>`;
+}
+
+function getFolderSVG(size) {
+    const s = size || 24;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none">
+        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" fill="#eab30830" stroke="#eab308" stroke-width="1.5"/>
+    </svg>`;
+}
+
 function getFileIcon(name) {
+    // Legacy compat — returns emoji
     const ext = name.split('.').pop().toLowerCase();
     const iconMap = {
-        jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', svg: '🖼️', webp: '🖼️',
-        mp4: '🎬', mkv: '🎬', avi: '🎬', mov: '🎬',
-        mp3: '🎵', flac: '🎵', wav: '🎵', ogg: '🎵',
-        pdf: '📕', doc: '📄', docx: '📄', txt: '📄', md: '📄',
+        jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', svg: '🖼️', webp: '🖼️', bmp: '🖼️',
+        mp4: '🎬', mkv: '🎬', avi: '🎬', mov: '🎬', webm: '🎬',
+        mp3: '🎵', flac: '🎵', wav: '🎵', ogg: '🎵', aac: '🎵', m4a: '🎵',
+        pdf: '📕', doc: '📄', docx: '📄', xls: '📊', xlsx: '📊', ppt: '📊', pptx: '📊',
+        txt: '📝', md: '📝', csv: '📊', rtf: '📄',
         zip: '📦', tar: '📦', gz: '📦', rar: '📦', '7z': '📦',
-        js: '⚙️', py: '⚙️', sh: '⚙️', json: '⚙️', yml: '⚙️', yaml: '⚙️',
-        iso: '💿', img: '💿',
+        js: '⚙️', ts: '⚙️', py: '🐍', sh: '🔧', json: '{ }', yml: '⚙️', yaml: '⚙️',
+        html: '🌐', css: '🎨', php: '🐘', sql: '🗃️',
+        iso: '💿', img: '💿', dmg: '💿',
+        conf: '⚙️', cfg: '⚙️', ini: '⚙️', log: '📋', env: '🔒',
+        ttf: '🔤', otf: '🔤', woff: '🔤',
     };
     return iconMap[ext] || '📄';
 }
@@ -3357,31 +3610,297 @@ function triggerFileUpload() {
     if (input) input.click();
 }
 
+// ── Upload with progress ──
 async function handleFileUpload(e) {
-    const files = e.target.files;
+    const files = e.target ? e.target.files : e;
     if (!files || files.length === 0) return;
 
-    for (const file of files) {
+    const progressEl = document.getElementById('fm-upload-progress');
+    const filenameEl = document.getElementById('fm-upload-filename');
+    const percentEl = document.getElementById('fm-upload-percent');
+    const fillEl = document.getElementById('fm-progress-fill');
+    if (progressEl) progressEl.style.display = 'block';
+
+    const fileArray = Array.from(files);
+    for (let idx = 0; idx < fileArray.length; idx++) {
+        const file = fileArray[idx];
+        if (filenameEl) filenameEl.textContent = `(${idx + 1}/${fileArray.length}) ${file.name}`;
+        if (percentEl) percentEl.textContent = '0%';
+        if (fillEl) fillEl.style.width = '0%';
+
         const formData = new FormData();
         formData.append('files', file);
         formData.append('path', currentFilePath);
 
         try {
-            const res = await fetch(`${API_BASE}/files/upload`, {
-                method: 'POST',
-                headers: { 'X-Session-Id': state.sessionId },
-                body: formData
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${API_BASE}/files/upload`);
+                xhr.setRequestHeader('X-Session-Id', state.sessionId);
+
+                xhr.upload.addEventListener('progress', (ev) => {
+                    if (ev.lengthComputable) {
+                        const pct = Math.round((ev.loaded / ev.total) * 100);
+                        if (percentEl) percentEl.textContent = pct + '%';
+                        if (fillEl) fillEl.style.width = pct + '%';
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve();
+                    else reject(new Error('Upload failed: ' + xhr.status));
+                });
+                xhr.addEventListener('error', () => reject(new Error('Network error')));
+                xhr.send(formData);
             });
-            if (!res.ok) throw new Error('Upload failed');
         } catch (err) {
             console.error('Upload error:', err);
             alert(`Error al subir ${file.name}`);
         }
     }
-    e.target.value = '';
+
+    if (progressEl) {
+        if (fillEl) fillEl.style.width = '100%';
+        if (filenameEl) filenameEl.textContent = '✅ Subida completada';
+        setTimeout(() => { progressEl.style.display = 'none'; }, 2000);
+    }
+
+    if (e.target) e.target.value = '';
     await loadFiles(currentFilePath);
 }
 
+// ── Drag & Drop ──
+function fmSetupDragDrop(container) {
+    let dragCounter = 0;
+    const dropZone = document.getElementById('fm-drop-zone');
+    if (!dropZone) return;
+
+    const showDrop = () => dropZone.classList.add('active');
+    const hideDrop = () => { dropZone.classList.remove('active'); dragCounter = 0; };
+
+    container.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        if (e.dataTransfer.types.includes('Files')) showDrop();
+    });
+    container.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter <= 0) hideDrop();
+    });
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+    container.addEventListener('drop', (e) => {
+        e.preventDefault();
+        hideDrop();
+        if (e.dataTransfer.files.length > 0) {
+            handleFileUpload(e.dataTransfer.files);
+        }
+    });
+}
+
+// ── File preview ──
+function fmPreviewFile(file, basePath) {
+    const fullPath = basePath + '/' + file.name;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+    const textExts = ['txt', 'md', 'log', 'json', 'yml', 'yaml', 'xml', 'csv', 'sh', 'bash', 'py', 'js', 'ts', 'html', 'css', 'php', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'sql', 'conf', 'cfg', 'ini', 'env', 'toml', 'service', 'properties', 'gitignore', 'dockerfile'];
+    const videoExts = ['mp4', 'webm', 'ogg'];
+    const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'];
+
+    // Remove existing preview
+    document.querySelectorAll('.fm-preview-overlay').forEach(m => m.remove());
+
+    const overlay = document.createElement('div');
+    overlay.className = 'fm-preview-overlay';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'fm-preview-modal';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'fm-preview-header';
+    header.innerHTML = `
+        <span class="fm-preview-title">${file.name}</span>
+        <div class="fm-preview-actions">
+            <button class="fm-action-btn" onclick="downloadFile('${fullPath.replace(/'/g, "\\'")}')" title="Descargar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button class="fm-action-btn" onclick="this.closest('.fm-preview-overlay').remove()" title="Cerrar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+    `;
+    modal.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'fm-preview-body';
+
+    const fileUrl = `${API_BASE}/files/download?path=${encodeURIComponent(fullPath)}&sessionId=${state.sessionId}`;
+
+    if (imgExts.includes(ext)) {
+        body.innerHTML = `<img src="${fileUrl}" alt="${file.name}" class="fm-preview-image" />`;
+    } else if (videoExts.includes(ext)) {
+        body.innerHTML = `<video controls autoplay class="fm-preview-video"><source src="${fileUrl}"></video>`;
+    } else if (audioExts.includes(ext)) {
+        body.innerHTML = `<div class="fm-preview-audio-wrap">${getFileIconSVG(file.name, 80)}<audio controls autoplay style="width:100%;margin-top:20px"><source src="${fileUrl}"></audio></div>`;
+    } else if (ext === 'pdf') {
+        body.innerHTML = `<iframe src="${fileUrl}" class="fm-preview-pdf"></iframe>`;
+    } else if (textExts.includes(ext)) {
+        body.innerHTML = '<div class="fm-preview-loading"><div class="fm-spinner"></div></div>';
+        fetch(fileUrl).then(r => r.text()).then(text => {
+            const pre = document.createElement('pre');
+            pre.className = 'fm-preview-code';
+            pre.textContent = text.slice(0, 100000); // Limit to 100KB
+            body.innerHTML = '';
+            body.appendChild(pre);
+        }).catch(() => {
+            body.innerHTML = '<p style="color:#ef4444;text-align:center">Error al cargar el archivo</p>';
+        });
+    } else {
+        body.innerHTML = `
+            <div class="fm-preview-nopreview">
+                ${getFileIconSVG(file.name, 80)}
+                <p style="margin-top:16px;font-size:1rem">${file.name}</p>
+                <p style="color:var(--text-dim);font-size:0.85rem">${formatFileSize(file.size)} · ${ext.toUpperCase()}</p>
+                <button class="btn-primary btn-sm" style="margin-top:16px" onclick="downloadFile('${fullPath.replace(/'/g, "\\'")}')">Descargar archivo</button>
+            </div>
+        `;
+    }
+
+    modal.appendChild(body);
+
+    // File info footer
+    const footer = document.createElement('div');
+    footer.className = 'fm-preview-footer';
+    footer.innerHTML = `
+        <span>📐 ${formatFileSize(file.size)}</span>
+        <span>📅 ${file.modified ? new Date(file.modified).toLocaleString('es-ES') : '—'}</span>
+        ${file.permissions ? `<span>🔒 ${file.permissions}</span>` : ''}
+    `;
+    modal.appendChild(footer);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Close on Escape
+    const escHandler = (e) => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); } };
+    document.addEventListener('keydown', escHandler);
+}
+
+// ── Multi-select ──
+function fmToggleSelect(path, checked) {
+    if (checked) {
+        fmSelectedFiles.add(path);
+    } else {
+        fmSelectedFiles.delete(path);
+    }
+    fmUpdateBulkBar();
+    // Update visual
+    const row = document.querySelector(`[data-path="${CSS.escape(path)}"]`);
+    if (row) row.classList.toggle('selected', checked);
+}
+window.fmToggleSelect = fmToggleSelect;
+
+function fmToggleSelectAll(checked) {
+    const filesList = document.getElementById('files-list');
+    if (!filesList) return;
+    filesList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = checked;
+    });
+    if (checked) {
+        fmCurrentFiles.forEach(f => fmSelectedFiles.add(currentFilePath + '/' + f.name));
+        filesList.querySelectorAll('[data-path]').forEach(r => r.classList.add('selected'));
+    } else {
+        fmSelectedFiles.clear();
+        filesList.querySelectorAll('[data-path]').forEach(r => r.classList.remove('selected'));
+    }
+    fmUpdateBulkBar();
+}
+window.fmToggleSelectAll = fmToggleSelectAll;
+
+function fmUpdateBulkBar() {
+    const bar = document.getElementById('fm-bulk-bar');
+    const count = document.getElementById('fm-bulk-count');
+    if (!bar) return;
+    if (fmSelectedFiles.size > 0) {
+        bar.style.display = 'flex';
+        if (count) count.textContent = `${fmSelectedFiles.size} seleccionado${fmSelectedFiles.size > 1 ? 's' : ''}`;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function fmClearSelection() {
+    fmSelectedFiles.clear();
+    const filesList = document.getElementById('files-list');
+    if (filesList) {
+        filesList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        filesList.querySelectorAll('[data-path]').forEach(r => r.classList.remove('selected'));
+    }
+    const selectAll = document.getElementById('fm-select-all');
+    if (selectAll) selectAll.checked = false;
+    fmUpdateBulkBar();
+}
+window.fmClearSelection = fmClearSelection;
+
+// ── Bulk actions ──
+async function fmBulkDelete() {
+    if (fmSelectedFiles.size === 0) return;
+    if (!confirm(`¿Eliminar ${fmSelectedFiles.size} elemento(s)?`)) return;
+    for (const fp of fmSelectedFiles) {
+        try {
+            await authFetch(`${API_BASE}/files/delete`, { method: 'POST', body: JSON.stringify({ path: fp }) });
+        } catch (e) { console.error('Delete error:', e); }
+    }
+    fmSelectedFiles.clear();
+    await loadFiles(currentFilePath);
+}
+window.fmBulkDelete = fmBulkDelete;
+
+function fmBulkDownload() {
+    for (const fp of fmSelectedFiles) {
+        downloadFile(fp);
+    }
+}
+window.fmBulkDownload = fmBulkDownload;
+
+function fmBulkCopy() {
+    fmClipboard = { action: 'copy', files: Array.from(fmSelectedFiles).map(p => ({ path: p, name: p.split('/').pop() })) };
+    fmClearSelection();
+    renderFilesView();
+}
+window.fmBulkCopy = fmBulkCopy;
+
+function fmBulkCut() {
+    fmClipboard = { action: 'cut', files: Array.from(fmSelectedFiles).map(p => ({ path: p, name: p.split('/').pop() })) };
+    fmClearSelection();
+    renderFilesView();
+}
+window.fmBulkCut = fmBulkCut;
+
+async function fmPaste() {
+    if (!fmClipboard.action || fmClipboard.files.length === 0) return;
+    for (const f of fmClipboard.files) {
+        const newPath = currentFilePath + '/' + f.name;
+        try {
+            if (fmClipboard.action === 'copy') {
+                await authFetch(`${API_BASE}/files/copy`, { method: 'POST', body: JSON.stringify({ srcPath: f.path, destPath: newPath }) });
+            } else {
+                await authFetch(`${API_BASE}/files/rename`, { method: 'POST', body: JSON.stringify({ oldPath: f.path, newPath: newPath }) });
+            }
+        } catch (e) { console.error('Paste error:', e); }
+    }
+    fmClipboard = { action: null, files: [] };
+    await loadFiles(currentFilePath);
+    renderFilesView();
+}
+window.fmPaste = fmPaste;
+
+// ── CRUD operations ──
 async function createNewFolder() {
     const name = prompt('Nombre de la carpeta:');
     if (!name) return;
@@ -3431,68 +3950,105 @@ async function renameFile(filePath, oldName) {
     }
 }
 
+// ── Search ──
 async function searchFiles(query) {
     if (!query.trim()) { await loadFiles(currentFilePath); return; }
     const filesList = document.getElementById('files-list');
     if (!filesList) return;
-    filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">🔍 Buscando...</div>';
+    filesList.innerHTML = '<div class="fm-empty-state"><div class="fm-spinner"></div><p>🔍 Buscando...</p></div>';
     try {
         const res = await authFetch(`${API_BASE}/files/search?path=${encodeURIComponent(currentFilePath)}&query=${encodeURIComponent(query)}`);
         if (!res.ok) throw new Error('Search failed');
         const searchData = await res.json();
         const results = searchData.results || searchData || [];
         if (results.length === 0) {
-            filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">Sin resultados</div>';
+            filesList.innerHTML = '<div class="fm-empty-state"><p>Sin resultados para "' + query + '"</p></div>';
             return;
         }
         filesList.innerHTML = '';
+        filesList.className = 'fm-list';
         results.forEach(file => {
             const row = document.createElement('div');
-            row.style.cssText = 'display: grid; grid-template-columns: 40px 1fr 100px; padding: 10px 20px; align-items: center; border-bottom: 1px solid var(--border);';
-            const icon = document.createElement('span');
-            icon.textContent = file.type === 'directory' ? '📁' : getFileIcon(file.name);
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = file.path;
-            nameSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem;';
-            const sizeSpan = document.createElement('span');
-            sizeSpan.style.cssText = 'font-size: 0.85rem; color: var(--text-dim);';
-            sizeSpan.textContent = file.type === 'directory' ? '—' : formatFileSize(file.size);
-            row.appendChild(icon);
-            row.appendChild(nameSpan);
-            row.appendChild(sizeSpan);
+            row.className = 'fm-row';
+            row.innerHTML = `
+                <span></span>
+                <span class="fm-file-icon">${file.type === 'directory' ? getFolderSVG() : getFileIconSVG(file.name || file.path.split('/').pop())}</span>
+                <span class="fm-file-name" style="grid-column: span 2">${file.path || file.name}</span>
+                <span class="fm-file-meta">${file.type === 'directory' ? '—' : formatFileSize(file.size)}</span>
+                <span></span><span></span>
+            `;
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', () => {
+                if (file.type === 'directory') {
+                    currentFilePath = file.path || ('/' + file.name);
+                    renderFilesView();
+                }
+            });
             filesList.appendChild(row);
         });
     } catch (e) {
-        filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: #ef4444;">Error en la búsqueda</div>';
+        filesList.innerHTML = '<div class="fm-empty-state" style="color:#ef4444">Error en la búsqueda</div>';
     }
 }
 
+// ── Enhanced Context Menu ──
 function showFileContextMenu(e, filePath, file) {
-    // Remove existing context menu
-    document.querySelectorAll('.file-context-menu').forEach(m => m.remove());
-    
+    document.querySelectorAll('.fm-context-menu').forEach(m => m.remove());
+
     const menu = document.createElement('div');
-    menu.className = 'file-context-menu';
-    menu.style.cssText = `position: fixed; top: ${e.clientY}px; left: ${e.clientX}px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 9999; min-width: 160px;`;
-    
+    menu.className = 'fm-context-menu';
+
+    // Position: ensure menu stays within viewport
+    const menuWidth = 200;
+    const menuHeight = 280;
+    let top = e.clientY;
+    let left = e.clientX;
+    if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 8;
+    if (top + menuHeight > window.innerHeight) top = window.innerHeight - menuHeight - 8;
+    menu.style.top = top + 'px';
+    menu.style.left = left + 'px';
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    const imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+    const previewable = file.type !== 'directory';
+
     const items = [
+        ...(file.type === 'directory' ? [
+            { icon: '📂', label: 'Abrir carpeta', action: () => { currentFilePath = filePath; renderFilesView(); } },
+        ] : [
+            { icon: '👁️', label: 'Vista previa', action: () => fmPreviewFile(file, filePath.substring(0, filePath.lastIndexOf('/'))) },
+        ]),
         { icon: '✏️', label: 'Renombrar', action: () => renameFile(filePath, file.name) },
-        ...(file.type !== 'directory' ? [{ icon: '⬇️', label: 'Descargar', action: () => downloadFile(filePath) }] : []),
-        { icon: '🗑️', label: 'Eliminar', action: () => deleteFile(filePath, file.name) }
+        ...(file.type !== 'directory' ? [
+            { icon: '⬇️', label: 'Descargar', action: () => downloadFile(filePath) },
+        ] : []),
+        { divider: true },
+        { icon: '📋', label: 'Copiar', action: () => { fmClipboard = { action: 'copy', files: [{ path: filePath, name: file.name }] }; renderFilesView(); } },
+        { icon: '✂️', label: 'Mover', action: () => { fmClipboard = { action: 'cut', files: [{ path: filePath, name: file.name }] }; renderFilesView(); } },
+        { divider: true },
+        { icon: '🗑️', label: 'Eliminar', action: () => deleteFile(filePath, file.name), danger: true },
     ];
-    
+
     items.forEach(item => {
+        if (item.divider) {
+            const hr = document.createElement('div');
+            hr.className = 'fm-context-divider';
+            menu.appendChild(hr);
+            return;
+        }
         const btn = document.createElement('button');
-        btn.style.cssText = 'display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 16px; background: none; border: none; cursor: pointer; color: var(--text); font-size: 0.9rem; text-align: left;';
-        btn.addEventListener('mouseenter', () => btn.style.background = 'var(--bg-hover)');
-        btn.addEventListener('mouseleave', () => btn.style.background = '');
+        btn.className = 'fm-context-item' + (item.danger ? ' danger' : '');
         btn.innerHTML = `<span>${item.icon}</span><span>${item.label}</span>`;
         btn.addEventListener('click', () => { menu.remove(); item.action(); });
         menu.appendChild(btn);
     });
-    
+
     document.body.appendChild(menu);
-    document.addEventListener('click', () => menu.remove(), { once: true });
+    // Animate in
+    requestAnimationFrame(() => menu.classList.add('visible'));
+    setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+    }, 10);
 }
 
 // =============================================================================
