@@ -5508,8 +5508,26 @@ async function renderActiveBackupView() {
     detailCard.id = 'ab-detail-panel';
     container.appendChild(detailCard);
 
+    // Recovery USB section
+    const recoveryCard = document.createElement('div');
+    recoveryCard.className = 'glass-card';
+    recoveryCard.style.cssText = 'grid-column: 1 / -1;';
+    recoveryCard.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <div>
+                <h3 style="margin-bottom: 4px;">🔧 USB de Recuperación</h3>
+                <p style="font-size: 0.85rem; color: var(--text-dim);">Crea un USB bootable para restaurar backups sin necesitar sistema operativo</p>
+            </div>
+        </div>
+        <div id="ab-recovery-status" style="padding: 15px; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border);">
+            <p style="color: var(--text-dim);">Cargando...</p>
+        </div>
+    `;
+    container.appendChild(recoveryCard);
+
     dashboardContent.appendChild(container);
     await loadABDevices();
+    await loadRecoveryStatus();
 }
 
 async function loadABDevices() {
@@ -6130,5 +6148,112 @@ async function loadABBrowse(deviceId) {
     }
 }
 
+async function loadRecoveryStatus() {
+    const container = document.getElementById('ab-recovery-status');
+    if (!container) return;
+
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/recovery/status`);
+        const data = await res.json();
+
+        if (data.iso && data.iso.exists) {
+            const size = formatABSize(data.iso.size);
+            const date = new Date(data.iso.modified).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <div style="font-weight: 600; color: var(--accent);">✅ ISO disponible</div>
+                        <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 4px;">${size} · Creada: ${date}</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-primary btn-sm" id="ab-download-iso" style="padding: 10px 16px;">⬇️ Descargar ISO</button>
+                        <button class="btn-primary btn-sm" id="ab-rebuild-iso" style="padding: 10px 16px; background: #64748b;">🔄 Regenerar</button>
+                    </div>
+                </div>
+                <div style="margin-top: 12px; padding: 12px; background: #0a0a0a; border-radius: 6px; font-family: monospace; font-size: 0.8rem; color: #10b981;">
+                    <strong>Para flashear al USB:</strong><br>
+                    sudo dd if=homepinas-recovery.iso of=/dev/sdX bs=4M status=progress && sync
+                </div>
+            `;
+
+            document.getElementById('ab-download-iso').addEventListener('click', () => {
+                window.open(`${API_BASE}/active-backup/recovery/download`, '_blank');
+            });
+            document.getElementById('ab-rebuild-iso').addEventListener('click', () => buildRecoveryISO());
+        } else {
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <div style="font-weight: 500;">No hay ISO generada todavía</div>
+                        <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 4px;">
+                            Genera una ISO bootable (~500MB) que incluye herramientas de restauración, 
+                            detección automática del NAS y soporte para BIOS + UEFI.
+                        </div>
+                    </div>
+                    <button class="btn-primary" id="ab-build-iso" style="padding: 12px 20px;">🔧 Generar USB Recovery</button>
+                </div>
+                <div style="margin-top: 12px;">
+                    <details style="color: var(--text-dim); font-size: 0.85rem;">
+                        <summary style="cursor: pointer; font-weight: 500;">¿Qué incluye?</summary>
+                        <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.8;">
+                            <li>🔍 Detección automática del NAS por red (mDNS)</li>
+                            <li>📋 Menú interactivo para seleccionar backup</li>
+                            <li>💽 Restauración de imágenes completas (Windows/Linux)</li>
+                            <li>📁 Restauración de archivos (rsync)</li>
+                            <li>🔧 Reparación de arranque (GRUB)</li>
+                            <li>🖥️ Compatible BIOS y UEFI</li>
+                            <li>📶 WiFi incluido (drivers firmware)</li>
+                        </ul>
+                    </details>
+                </div>
+            `;
+
+            const buildBtn = document.getElementById('ab-build-iso');
+            if (buildBtn) buildBtn.addEventListener('click', () => buildRecoveryISO());
+        }
+    } catch (e) {
+        container.innerHTML = `<p style="color: var(--text-dim);">Scripts de recovery disponibles. La generación de ISO requiere un sistema x86_64.</p>
+            <button class="btn-primary btn-sm" style="margin-top: 10px;" onclick="window.open('${API_BASE}/active-backup/recovery/scripts','_blank')">📦 Descargar Scripts</button>`;
+    }
+}
+
+async function buildRecoveryISO() {
+    if (!confirm('Generar la ISO de recuperación puede tardar 10-20 minutos y requiere ~2GB de espacio. ¿Continuar?')) return;
+
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/recovery/build`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+
+        const container = document.getElementById('ab-recovery-status');
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
+                    <div style="font-weight: 600;">Generando ISO de recuperación...</div>
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 8px;">Esto puede tardar 10-20 minutos. No cierres esta página.</div>
+                    <div style="margin-top: 15px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;">
+                        <div style="height: 100%; width: 30%; background: var(--accent); border-radius: 2px; animation: pulse 2s infinite;"></div>
+                    </div>
+                </div>
+            `;
+
+            // Poll every 15s for completion
+            const poll = setInterval(async () => {
+                try {
+                    const sr = await authFetch(`${API_BASE}/active-backup/recovery/status`);
+                    const sd = await sr.json();
+                    if (sd.iso && sd.iso.exists) {
+                        clearInterval(poll);
+                        await loadRecoveryStatus();
+                    }
+                } catch(e) { /* keep polling */ }
+            }, 15000);
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
 init();
-console.log("HomePiNAS Core v2.4.0 Loaded - Active Backup for Business added");
+console.log("HomePiNAS Core v2.4.0 Loaded - Active Backup + Recovery USB");

@@ -902,4 +902,101 @@ setInterval(() => {
   }
 }, 60000); // Check every 60 seconds
 
+// ══════════════════════════════════════════
+// RECOVERY USB
+// ══════════════════════════════════════════
+
+/**
+ * GET /recovery/status - Check if recovery ISO exists
+ */
+router.get('/recovery/status', (req, res) => {
+  const isoDir = path.join(__dirname, '..', '..', 'recovery-usb');
+  const isoPath = path.join(isoDir, 'homepinas-recovery.iso');
+  const scriptsExist = fs.existsSync(path.join(isoDir, 'build-recovery-iso.sh'));
+
+  let isoInfo = null;
+  if (fs.existsSync(isoPath)) {
+    const stat = fs.statSync(isoPath);
+    isoInfo = {
+      exists: true,
+      size: stat.size,
+      modified: stat.mtime,
+    };
+  }
+
+  res.json({
+    success: true,
+    scriptsAvailable: scriptsExist,
+    iso: isoInfo,
+  });
+});
+
+/**
+ * POST /recovery/build - Build recovery ISO (long operation)
+ */
+router.post('/recovery/build', async (req, res) => {
+  const isoDir = path.join(__dirname, '..', '..', 'recovery-usb');
+  const buildScript = path.join(isoDir, 'build-recovery-iso.sh');
+
+  if (!fs.existsSync(buildScript)) {
+    return res.status(404).json({ error: 'Build script not found' });
+  }
+
+  res.json({ success: true, message: 'ISO build started. This will take several minutes.' });
+
+  // Run build in background
+  const proc = spawn('sudo', ['bash', buildScript], {
+    cwd: isoDir,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let output = '';
+  proc.stdout.on('data', (chunk) => { output += chunk.toString(); });
+  proc.stderr.on('data', (chunk) => { output += chunk.toString(); });
+
+  proc.on('close', (code) => {
+    if (code === 0) {
+      logSecurityEvent('recovery_iso_built', 'system', { success: true });
+      console.log('[Active Backup] Recovery ISO built successfully');
+    } else {
+      logSecurityEvent('recovery_iso_build_failed', 'system', { code, output: output.slice(-500) });
+      console.error('[Active Backup] Recovery ISO build failed:', output.slice(-500));
+    }
+  });
+});
+
+/**
+ * GET /recovery/download - Download recovery ISO
+ */
+router.get('/recovery/download', (req, res) => {
+  const isoPath = path.join(__dirname, '..', '..', 'recovery-usb', 'homepinas-recovery.iso');
+
+  if (!fs.existsSync(isoPath)) {
+    return res.status(404).json({ error: 'Recovery ISO not found. Build it first.' });
+  }
+
+  res.download(isoPath, 'homepinas-recovery.iso');
+});
+
+/**
+ * GET /recovery/scripts - Download recovery scripts as tar.gz (for manual USB creation)
+ */
+router.get('/recovery/scripts', (req, res) => {
+  const scriptsDir = path.join(__dirname, '..', '..', 'recovery-usb');
+
+  if (!fs.existsSync(scriptsDir)) {
+    return res.status(404).json({ error: 'Recovery scripts not found' });
+  }
+
+  const archiveName = 'homepinas-recovery-scripts.tar.gz';
+  res.setHeader('Content-Type', 'application/gzip');
+  res.setHeader('Content-Disposition', `attachment; filename="${archiveName}"`);
+
+  const tar = spawn('tar', ['-czf', '-', '-C', path.dirname(scriptsDir), 'recovery-usb'], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+
+  tar.stdout.pipe(res);
+});
+
 module.exports = router;
