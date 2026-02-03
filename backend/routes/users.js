@@ -90,10 +90,8 @@ function findUser(username) {
 function saveUsers(users) {
   const data = getData();
   data.users = users;
-  // Remove legacy single-user field if present
-  if (data.user) {
-    delete data.user;
-  }
+  // Keep data.user for backward compatibility with auth.js login
+  // The legacy single-user field is still used for authentication
   saveData(data);
 }
 
