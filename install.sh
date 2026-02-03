@@ -282,6 +282,8 @@ BASE_PACKAGES=(
     "avahi-daemon"
     "avahi-utils"
     "libnss-mdns"
+    "rsync"
+    "openssh-client"
 )
 
 # Packages that might have different names

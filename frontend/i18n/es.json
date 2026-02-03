@@ -12,6 +12,7 @@
     "system": "Sistema",
     "terminal": "Terminal",
     "backup": "Backup",
+    "activeBackup": "Active Backup",
     "logs": "Logs",
     "users": "Usuarios",
     "shortcuts": "Accesos Directos"
