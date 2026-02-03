@@ -542,6 +542,9 @@ SMBEOF
     # Create sambashare group if it doesn't exist
     getent group sambashare > /dev/null || groupadd sambashare
 
+    # Add service user to sambashare group (needed for File Manager)
+    usermod -aG sambashare $REAL_USER 2>/dev/null || true
+
     # Enable and start Samba services
     systemctl enable smbd nmbd
     systemctl restart smbd nmbd || true

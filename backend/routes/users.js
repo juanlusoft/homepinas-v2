@@ -195,7 +195,7 @@ router.put('/me/password', async (req, res) => {
     // Verify current password
     const valid = await bcrypt.compare(currentPassword, users[userIndex].password);
     if (!valid) {
-      logSecurityEvent('password_change_failed', req.user.username, {
+      logSecurityEvent('PASSWORD_CHANGE_FAILED', {
         reason: 'incorrect current password',
       });
       return res.status(401).json({ error: 'Current password is incorrect' });
@@ -215,7 +215,7 @@ router.put('/me/password', async (req, res) => {
       console.warn('Samba password update failed for', req.user.username);
     }
 
-    logSecurityEvent('password_changed', req.user.username);
+    logSecurityEvent('PASSWORD_CHANGED', { user: req.user.username }, req.ip);
     res.json({ message: 'Password changed successfully' });
   } catch (err) {
     console.error('Password change error:', err.message);
@@ -254,18 +254,16 @@ router.post('/', requireAdmin, async (req, res) => {
     if (!username) {
       return res.status(400).json({ error: 'Username is required' });
     }
-    const usernameError = validateUsername(username);
-    if (usernameError) {
-      return res.status(400).json({ error: usernameError });
+    if (!validateUsername(username)) {
+      return res.status(400).json({ error: 'Invalid username. Must be 3-32 characters, alphanumeric with _ or -' });
     }
 
     // Validate password
     if (!password) {
       return res.status(400).json({ error: 'Password is required' });
     }
-    const passwordError = validatePassword(password);
-    if (passwordError) {
-      return res.status(400).json({ error: passwordError });
+    if (!validatePassword(password)) {
+      return res.status(400).json({ error: 'Invalid password. Must be 6-128 characters' });
     }
 
     // Validate role
@@ -297,7 +295,7 @@ router.post('/', requireAdmin, async (req, res) => {
     // Create Samba user for share access
     await createSambaUser(username, password);
 
-    logSecurityEvent('user_created', req.user.username, {
+    logSecurityEvent('USER_CREATED', {
       newUser: username,
       role: userRole,
     });
@@ -360,7 +358,7 @@ router.put('/:username', requireAdmin, async (req, res) => {
 
     saveUsers(users);
 
-    logSecurityEvent('user_updated', req.user.username, {
+    logSecurityEvent('USER_UPDATED', {
       targetUser: targetUsername,
       updatedFields: [
         ...(role !== undefined ? ['role'] : []),
@@ -407,7 +405,7 @@ router.delete('/:username', requireAdmin, async (req, res) => {
     // Remove from Samba
     await removeSambaUser(deletedUser.username);
 
-    logSecurityEvent('user_deleted', req.user.username, {
+    logSecurityEvent('USER_DELETED', {
       deletedUser: deletedUser.username,
       role: deletedUser.role,
     });

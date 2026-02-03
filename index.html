@@ -249,34 +249,7 @@
         </div>
     </div>
 
-    <!-- DDNS Modal -->
-    <div id="ddns-modal" class="modal">
-        <div class="glass-card modal-content">
-            <header class="modal-header">
-                <h3 data-i18n="network.addService">Añadir Servicio DDNS</h3>
-                <button id="close-modal" class="btn-close">&times;</button>
-            </header>
-            <form id="ddns-form">
-                <div class="input-group">
-                    <select id="ddns-service-select" required>
-                        <option value="" disabled selected data-i18n="network.selectProvider">Seleccionar Proveedor</option>
-                        <option value="cloudflare">Cloudflare</option>
-                        <option value="noip">No-IP</option>
-                        <option value="duckdns">DuckDNS</option>
-                    </select>
-                    <label>Service Provider</label>
-                </div>
-
-                <div id="ddns-dynamic-fields">
-                    <!-- Fields injected here based on selection -->
-                </div>
-
-                <div class="modal-footer">
-                    <button type="submit" class="btn-primary">Verify & Save Service</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <!-- DDNS Modal is now created dynamically in main.js -->
 
     <!-- Terms and Conditions Modal -->
     <div id="terms-modal" class="modal">

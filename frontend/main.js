@@ -162,11 +162,7 @@ const dashboardContent = document.getElementById('dashboard-content');
 const viewTitle = document.getElementById('view-title');
 const resetBtn = document.getElementById('reset-setup-btn');
 
-// DDNS Elements
-const ddnsModal = document.getElementById('ddns-modal');
-const ddnsForm = document.getElementById('ddns-form');
-const serviceSelect = document.getElementById('ddns-service-select');
-const dynamicFields = document.getElementById('ddns-dynamic-fields');
+// DDNS Elements (modal is now created dynamically in renderDDNSSection)
 
 // Initialize State from Backend
 async function initAuth() {

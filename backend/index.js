@@ -91,11 +91,11 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"], // Needed for some inline scripts
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            imgSrc: ["'self'", "data:"],
-            connectSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
+            connectSrc: ["'self'", "ws:", "wss:"],
             frameAncestors: ["'none'"], // Prevent clickjacking
         },
     },

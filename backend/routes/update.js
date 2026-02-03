@@ -38,8 +38,16 @@ router.get('/check', requireAuth, async (req, res) => {
                 timeout: 30000
             });
 
-            // Get commits ahead of current HEAD
-            const remoteInfo = execFileSync('git', ['log', 'HEAD..origin/main', '--oneline'], {
+            // Detect current branch
+            let currentBranch = 'main';
+            try {
+                currentBranch = execFileSync('git', ['branch', '--show-current'], {
+                    cwd: INSTALL_DIR, encoding: 'utf8', timeout: 5000
+                }).trim() || 'main';
+            } catch (e) {}
+
+            // Get commits ahead of current HEAD on the SAME branch
+            const remoteInfo = execFileSync('git', ['log', `HEAD..origin/${currentBranch}`, '--oneline'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 10000
@@ -54,7 +62,7 @@ router.get('/check', requireAuth, async (req, res) => {
 
                 // Try to get latest version from remote package.json
                 try {
-                    const remotePackage = execFileSync('git', ['show', 'origin/main:package.json'], {
+                    const remotePackage = execFileSync('git', ['show', `origin/${currentBranch}:package.json`], {
                         cwd: INSTALL_DIR,
                         encoding: 'utf8',
                         timeout: 10000
@@ -128,7 +136,14 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
                 encoding: 'utf8',
                 timeout: 60000
             });
-            execFileSync('git', ['reset', '--hard', 'origin/main'], {
+            // Detect current branch for update
+            let updateBranch = 'main';
+            try {
+                updateBranch = execFileSync('git', ['branch', '--show-current'], {
+                    cwd: INSTALL_DIR, encoding: 'utf8', timeout: 5000
+                }).trim() || 'main';
+            } catch (e) {}
+            execFileSync('git', ['reset', '--hard', `origin/${updateBranch}`], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 30000
