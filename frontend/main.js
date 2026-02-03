@@ -162,9 +162,7 @@ const dashboardContent = document.getElementById('dashboard-content');
 const viewTitle = document.getElementById('view-title');
 const resetBtn = document.getElementById('reset-setup-btn');
 
-// DDNS Elements (modal is created dynamically in renderDDNSSection)
-let ddnsModal = null;
-let ddnsForm = null;
+// DDNS modal is created dynamically in renderDDNSSection/showDDNSForm
 
 // Initialize State from Backend
 async function initAuth() {
@@ -2170,91 +2168,8 @@ async function renderNetworkManager() {
 
     ifaceSection.appendChild(interfacesGrid);
 
-    // 2. DDNS Section
-    const ddnsSection = document.createElement('div');
-    const ddnsTitle = document.createElement('h3');
-    ddnsTitle.style.cssText = 'margin-top: 40px; margin-bottom: 20px;';
-    ddnsTitle.textContent = 'Remote Access (DDNS)';
-    ddnsSection.appendChild(ddnsTitle);
-
-    const ddnsGrid = document.createElement('div');
-    ddnsGrid.className = 'ddns-grid';
-
-    (state.network.ddns || []).forEach(service => {
-        const card = document.createElement('div');
-        card.className = 'glass-card ddns-card';
-
-        const isOnline = service.status === 'online';
-
-        // Header
-        const ddnsHeader = document.createElement('div');
-        ddnsHeader.className = 'ddns-header';
-
-        const logo = document.createElement('div');
-        logo.className = 'ddns-logo';
-        logo.style.background = isOnline ? '#10b981' : '#ef4444';
-        logo.textContent = (service.name || 'U').charAt(0);
-
-        const headerInfo = document.createElement('div');
-        const serviceH4 = document.createElement('h4');
-        serviceH4.textContent = service.name || 'Unknown';
-        const statusInfo = document.createElement('span');
-        statusInfo.style.fontSize = '0.75rem';
-        // SECURITY: Escape service.status to prevent XSS
-        statusInfo.innerHTML = `<span class="status-dot ${isOnline ? 'status-check-online' : 'status-check-offline'}"></span>${escapeHtml((service.status || 'unknown').toUpperCase())}`;
-        headerInfo.appendChild(serviceH4);
-        headerInfo.appendChild(statusInfo);
-
-        ddnsHeader.appendChild(logo);
-        ddnsHeader.appendChild(headerInfo);
-
-        // Domain row
-        const domainRow = document.createElement('div');
-        domainRow.className = 'status-row-net';
-        const domainLabel = document.createElement('span');
-        domainLabel.textContent = 'Domain';
-        const domainValue = document.createElement('span');
-        domainValue.style.color = 'white';
-        domainValue.textContent = service.domain || 'N/A';
-        domainRow.appendChild(domainLabel);
-        domainRow.appendChild(domainValue);
-
-        // IP row
-        const ipRow = document.createElement('div');
-        ipRow.className = 'status-row-net';
-        const ipLabel = document.createElement('span');
-        ipLabel.textContent = 'Gateway IP';
-        const ipValue = document.createElement('span');
-        ipValue.style.cssText = 'color: #10b981; font-weight: 600;';
-        ipValue.textContent = isOnline ? (state.publicIP || '---') : '---';
-        ipRow.appendChild(ipLabel);
-        ipRow.appendChild(ipValue);
-
-        card.appendChild(ddnsHeader);
-        card.appendChild(domainRow);
-        card.appendChild(ipRow);
-        ddnsGrid.appendChild(card);
-    });
-
-    // Add service button
-    const addCard = document.createElement('div');
-    addCard.className = 'btn-add-ddns';
-    addCard.addEventListener('click', openDDNSModal);
-
-    const plusIcon = document.createElement('span');
-    plusIcon.className = 'plus-icon';
-    plusIcon.textContent = '+';
-    const addText = document.createElement('span');
-    addText.style.cssText = 'font-size: 0.9rem; font-weight: 600;';
-    addText.textContent = 'Add Service';
-
-    addCard.appendChild(plusIcon);
-    addCard.appendChild(addText);
-    ddnsGrid.appendChild(addCard);
-
-    ddnsSection.appendChild(ddnsGrid);
+    // DDNS section is now rendered by renderDDNSSection() after this function
     container.appendChild(ifaceSection);
-    container.appendChild(ddnsSection);
     dashboardContent.appendChild(container);
 }
 
@@ -2424,32 +2339,7 @@ async function applyNetwork(interfaceId) {
     }
 }
 
-function openDDNSModal() {
-    if (ddnsModal) {
-        ddnsModal.style.display = 'flex';
-    }
-}
-
-function closeDDNSModal() {
-    if (ddnsModal) {
-        ddnsModal.style.display = 'none';
-    }
-}
-
-// Initialize modal close button
-const closeModalBtn = document.getElementById('close-modal');
-if (closeModalBtn) {
-    closeModalBtn.addEventListener('click', closeDDNSModal);
-}
-
-// Close modal on outside click
-if (ddnsModal) {
-    ddnsModal.addEventListener('click', (e) => {
-        if (e.target === ddnsModal) {
-            closeDDNSModal();
-        }
-    });
-}
+// DDNS modal is now handled by showDDNSForm() in renderDDNSSection
 
 // Terms and Conditions Modal
 const termsModal = document.getElementById('terms-modal');
