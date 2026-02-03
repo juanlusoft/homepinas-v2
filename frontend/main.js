@@ -3243,7 +3243,8 @@ async function loadFiles(filePath) {
     try {
         const res = await authFetch(`${API_BASE}/files/list?path=${encodeURIComponent(filePath)}`);
         if (!res.ok) throw new Error('Failed to load files');
-        const files = await res.json();
+        const data = await res.json();
+        const files = data.items || data || [];
 
         if (files.length === 0) {
             filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">📂 Carpeta vacía</div>';
@@ -3362,7 +3363,7 @@ async function handleFileUpload(e) {
 
     for (const file of files) {
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('files', file);
         formData.append('path', currentFilePath);
 
         try {
@@ -3438,7 +3439,8 @@ async function searchFiles(query) {
     try {
         const res = await authFetch(`${API_BASE}/files/search?path=${encodeURIComponent(currentFilePath)}&query=${encodeURIComponent(query)}`);
         if (!res.ok) throw new Error('Search failed');
-        const results = await res.json();
+        const searchData = await res.json();
+        const results = searchData.results || searchData || [];
         if (results.length === 0) {
             filesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-dim);">Sin resultados</div>';
             return;
@@ -3566,7 +3568,8 @@ async function loadUsers() {
         const res = await authFetch(`${API_BASE}/users`);
         let users = [];
         if (res.ok) {
-            users = await res.json();
+            const data = await res.json();
+            users = data.users || data || [];
         } else {
             // Fallback: show current user only
             users = [{ username: state.user?.username || 'admin', role: 'admin', createdAt: null, lastLogin: null }];
@@ -3865,7 +3868,8 @@ async function loadBackupJobs() {
     try {
         const res = await authFetch(`${API_BASE}/backup/jobs`);
         if (!res.ok) throw new Error('Failed');
-        const jobs = await res.json();
+        const data = await res.json();
+        const jobs = data.jobs || data || [];
 
         if (!jobs || jobs.length === 0) {
             list.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-dim);">No hay trabajos de backup configurados</div>';
@@ -4026,7 +4030,8 @@ async function loadSchedulerTasks() {
     try {
         const res = await authFetch(`${API_BASE}/scheduler/tasks`);
         if (!res.ok) throw new Error('Failed');
-        const tasks = await res.json();
+        const data = await res.json();
+        const tasks = data.tasks || data || [];
 
         if (!tasks || tasks.length === 0) {
             list.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-dim);">No hay tareas programadas</div>';
@@ -4346,7 +4351,8 @@ async function loadSambaShares() {
     try {
         const res = await authFetch(`${API_BASE}/samba/shares`);
         if (!res.ok) throw new Error('Failed');
-        const shares = await res.json();
+        const data = await res.json();
+        const shares = data.shares || data || [];
 
         if (!shares || shares.length === 0) {
             grid.innerHTML = '<div style="padding: 20px; color: var(--text-dim); grid-column: 1 / -1; text-align: center;">No hay comparticiones configuradas</div>';
@@ -4724,7 +4730,8 @@ async function loadDDNSServices() {
     try {
         const res = await authFetch(`${API_BASE}/ddns/services`);
         if (!res.ok) throw new Error('Failed');
-        const services = await res.json();
+        const data = await res.json();
+        const services = data.services || data || [];
 
         if (!services || services.length === 0) {
             grid.innerHTML = '<div style="padding: 20px; color: var(--text-dim); grid-column: 1 / -1; text-align: center;">No hay servicios DDNS configurados</div>';
