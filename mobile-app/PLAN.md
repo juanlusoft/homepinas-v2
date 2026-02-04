@@ -190,14 +190,87 @@ mobile-app/
 
 ## VPN Integrada — Acceso remoto + bloqueo de publicidad
 
-### Tecnología: WireGuard
-- **Por qué**: Rápido, moderno, mínima configuración, soporte nativo de QR
-- Apps oficiales en Android/iOS (escanear QR y listo)
-- Rendimiento superior a OpenVPN
-- Integración perfecta con PiHole/AdGuard Home
+### Opción 1 (Recomendada): Tailscale — Sin abrir puertos
+- **WireGuard por debajo** pero con NAT traversal automático
+- **Sin abrir puertos** en el router — atraviesa firewalls solo
+- Gratis hasta 100 dispositivos (plan Personal)
+- Apps nativas Android/iOS/Windows/Mac/Linux
+- Exit node: todo el tráfico del móvil pasa por el NAS
+- Compatible con PiHole/AdGuard como DNS
+- Setup en el NAS: una línea (`tailscale up --advertise-exit-node`)
 
-### Flujo usuario (zero-knowledge)
-1. Admin activa "VPN" en el dashboard del NAS
+#### Flujo usuario Tailscale (ultra-fácil)
+1. Admin activa "VPN (Tailscale)" en el dashboard
+2. HomePiNAS instala Tailscale y lo configura como exit node
+3. Aparece un link de autenticación → admin lo abre y aprueba
+4. Admin pulsa "Invitar dispositivo" → genera link/QR de invitación
+5. Usuario instala Tailscale en el móvil → abre link → conectado ✅
+6. Activa "Use exit node" → todo el tráfico por el NAS
+7. PiHole/AdGuard como DNS → sin publicidad en cualquier red 🚫📢
+
+#### Dashboard — Sección Tailscale
+```
+┌─────────────────────────────────────────┐
+│  🔒 VPN (Tailscale)          [Activar] │
+│─────────────────────────────────────────│
+│  Estado: ● Conectado                    │
+│  IP Tailscale: 100.64.x.x              │
+│  Exit node: ✅ Activo                   │
+│  MagicDNS: ✅ Activo                    │
+│                                         │
+│  📱 Dispositivos en la red:             │
+│  ┌─────────────────────────────────┐   │
+│  │ 🟢 PiNas (este NAS) 100.64.0.1│   │
+│  │ 🟢 iPhone-Juan    100.64.0.2   │   │
+│  │ 🟢 iPad-casa      100.64.0.3   │   │
+│  │ ⚪ Portátil        100.64.0.4   │   │
+│  └─────────────────────────────────┘   │
+│                                         │
+│  [📱 Invitar dispositivo]               │
+│                                         │
+│  ⚙️ Opciones:                          │
+│  DNS: [Auto ▾] / PiHole / AdGuard     │
+│  Exit node: [✅ Activado]               │
+│  Subnet routes: [Red local ▾]          │
+└─────────────────────────────────────────┘
+```
+
+#### Implementación backend (Tailscale)
+1. **Instalar**: `curl -fsSL https://tailscale.com/install.sh | sh`
+2. **Activar**: `tailscale up --advertise-exit-node --advertise-routes=192.168.1.0/24`
+3. **Estado**: `tailscale status --json` → parsear dispositivos, IPs
+4. **Auth key**: Usar Tailscale API para generar auth keys pre-aprobadas
+5. **Invitar**: Generar link con auth key → QR code
+6. **DNS**: `tailscale set --accept-dns=false` + config personalizada
+7. **Endpoints API NAS**:
+   - `POST /api/vpn/setup` — instalar y configurar Tailscale
+   - `GET /api/vpn/status` — estado, peers (`tailscale status --json`)
+   - `POST /api/vpn/invite` — generar auth key + QR para nuevo dispositivo
+   - `PUT /api/vpn/config` — DNS, exit node, subnet routes
+   - `POST /api/vpn/logout` — desconectar Tailscale
+8. **Auto-detect ad-blockers**: Buscar PiHole/AdGuard en Docker → ofrecerlos como DNS
+
+#### Ventajas Tailscale vs WireGuard manual
+| | Tailscale | WireGuard |
+|---|---|---|
+| Abrir puertos | ❌ No | ✅ Sí (51820 UDP) |
+| DDNS necesario | ❌ No | ✅ Sí |
+| Config router | ❌ Nada | ✅ Port forward |
+| Setup usuario | Instalar app + link | Instalar app + escanear QR |
+| NAT traversal | ✅ Automático | ❌ Manual |
+| Multi-NAS | ✅ Una cuenta | ⚠️ Cada uno por separado |
+| Dependencia externa | Tailscale servers (coord) | ❌ Ninguna |
+
+---
+
+### Opción 2 (Avanzada): WireGuard — Sin dependencias externas
+- Para usuarios que prefieren no depender de terceros
+- Requiere abrir puerto 51820 UDP en el router
+- Requiere DDNS o IP pública fija
+- Control total de la infraestructura
+
+#### Flujo usuario WireGuard
+1. Admin activa "VPN (WireGuard)" en el dashboard
 2. HomePiNAS instala WireGuard automáticamente
 3. Admin pulsa "Añadir dispositivo" → introduce nombre (ej: "iPhone de Juan")
 4. Se genera config + QR en pantalla
