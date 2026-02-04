@@ -188,6 +188,128 @@ mobile-app/
 - Multi-NAS support
 - Widget para home screen (estado rápido)
 
+## VPN Integrada — Acceso remoto + bloqueo de publicidad
+
+### Tecnología: WireGuard
+- **Por qué**: Rápido, moderno, mínima configuración, soporte nativo de QR
+- Apps oficiales en Android/iOS (escanear QR y listo)
+- Rendimiento superior a OpenVPN
+- Integración perfecta con PiHole/AdGuard Home
+
+### Flujo usuario (zero-knowledge)
+1. Admin activa "VPN" en el dashboard del NAS
+2. HomePiNAS instala WireGuard automáticamente
+3. Admin pulsa "Añadir dispositivo" → introduce nombre (ej: "iPhone de Juan")
+4. Se genera config + QR en pantalla
+5. Usuario abre WireGuard en el móvil → escanea QR → conectado ✅
+6. Si tiene PiHole/AdGuard → DNS apunta al contenedor → sin publicidad 🚫📢
+
+### Arquitectura
+```
+┌──────────┐    WireGuard     ┌──────────────┐    DNS     ┌─────────────┐
+│  Móvil   │ ◄─────────────► │  NAS (wg0)   │ ────────► │  PiHole /   │
+│  (app)   │   túnel UDP     │  10.0.0.1    │           │  AdGuard    │
+└──────────┘   puerto 51820   └──────────────┘           │  (Docker)   │
+                                     │                    └─────────────┘
+                                     ▼
+                              Red local del NAS
+                              (acceso a archivos,
+                               dashboard, etc.)
+```
+
+### Dashboard — Sección VPN
+```
+┌─────────────────────────────────────────┐
+│  🔒 VPN (WireGuard)          [Activar] │
+│─────────────────────────────────────────│
+│  Estado: ● Activo | Puerto: 51820      │
+│  IP pública: 83.xx.xx.xx (auto)        │
+│  Red VPN: 10.0.0.0/24                  │
+│                                         │
+│  📱 Dispositivos conectados:            │
+│  ┌─────────────────────────────────┐   │
+│  │ 🟢 iPhone de Juan  10.0.0.2    │   │
+│  │ 🟢 iPad de casa    10.0.0.3    │   │
+│  │ ⚪ Portátil oficina 10.0.0.4   │   │
+│  └─────────────────────────────────┘   │
+│                                         │
+│  [+ Añadir dispositivo]                │
+│                                         │
+│  ⚙️ Opciones:                          │
+│  DNS: [Auto ▾] / PiHole / AdGuard     │
+│  Acceso: [Solo NAS ▾] / Todo el tráfico│
+│  DDNS: homepinas.duckdns.org           │
+└─────────────────────────────────────────┘
+```
+
+### Añadir dispositivo → Modal con QR
+```
+┌──────────────────────────────────┐
+│  📱 Nuevo dispositivo            │
+│                                  │
+│  Nombre: [iPhone de Juan    ]    │
+│                                  │
+│  ┌────────────────────┐         │
+│  │                    │         │
+│  │     [QR CODE]      │         │
+│  │                    │         │
+│  └────────────────────┘         │
+│                                  │
+│  1. Instala WireGuard en tu     │
+│     móvil (App Store/Play Store)│
+│  2. Abre la app → "+"           │
+│  3. Escanea este código QR      │
+│  4. ¡Listo! Activa el túnel     │
+│                                  │
+│  [📋 Copiar config] [✕ Cerrar]  │
+└──────────────────────────────────┘
+```
+
+### Opciones de DNS (integración ad-blocking)
+| Opción | DNS | Resultado |
+|--------|-----|-----------|
+| Auto | DNS del router/ISP | Solo acceso remoto |
+| PiHole | IP contenedor PiHole | Acceso remoto + sin anuncios |
+| AdGuard Home | IP contenedor AdGuard | Acceso remoto + sin anuncios |
+| Personalizado | IP custom | Lo que el usuario quiera |
+
+### Modos de VPN
+- **Solo NAS (split tunnel)**: Solo tráfico hacia la red local pasa por VPN. Internet directo.
+- **Todo el tráfico (full tunnel)**: Todo pasa por el NAS. Ideal con PiHole para bloquear publicidad en cualquier red.
+
+### Implementación backend
+1. **Instalar WireGuard**: `apt install wireguard-tools` + generar claves servidor
+2. **Endpoint**: `POST /api/vpn/setup` — config inicial (puerto, red, interfaz)
+3. **Endpoint**: `POST /api/vpn/peer` — añadir dispositivo (genera claves, config, QR)
+4. **Endpoint**: `DELETE /api/vpn/peer/:id` — eliminar dispositivo
+5. **Endpoint**: `GET /api/vpn/status` — estado, peers conectados (wg show)
+6. **Endpoint**: `PUT /api/vpn/config` — cambiar DNS, modo, puerto
+7. **QR**: Generar con `qrcode` npm package directamente en el backend
+8. **Port forwarding**: Instrucciones en pantalla para abrir puerto 51820 en el router
+9. **Auto-detect contenedores**: Buscar PiHole/AdGuard en Docker y ofrecerlos como opción DNS
+
+### Detección automática de ad-blockers
+```javascript
+// Buscar contenedores PiHole o AdGuard corriendo
+const containers = await docker.listContainers();
+const adBlockers = containers.filter(c => 
+  c.Image.includes('pihole') || 
+  c.Image.includes('adguard')
+);
+// Ofrecer automáticamente como opción DNS en la VPN
+```
+
+### Seguridad
+- Claves privadas nunca salen del dispositivo (generadas y mostradas solo una vez)
+- QR temporal: se puede configurar expiración
+- Revocación instantánea desde el dashboard
+- Logs de conexión/desconexión
+
+### Requisitos del usuario
+1. Puerto 51820 UDP abierto en el router (o el que elija)
+2. DDNS configurado (o IP pública fija)
+3. App WireGuard en el móvil (gratuita)
+
 ## Cambios necesarios en el backend
 
 1. **Push notifications endpoint**: `POST /api/push/register`, `DELETE /api/push/unregister`
