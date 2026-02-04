@@ -7,173 +7,78 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
-    <!-- Header -->
-    <div class="header">
-      <div class="logo">🏠</div>
-      <div class="header-text">
-        <h1>HomePiNAS Backup</h1>
-        <span id="connection-status" class="status disconnected">Sin conexión</span>
-      </div>
+  <!-- Step 1: Connect to NAS -->
+  <div id="step-connect" class="step active">
+    <div class="logo">🏠</div>
+    <h1>HomePiNAS Backup</h1>
+    <p class="subtitle">Conecta con tu NAS para proteger tu equipo</p>
+
+    <button id="btn-discover" class="btn btn-primary btn-large">🔍 Buscar NAS en mi red</button>
+
+    <div id="discover-results" class="hidden">
+      <div id="nas-list"></div>
     </div>
 
-    <!-- Step 1: Discover/Connect -->
-    <div id="step-connect" class="step active">
-      <h2>Conectar al NAS</h2>
-      <p>Busca tu HomePiNAS en la red o introduce la dirección manualmente.</p>
-      
-      <div class="actions">
-        <button id="btn-discover" class="btn primary">🔍 Buscar NAS automáticamente</button>
-      </div>
-
-      <div id="discover-results" class="hidden">
-        <h3>NAS encontrados:</h3>
-        <div id="nas-list"></div>
-      </div>
-
-      <div class="divider"><span>o conectar manualmente</span></div>
-
-      <div class="form-row">
-        <input type="text" id="nas-address" placeholder="IP del NAS (ej: 192.168.1.100)">
-        <input type="number" id="nas-port" value="3001" style="width: 80px">
+    <div class="manual-connect">
+      <p>O introduce la dirección manualmente:</p>
+      <div class="input-row">
+        <input type="text" id="nas-address" placeholder="192.168.1.x">
+        <input type="number" id="nas-port" value="3001" style="width:80px">
         <button id="btn-connect" class="btn">Conectar</button>
       </div>
+    </div>
+  </div>
 
-      <div id="login-form" class="hidden">
-        <h3>🔐 Credenciales del NAS</h3>
-        <div class="form-row">
-          <input type="text" id="nas-user" placeholder="Usuario">
-          <input type="password" id="nas-pass" placeholder="Contraseña">
-          <button id="btn-login" class="btn primary">Entrar</button>
-        </div>
+  <!-- Step 2: Waiting for approval -->
+  <div id="step-pending" class="step hidden">
+    <div class="logo">⏳</div>
+    <h1>Esperando aprobación</h1>
+    <p class="subtitle">Tu equipo se ha registrado en el NAS.</p>
+    <p>El administrador del NAS debe aprobar este dispositivo desde el panel de Active Backup.</p>
+    <div class="pending-info">
+      <div class="spinner"></div>
+      <p>Comprobando cada minuto...</p>
+    </div>
+  </div>
+
+  <!-- Step 3: Dashboard (approved) -->
+  <div id="step-dashboard" class="step hidden">
+    <div class="dash-header">
+      <h1>🛡️ Backup activo</h1>
+      <span id="dash-nas" class="badge">NAS: —</span>
+    </div>
+
+    <div class="dash-cards">
+      <div class="card">
+        <div class="card-icon" id="dash-status-icon">⏸️</div>
+        <div class="card-label">Estado</div>
+        <div class="card-value" id="dash-status">En espera</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <div class="card-label">Último backup</div>
+        <div class="card-value" id="dash-last">Nunca</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⏰</div>
+        <div class="card-label">Programación</div>
+        <div class="card-value" id="dash-schedule">—</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💾</div>
+        <div class="card-label">Tipo</div>
+        <div class="card-value" id="dash-type">—</div>
       </div>
     </div>
 
-    <!-- Step 2: Configure Backup -->
-    <div id="step-config" class="step hidden">
-      <h2>Configurar Backup</h2>
-      
-      <div class="form-group">
-        <label>Nombre del equipo</label>
-        <input type="text" id="device-name" placeholder="Mi PC">
-      </div>
-
-      <div class="form-group">
-        <label>Tipo de backup</label>
-        <div class="radio-group">
-          <label class="radio-card" id="card-image">
-            <input type="radio" name="backup-type" value="image" checked>
-            <div class="radio-content">
-              <span class="radio-icon">💾</span>
-              <span class="radio-title">Imagen completa</span>
-              <span class="radio-desc">Todo el disco: Windows, programas, drivers</span>
-            </div>
-          </label>
-          <label class="radio-card" id="card-files">
-            <input type="radio" name="backup-type" value="files">
-            <div class="radio-content">
-              <span class="radio-icon">📁</span>
-              <span class="radio-title">Solo archivos</span>
-              <span class="radio-desc">Carpetas específicas que elijas</span>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <div id="file-paths-section" class="hidden">
-        <div class="form-group">
-          <label>Carpetas a respaldar</label>
-          <div id="backup-paths-list"></div>
-          <button id="btn-add-path" class="btn small">+ Añadir carpeta</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Frecuencia</label>
-        <select id="schedule-select">
-          <option value="0 3 * * *">Diario a las 3:00 AM</option>
-          <option value="0 2 * * *">Diario a las 2:00 AM</option>
-          <option value="0 12 * * *">Diario a las 12:00 PM</option>
-          <option value="0 3 * * 1">Semanal (lunes 3:00 AM)</option>
-          <option value="0 3 * * 1,4">2x semana (lun/jue 3:00 AM)</option>
-          <option value="0 3 1 * *">Mensual (día 1, 3:00 AM)</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Copias a conservar</label>
-        <select id="retention-select">
-          <option value="1">1 copia</option>
-          <option value="2">2 copias</option>
-          <option value="3" selected>3 copias</option>
-          <option value="5">5 copias</option>
-          <option value="10">10 copias</option>
-        </select>
-      </div>
-
-      <div class="actions">
-        <button id="btn-save-config" class="btn primary">💾 Guardar y activar</button>
-      </div>
-    </div>
-
-    <!-- Step 3: Dashboard -->
-    <div id="step-dashboard" class="step hidden">
-      <div class="dashboard-header">
-        <h2>Estado del backup</h2>
-        <button id="btn-settings" class="btn small">⚙️ Configuración</button>
-      </div>
-
-      <div class="status-cards">
-        <div class="status-card" id="card-nas-info">
-          <div class="card-icon">🏠</div>
-          <div class="card-content">
-            <div class="card-label">NAS</div>
-            <div class="card-value" id="dash-nas-addr">—</div>
-          </div>
-        </div>
-
-        <div class="status-card" id="card-last-backup">
-          <div class="card-icon">📅</div>
-          <div class="card-content">
-            <div class="card-label">Último backup</div>
-            <div class="card-value" id="dash-last-backup">Nunca</div>
-          </div>
-        </div>
-
-        <div class="status-card" id="card-backup-status">
-          <div class="card-icon" id="dash-status-icon">⏸️</div>
-          <div class="card-content">
-            <div class="card-label">Estado</div>
-            <div class="card-value" id="dash-status">En espera</div>
-          </div>
-        </div>
-
-        <div class="status-card" id="card-schedule">
-          <div class="card-icon">⏰</div>
-          <div class="card-content">
-            <div class="card-label">Próximo backup</div>
-            <div class="card-value" id="dash-next">—</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="btn-backup-now" class="btn primary large">▶️ Hacer backup ahora</button>
-      </div>
-
-      <div class="actions" style="margin-top: 10px">
-        <button id="btn-disconnect" class="btn danger small">Desconectar</button>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="footer">
-      <span>HomePiNAS Backup Agent v1.0 — homelabs.club</span>
+    <div class="dash-actions">
+      <button id="btn-backup-now" class="btn btn-primary">▶ Hacer backup ahora</button>
+      <button id="btn-disconnect" class="btn btn-danger">Desconectar</button>
     </div>
   </div>
 
   <!-- Loading overlay -->
-  <div id="loading" class="loading hidden">
+  <div id="loading" class="hidden">
     <div class="spinner"></div>
     <p id="loading-text">Cargando...</p>
   </div>

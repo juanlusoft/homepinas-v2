@@ -1,38 +1,92 @@
-# HomePiNAS v2.2.0
+# HomePiNAS v2.4.0
 
 Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 
-![HomePiNAS Dashboard](https://img.shields.io/badge/version-2.2.0-brightgreen)
+![HomePiNAS Dashboard](https://img.shields.io/badge/version-2.4.0-brightgreen)
 ![PWA Ready](https://img.shields.io/badge/PWA-Ready-blueviolet)
 ![Mobile Friendly](https://img.shields.io/badge/Mobile-Friendly-blue)
 
 ## 🚀 Features
 
-- **SnapRAID + MergerFS** - Disk pooling with parity protection
-- **Samba Sharing** - Network file sharing with automatic user creation
-- **Docker Management** - Container control from dashboard
-- **Fan Control** - PWM control for EMC2305 (Silent/Balanced/Performance)
-- **System Monitoring** - CPU, Memory, Disk, Network stats
-- **DDNS Support** - Cloudflare, No-IP, DuckDNS
-- **📱 PWA Support** - Install as native app on mobile/desktop
-- **🌐 mDNS Discovery** - Access via `homepinas.local` on local network
-- **📱 Responsive UI** - Optimized for mobile devices
+### Core
+- **SnapRAID + MergerFS** — Disk pooling with parity protection
+- **Samba Sharing** — Network file sharing with automatic user creation
+- **Docker Management** — Container control from dashboard
+- **Fan Control** — PWM control for EMC2305 (Silent/Balanced/Performance)
+- **System Monitoring** — CPU, Memory, Disk, Network stats
+- **Web Terminal** — Full terminal access from the browser
+- **File Manager** — Upload, download, drag & drop, preview
 
-## 🔒 Security Features
+### Advanced
+- **👥 Users & Permissions** — Multi-user with admin/user roles
+- **🔐 2FA (TOTP)** — Google Authenticator compatible
+- **📧 Notifications** — Email and Telegram alerts
+- **📋 Log Viewer** — System and security logs
+- **💾 Backup** — Create, schedule, and restore backups
+- **⏰ Task Scheduler** — Cron jobs from dashboard
+- **🔌 UPS Support** — APC UPS monitoring
+- **🌐 DDNS** — DuckDNS, No-IP, Dynu remote access
+
+### 🖥️ Active Backup for Business
+- **Centralized backup** of PCs and servers to NAS
+- **Backup Agent** — Install on Windows/Mac, managed from NAS dashboard
+- **Image backup** — Full disk (Windows wbadmin, Linux dd/partclone)
+- **File backup** — Folders via rsync+SSH with hardlink deduplication
+- **Versioning** — Keep multiple backup copies with retention policies
+- **Web restore** — Browse and download files from any backup version
+- **USB Recovery** — Bootable USB to restore backups without OS
+
+### Mobile & PWA
+- **📱 Responsive UI** — Full mobile support
+- **📲 PWA Support** — Install as native app
+- **🌐 mDNS Discovery** — Access via `homepinas.local`
+
+## 🔒 Security
 
 - Bcrypt password hashing (12 rounds)
-- SQLite-backed persistent sessions with expiration
-- Rate limiting protection
-- Helmet security headers
+- SQLite-backed persistent sessions
+- Rate limiting + Helmet headers
 - Input sanitization for shell commands
 - Restricted sudoers configuration
-- HTTPS support with self-signed certificates
+- HTTPS with self-signed certificates
+- 2FA (TOTP) support
 
 ## ⚡ Quick Install
+
+### NAS Dashboard
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/juanlusoft/homepinas-v2/main/install.sh | sudo bash
 ```
+
+### 💻 Backup Agent (Windows/Mac)
+
+Download and install the Backup Agent on any PC you want to protect:
+
+| Platform | Download |
+|----------|----------|
+| Windows | [HomePiNAS-Backup-Setup.exe](https://github.com/juanlusoft/homepinas-v2/releases/latest) |
+| macOS | [HomePiNAS-Backup.dmg](https://github.com/juanlusoft/homepinas-v2/releases/latest) |
+
+**Or build from source:**
+
+```bash
+git clone https://github.com/juanlusoft/homepinas-v2.git
+cd homepinas-v2/agent
+npm install
+npm start          # Run in development
+npm run build:win  # Build Windows .exe
+npm run build:mac  # Build macOS .dmg
+```
+
+#### How it works
+
+1. **Install the Agent** on your PC → opens automatically
+2. **Click "Search NAS"** → finds your HomePiNAS on the network
+3. **Wait for approval** → your NAS admin approves the device
+4. **Backups run automatically** → scheduled, with retention, no config needed
+
+The admin manages everything from the NAS dashboard: approve devices, set schedule, trigger backups, browse/restore files.
 
 ## 📋 Requirements
 
@@ -42,146 +96,74 @@ curl -fsSL https://raw.githubusercontent.com/juanlusoft/homepinas-v2/main/instal
 
 ## 🌐 Access
 
-### Local Network (mDNS)
-
-After installation, access your NAS using the hostname:
-
+### Local Network
 ```
-https://homepinas.local:3001
-```
-
-> **Note:** mDNS works on most devices. On Windows, you may need to install [Bonjour](https://support.apple.com/kb/DL999) for `.local` domain support.
-
-### IP Address Access
-
-```
-https://<IP>:3001    (HTTPS - Recommended)
-http://<IP>:3000     (HTTP - Fallback)
+https://homepinas.local:3001    (mDNS)
+https://<IP>:3001               (HTTPS)
+http://<IP>:3000                (HTTP fallback)
 ```
 
 ### Network Share (SMB)
-
 ```
 \\homepinas.local\Storage
-or
-\\<IP>\Storage
-```
-
-## 📱 PWA Installation
-
-HomePiNAS can be installed as a Progressive Web App:
-
-### On Mobile (iOS/Android):
-1. Open `https://homepinas.local:3001` in Safari (iOS) or Chrome (Android)
-2. Tap the share button → "Add to Home Screen"
-3. HomePiNAS will appear as a native app
-
-### On Desktop (Chrome/Edge):
-1. Open `https://homepinas.local:3001` in Chrome or Edge
-2. Click the install icon in the address bar
-3. Or use the menu → "Install HomePiNAS"
-
-## 🔧 Configuration
-
-### Change Hostname (for mDNS)
-
-To access via `homepinas.local`, set the hostname:
-
-```bash
-sudo hostnamectl set-hostname homepinas
-sudo reboot
-```
-
-### Generate PWA Icons
-
-If you need to regenerate the PWA icons:
-
-```bash
-# Install rsvg-convert (if not available)
-sudo apt install librsvg2-bin
-
-# Run the icon generator
-./scripts/generate-icons.sh
 ```
 
 ## 📁 Directory Structure
 
 ```
-/opt/homepinas/           # Application files
-/mnt/storage/             # MergerFS pool mount
-/mnt/disks/disk[1-6]/     # Individual data disks
-/mnt/parity[1-2]/         # Parity disks
-/etc/avahi/services/      # mDNS service definitions
+/opt/homepinas/              # Application files
+/mnt/storage/                # MergerFS pool mount
+/mnt/storage/active-backup/  # Active Backup data
+/mnt/disks/disk[1-6]/        # Individual data disks
+/mnt/parity[1-2]/            # Parity disks
+/mnt/disks/cache[1-2]/       # NVMe/SSD cache
 ```
 
 ## 📜 Version History
 
-### v2.2.0 - Mobile & PWA Edition
-- **📱 Responsive UI** - Full mobile support with collapsible sidebar
-- **📲 PWA Support** - Install as native app with offline caching
-- **🌐 mDNS Discovery** - Access via `hostname.local` on local network
-- **🖐️ Touch Optimized** - Larger touch targets for mobile devices
-- **📡 Windows Discovery** - WSDD for Windows network browsing
+### v2.4.0 — Active Backup + Recovery
+- **Active Backup** — Centralized backup of PCs/servers
+- **Backup Agent** — Cross-platform Electron app (Windows/Mac)
+- **Agent auto-registration** — Install, discover NAS, wait for approval
+- **USB Recovery Tool** — Bootable Debian ISO for bare-metal restore
+- **Per-device Samba shares** — Auto-created with random credentials
 
-### v2.1.1 - Stability Release
-- Bug fixes and performance improvements
-- Improved error handling
+### v2.3.0 — Extended Features
+- File Manager, Users & Permissions, Samba management
+- Notifications (Email/Telegram), 2FA (TOTP)
+- Log Viewer, Backup & Restore, Task Scheduler
+- UPS monitoring, DDNS remote access
 
-### v2.1.0 - Internationalization
-- Multi-language support (English/Spanish)
-- Theme toggle (Light/Dark mode)
-- Persistent preferences
+### v2.2.0 — Mobile & PWA
+- Responsive UI, PWA support, mDNS discovery
 
-### v2.0.0 - Major Rewrite
-- Complete UI redesign
-- Enhanced Docker management
-- Improved storage configuration wizard
+### v2.1.0 — Internationalization
+- Multi-language (English/Spanish), theme toggle
 
-### v1.5.x - Security Hardened
-- HTTPS with self-signed certificates
-- Bcrypt password hashing
-- Rate limiting and security headers
-- OTA updates from dashboard
-- Fan control with hysteresis
+### v2.0.0 — Major Rewrite
+- Complete UI redesign, Docker management, storage wizard
 
 ## 🐛 Troubleshooting
 
+### Backup Agent can't find NAS
+1. Ensure NAS and PC are on the same network
+2. Check Avahi is running: `sudo systemctl status avahi-daemon`
+3. Enter IP manually in the Agent if auto-discovery fails
+
+### wbadmin fails on Windows
+- Run the Agent as Administrator
+- On Windows Home: use Control Panel → Backup → Create system image
+- On Windows Pro: `dism /online /enable-feature /featurename:WindowsServerBackup`
+
 ### mDNS not working
-
-1. Check Avahi is running:
-   ```bash
-   sudo systemctl status avahi-daemon
-   ```
-
-2. Verify the service file exists:
-   ```bash
-   ls -la /etc/avahi/services/homepinas.service
-   ```
-
-3. On Windows, ensure Bonjour is installed or use IP address.
-
-### PWA not installing
-
-1. Ensure you're accessing via HTTPS
-2. Check the browser console for errors
-3. Clear browser cache and try again
-
-### Service Worker issues
-
-Clear the service worker cache:
-```javascript
-// In browser console
-navigator.serviceWorker.getRegistrations().then(regs => {
-  regs.forEach(reg => reg.unregister());
-});
-caches.keys().then(names => {
-  names.forEach(name => caches.delete(name));
-});
+```bash
+sudo systemctl status avahi-daemon
+ls -la /etc/avahi/services/homepinas.service
 ```
 
 ## 📝 License
 
-MIT License - [Homelabs.club](https://homelabs.club)
+MIT License — [Homelabs.club](https://homelabs.club)
 
 ---
 

@@ -12,9 +12,19 @@ const execFileAsync = util.promisify(execFile);
 /**
  * Security event logging
  */
-function logSecurityEvent(event, details, ip) {
+function logSecurityEvent(event, user, ipOrMeta) {
     const timestamp = new Date().toISOString();
-    console.log(`[SECURITY] ${timestamp} | ${event} | IP: ${ip} | ${JSON.stringify(details)}`);
+    let ip = '-';
+    let meta = null;
+    if (typeof ipOrMeta === 'string') {
+        ip = ipOrMeta;
+    } else if (ipOrMeta && typeof ipOrMeta === 'object') {
+        ip = ipOrMeta.ip || '-';
+        meta = { ...ipOrMeta };
+        delete meta.ip;
+    }
+    const metaStr = meta && Object.keys(meta).length > 0 ? ` | ${JSON.stringify(meta)}` : '';
+    console.log(`[SECURITY] ${timestamp} | ${event} | IP: ${ip} | ${JSON.stringify(user)}${metaStr}`);
 }
 
 /**

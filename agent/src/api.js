@@ -9,7 +9,7 @@ class NASApi {
     this.agent = new https.Agent({ rejectUnauthorized: false });
   }
 
-  _request(method, address, port, path, sessionId, body = null) {
+  _request(method, address, port, path, headers = {}, body = null) {
     return new Promise((resolve, reject) => {
       const options = {
         hostname: address,
@@ -17,15 +17,12 @@ class NASApi {
         path: `/api${path}`,
         method,
         agent: this.agent,
-        timeout: 120000,
+        timeout: 30000,
         headers: {
           'Content-Type': 'application/json',
+          ...headers,
         },
       };
-
-      if (sessionId) {
-        options.headers['X-Session-Id'] = sessionId;
-      }
 
       const req = https.request(options, (res) => {
         let data = '';
@@ -47,33 +44,25 @@ class NASApi {
       req.on('error', (err) => reject(new Error(`Connection failed: ${err.message}`)));
       req.on('timeout', () => { req.destroy(); reject(new Error('Connection timeout')); });
 
-      if (body) {
-        req.write(JSON.stringify(body));
-      }
+      if (body) req.write(JSON.stringify(body));
       req.end();
     });
   }
 
   async testConnection(address, port) {
-    return this._request('GET', address, port, '/system/stats', null);
+    return this._request('GET', address, port, '/system/stats');
   }
 
-  async login(address, port, username, password) {
-    return this._request('POST', address, port, '/login', null, { username, password });
+  async agentRegister(address, port, deviceInfo) {
+    return this._request('POST', address, port, '/active-backup/agent/register', {}, deviceInfo);
   }
 
-  async registerDevice(address, port, sessionId, deviceInfo) {
-    return this._request('POST', address, port, '/active-backup/devices', sessionId, deviceInfo);
+  async agentPoll(address, port, agentToken) {
+    return this._request('GET', address, port, '/active-backup/agent/poll', { 'X-Agent-Token': agentToken });
   }
 
-  async reportBackupResult(deviceId, status, details) {
-    // This will be called to update the NAS with backup results
-    // The NAS tracks this via the device status
-    return { success: true };
-  }
-
-  async getDeviceStatus(address, port, sessionId, deviceId) {
-    return this._request('GET', address, port, `/active-backup/devices/${deviceId}/status`, sessionId);
+  async agentReport(address, port, agentToken, result) {
+    return this._request('POST', address, port, '/active-backup/agent/report', { 'X-Agent-Token': agentToken }, result);
   }
 }
 

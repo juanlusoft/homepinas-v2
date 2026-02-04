@@ -5493,6 +5493,12 @@ async function renderActiveBackupView() {
     header.appendChild(addBtn);
     headerCard.appendChild(header);
 
+    // Pending agents section
+    const pendingDiv = document.createElement('div');
+    pendingDiv.id = 'ab-pending-agents';
+    pendingDiv.style.cssText = 'margin-bottom: 20px;';
+    headerCard.appendChild(pendingDiv);
+
     // Devices grid
     const grid = document.createElement('div');
     grid.id = 'ab-devices-grid';
@@ -5526,8 +5532,166 @@ async function renderActiveBackupView() {
     container.appendChild(recoveryCard);
 
     dashboardContent.appendChild(container);
+    await loadABPendingAgents();
     await loadABDevices();
     await loadRecoveryStatus();
+}
+
+async function loadABPendingAgents() {
+    const container = document.getElementById('ab-pending-agents');
+    if (!container) return;
+
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/pending`);
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+        const pending = data.pending || [];
+
+        if (pending.length === 0) {
+            container.innerHTML = '';
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        container.innerHTML = `
+            <div style="padding: 16px; background: linear-gradient(135deg, rgba(255,193,7,0.1), rgba(255,152,0,0.05)); border: 1px solid rgba(255,193,7,0.3); border-radius: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                    <span style="font-size: 1.3rem;">🔔</span>
+                    <h4 style="margin: 0; color: #ffc107;">Dispositivos pendientes de aprobación</h4>
+                </div>
+                <div id="ab-pending-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            </div>`;
+
+        const list = document.getElementById('ab-pending-list');
+        for (const agent of pending) {
+            const osIcon = agent.os === 'win32' ? '🪟' : agent.os === 'darwin' ? '🍎' : '🐧';
+            const osName = agent.os === 'win32' ? 'Windows' : agent.os === 'darwin' ? 'macOS' : agent.os;
+            const timeAgo = new Date(agent.registeredAt).toLocaleString('es-ES');
+
+            const row = document.createElement('div');
+            row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border);';
+            row.innerHTML = `
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 1rem;">${osIcon} ${agent.hostname}</div>
+                    <div style="font-size: 0.82rem; color: var(--text-dim); margin-top: 2px;">${agent.ip} · ${osName} · Registrado: ${timeAgo}</div>
+                </div>
+                <div style="display: flex; gap: 8px;" id="ab-pending-actions-${agent.id}">
+                    <button class="btn-primary btn-sm" style="padding: 6px 14px;" id="ab-approve-${agent.id}">✓ Aprobar</button>
+                    <button class="btn-sm" style="padding: 6px 14px; background: var(--danger); color: white; border: none; border-radius: 6px; cursor: pointer;" id="ab-reject-${agent.id}">✗</button>
+                </div>`;
+            list.appendChild(row);
+
+            document.getElementById(`ab-approve-${agent.id}`).addEventListener('click', () => showApproveDialog(agent));
+            document.getElementById(`ab-reject-${agent.id}`).addEventListener('click', () => rejectPendingAgent(agent));
+        }
+    } catch (e) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+    }
+}
+
+function showApproveDialog(agent) {
+    const osIcon = agent.os === 'win32' ? '🪟' : agent.os === 'darwin' ? '🍎' : '🐧';
+
+    // Create modal
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+    overlay.id = 'ab-approve-overlay';
+
+    overlay.innerHTML = `
+        <div style="background: var(--bg-card); border-radius: 16px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border);">
+            <h3 style="margin: 0 0 4px 0;">${osIcon} Aprobar: ${agent.hostname}</h3>
+            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 24px;">${agent.ip}</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Tipo de backup</label>
+                    <select id="ab-approve-type" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
+                        <option value="image">💽 Imagen completa (Windows/Mac)</option>
+                        <option value="files">📁 Solo archivos</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Programación</label>
+                    <select id="ab-approve-schedule" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
+                        <option value="0 3 * * *">Diario a las 3:00 AM</option>
+                        <option value="0 2 * * *">Diario a las 2:00 AM</option>
+                        <option value="0 12 * * *">Diario a las 12:00</option>
+                        <option value="0 3 * * 1">Semanal (Lunes 3:00 AM)</option>
+                        <option value="0 3 * * 1,4">Lun/Jue a las 3:00 AM</option>
+                        <option value="0 3 1 * *">Mensual (Día 1 a las 3:00 AM)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Copias a conservar</label>
+                    <select id="ab-approve-retention" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
+                        <option value="2">2 copias</option>
+                        <option value="3" selected>3 copias</option>
+                        <option value="5">5 copias</option>
+                        <option value="7">7 copias</option>
+                        <option value="10">10 copias</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 28px; justify-content: flex-end;">
+                <button id="ab-approve-cancel" class="btn-sm" style="padding: 8px 20px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer;">Cancelar</button>
+                <button id="ab-approve-confirm" class="btn-primary btn-sm" style="padding: 8px 20px;">✓ Aprobar</button>
+            </div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('ab-approve-cancel').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    document.getElementById('ab-approve-confirm').addEventListener('click', async () => {
+        const backupType = document.getElementById('ab-approve-type').value;
+        const schedule = document.getElementById('ab-approve-schedule').value;
+        const retention = parseInt(document.getElementById('ab-approve-retention').value);
+
+        const btn = document.getElementById('ab-approve-confirm');
+        btn.disabled = true;
+        btn.textContent = 'Aprobando...';
+
+        try {
+            const res = await authFetch(`${API_BASE}/active-backup/pending/${agent.id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backupType, schedule, retention }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                overlay.remove();
+                await loadABPendingAgents();
+                await loadABDevices();
+            } else {
+                alert('Error: ' + (data.error || 'No se pudo aprobar'));
+                btn.disabled = false;
+                btn.textContent = '✓ Aprobar';
+            }
+        } catch (e) {
+            alert('Error de conexión');
+            btn.disabled = false;
+            btn.textContent = '✓ Aprobar';
+        }
+    });
+}
+
+async function rejectPendingAgent(agent) {
+    if (!confirm(`¿Rechazar "${agent.hostname}" (${agent.ip})?`)) return;
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/pending/${agent.id}/reject`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            await loadABPendingAgents();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo rechazar'));
+        }
+    } catch (e) {
+        alert('Error de conexión');
+    }
 }
 
 async function loadABDevices() {
@@ -5599,7 +5763,35 @@ async function loadABDevices() {
             const actions = document.createElement('div');
             actions.style.cssText = 'display: flex; gap: 8px; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 12px;';
 
-            if (!isImage) {
+            if (device.agentToken) {
+                // Agent-managed device: trigger backup via agent
+                const triggerBtn = document.createElement('button');
+                triggerBtn.className = 'btn-primary btn-sm';
+                triggerBtn.style.cssText = 'flex: 1; padding: 8px;';
+                triggerBtn.textContent = '▶ Backup';
+                triggerBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    triggerBtn.textContent = '⏳ Enviado...';
+                    triggerBtn.disabled = true;
+                    try {
+                        const res = await authFetch(`${API_BASE}/active-backup/devices/${device.id}/trigger`, { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                            triggerBtn.textContent = '✓ Pendiente';
+                            setTimeout(() => { triggerBtn.textContent = '▶ Backup'; triggerBtn.disabled = false; }, 5000);
+                        } else {
+                            alert(data.error || 'Error');
+                            triggerBtn.textContent = '▶ Backup';
+                            triggerBtn.disabled = false;
+                        }
+                    } catch(err) {
+                        alert('Error de conexión');
+                        triggerBtn.textContent = '▶ Backup';
+                        triggerBtn.disabled = false;
+                    }
+                });
+                actions.appendChild(triggerBtn);
+            } else if (!isImage) {
                 const backupBtn = document.createElement('button');
                 backupBtn.className = 'btn-primary btn-sm';
                 backupBtn.style.cssText = 'flex: 1; padding: 8px;';
