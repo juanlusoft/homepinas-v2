@@ -28,20 +28,27 @@
     },
     "win": {
       "target": ["nsis"],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
+      "publisherName": "HomeLabs Club",
+      "legalTrademarks": "HomePiNAS by homelabs.club"
     },
     "mac": {
       "target": ["dmg"],
-      "icon": "assets/icon.icns",
+      "icon": "assets/icon.png",
       "category": "public.app-category.utilities"
     },
     "nsis": {
-      "oneClick": true,
-      "allowToChangeInstallationDirectory": false,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "createDesktopShortcut": true,
-      "runAfterFinish": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "perMachine": true,
+      "installerSidebar": null,
+      "license": null
     }
   }
 }

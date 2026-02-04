@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="40" fill="#1a1a2e"/>
+  <rect x="40" y="60" width="176" height="120" rx="12" fill="#4a6cf7" opacity="0.2" stroke="#4a6cf7" stroke-width="4"/>
+  <rect x="60" y="80" width="136" height="20" rx="4" fill="#4a6cf7" opacity="0.6"/>
+  <rect x="60" y="110" width="100" height="12" rx="3" fill="#4a6cf7" opacity="0.3"/>
+  <rect x="60" y="130" width="80" height="12" rx="3" fill="#4a6cf7" opacity="0.3"/>
+  <circle cx="190" cy="145" r="18" fill="#00c853"/>
+  <path d="M182 145 l6 6 l10-12" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="128" y="215" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="28" fill="#fff">HomePiNAS</text>
+</svg>
