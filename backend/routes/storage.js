@@ -283,7 +283,9 @@ exclude .fseventsd
         }
 
         // 4. Configure MergerFS
-        const mergerfsSource = dataMounts.map(d => d.mountPoint).join(':');
+        // Cache disks go FIRST so writes land on fast storage, then data disks
+        const poolMounts = [...cacheMounts.map(c => c.mountPoint), ...dataMounts.map(d => d.mountPoint)];
+        const mergerfsSource = poolMounts.join(':');
         execFileSync('sudo', ['mkdir', '-p', POOL_MOUNT], { encoding: 'utf8', timeout: 10000 });
         try {
             execFileSync('sudo', ['umount', POOL_MOUNT], { encoding: 'utf8', timeout: 30000 });
@@ -291,7 +293,12 @@ exclude .fseventsd
             // May not be mounted
         }
 
-        const mergerfsOpts = 'defaults,allow_other,nonempty,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs';
+        // If cache disks present: use lfs (least free space) so writes go to cache first,
+        // moveonenospc to overflow to data disks when cache is full
+        const hasCache = cacheMounts.length > 0;
+        const createPolicy = hasCache ? 'lfs' : 'mfs';
+        const cacheOpts = hasCache ? ',moveonenospc=true,minfreespace=20G' : '';
+        const mergerfsOpts = `defaults,allow_other,nonempty,use_ino,cache.files=partial,dropcacheonclose=true,category.create=${createPolicy}${cacheOpts}`;
         execFileSync('sudo', ['mergerfs', '-o', mergerfsOpts, mergerfsSource, POOL_MOUNT], { encoding: 'utf8', timeout: 60000 });
         results.push(`MergerFS pool mounted at ${POOL_MOUNT}`);
 
@@ -308,40 +315,31 @@ exclude .fseventsd
         // SECURITY: Build fstab entries with proper UUIDs fetched separately
         let fstabEntries = '\n# HomePiNAS Storage Configuration\n';
 
-        for (const d of dataMounts) {
+        // Helper: resolve UUID or fall back to /dev/path
+        const addFstabEntry = (partition, mountPoint) => {
             try {
-                const uuid = execFileSync('sudo', ['blkid', '-s', 'UUID', '-o', 'value', `/dev/${d.partition}`], 
+                const uuid = execFileSync('sudo', ['blkid', '-s', 'UUID', '-o', 'value', `/dev/${partition}`], 
                     { encoding: 'utf8', timeout: 10000 }).trim();
-                if (uuid) {
-                    fstabEntries += `UUID=${uuid} ${d.mountPoint} ext4 defaults,nofail 0 2\n`;
+                if (uuid && uuid.length > 8 && !uuid.includes('$') && !uuid.includes('(')) {
+                    fstabEntries += `UUID=${uuid} ${mountPoint} ext4 defaults,nofail 0 2\n`;
+                    return;
                 }
-            } catch (e) {
-                // Skip if UUID can't be retrieved
-            }
+            } catch (e) {}
+            // Fallback: use device path directly
+            fstabEntries += `/dev/${partition} ${mountPoint} ext4 defaults,nofail 0 2\n`;
+            results.push(`Warning: UUID not found for /dev/${partition}, using device path`);
+        };
+
+        for (const d of dataMounts) {
+            addFstabEntry(d.partition, d.mountPoint);
         }
 
         for (const p of parityMounts) {
-            try {
-                const uuid = execFileSync('sudo', ['blkid', '-s', 'UUID', '-o', 'value', `/dev/${p.partition}`],
-                    { encoding: 'utf8', timeout: 10000 }).trim();
-                if (uuid) {
-                    fstabEntries += `UUID=${uuid} ${p.mountPoint} ext4 defaults,nofail 0 2\n`;
-                }
-            } catch (e) {
-                // Skip if UUID can't be retrieved
-            }
+            addFstabEntry(p.partition, p.mountPoint);
         }
 
         for (const c of cacheMounts) {
-            try {
-                const uuid = execFileSync('sudo', ['blkid', '-s', 'UUID', '-o', 'value', `/dev/${c.partition}`],
-                    { encoding: 'utf8', timeout: 10000 }).trim();
-                if (uuid) {
-                    fstabEntries += `UUID=${uuid} ${c.mountPoint} ext4 defaults,nofail 0 2\n`;
-                }
-            } catch (e) {
-                // Skip if UUID can't be retrieved
-            }
+            addFstabEntry(c.partition, c.mountPoint);
         }
 
         fstabEntries += `${mergerfsSource} ${POOL_MOUNT} fuse.mergerfs ${mergerfsOpts},nofail 0 0\n`;
@@ -350,8 +348,10 @@ exclude .fseventsd
         const tempFstabFile = '/tmp/homepinas-fstab-temp';
         fs.writeFileSync(tempFstabFile, fstabEntries, 'utf8');
         
-        // Remove old HomePiNAS entries and append new ones
-        execSync(`sudo sed -i '/# HomePiNAS Storage/,/^$/d' /etc/fstab`, { encoding: 'utf8', timeout: 10000 });
+        // Remove ALL old HomePiNAS entries (comment + UUID/mergerfs lines until next non-HomePiNAS line)
+        execSync(`sudo sed -i '/# HomePiNAS Storage/d; /\\/mnt\\/disks\\//d; /\\/mnt\\/parity/d; /\\/mnt\\/storage.*mergerfs/d' /etc/fstab`, { encoding: 'utf8', timeout: 10000 });
+        // Remove trailing blank lines
+        execSync(`sudo sed -i -e :a -e '/^\\n*$/{$d;N;ba' -e '}' /etc/fstab`, { encoding: 'utf8', timeout: 10000 });
         execFileSync('sudo', ['sh', '-c', `cat ${tempFstabFile} >> /etc/fstab`], { encoding: 'utf8', timeout: 10000 });
         fs.unlinkSync(tempFstabFile);
         results.push('Updated /etc/fstab for persistence');
