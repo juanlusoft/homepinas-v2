@@ -140,12 +140,54 @@ async function notifyBackupFailure(device, error) {
 }
 
 // ── Helper: create Samba share for image backup device ──
+async function ensureSambaBackupUser() {
+  // Ensure system user 'homepinas' exists for Samba backup shares
+  try {
+    await execFileAsync('id', ['homepinas']);
+  } catch (e) {
+    // User doesn't exist, create it
+    try {
+      await execFileAsync('sudo', ['useradd', '-r', '-s', '/usr/sbin/nologin', 'homepinas']);
+    } catch (e2) {
+      // May already exist as system user
+    }
+  }
+  // Ensure Samba password is set
+  try {
+    const { stdout } = await execFileAsync('sudo', ['pdbedit', '-L']);
+    if (!stdout.includes('homepinas:')) {
+      // Set Samba password via spawn (needs stdin)
+      await new Promise((resolve, reject) => {
+        const proc = spawn('sudo', ['smbpasswd', '-a', 'homepinas', '-s'], { stdio: ['pipe', 'pipe', 'pipe'] });
+        proc.on('error', reject);
+        proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`smbpasswd exited ${code}`)));
+        proc.stdin.write('homepinas\nhomepinas\n');
+        proc.stdin.end();
+      });
+      await execFileAsync('sudo', ['smbpasswd', '-e', 'homepinas']);
+    }
+  } catch (e) {
+    console.error('Samba user setup warning:', e.message);
+  }
+}
+
 async function createImageBackupShare(device) {
   const shareName = device.sambaShare;
   const sharePath = deviceDir(device.id);
   
+  // Ensure Samba backup user exists
+  await ensureSambaBackupUser();
+
   // Ensure directory exists with right permissions
   if (!fs.existsSync(sharePath)) fs.mkdirSync(sharePath, { recursive: true });
+
+  // Set ownership so Samba user can write
+  try {
+    await execFileAsync('sudo', ['chown', '-R', 'homepinas:sambashare', sharePath]);
+    await execFileAsync('sudo', ['chmod', '-R', '775', sharePath]);
+  } catch (e) {
+    console.error('Permission setup warning:', e.message);
+  }
 
   // Add share to smb.conf
   const smbConfPath = '/etc/samba/smb.conf';
