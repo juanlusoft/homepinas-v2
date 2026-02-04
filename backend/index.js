@@ -31,6 +31,7 @@ const { initSessionDb, startSessionCleanup } = require('./utils/session');
 
 // Import middleware
 const { generalLimiter } = require('./middleware/rateLimit');
+const { csrfProtection } = require('./middleware/csrf');
 
 // Import routes
 const systemRoutes = require('./routes/system');
@@ -141,6 +142,9 @@ app.use(generalLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10kb' }));
+
+// CSRF protection for state-changing requests
+app.use(csrfProtection);
 
 // =============================================================================
 // STATIC FILES

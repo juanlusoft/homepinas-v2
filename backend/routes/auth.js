@@ -15,6 +15,7 @@ const { logSecurityEvent } = require('../utils/security');
 const { getData, saveData } = require('../utils/data');
 const { createSession, destroySession } = require('../utils/session');
 const { validateUsername, validatePassword, sanitizeUsername } = require('../utils/sanitize');
+const { getCsrfToken, clearCsrfToken } = require('../middleware/csrf');
 
 const SALT_ROUNDS = 12;
 
@@ -122,11 +123,13 @@ router.post('/setup', authLimiter, async (req, res) => {
         logSecurityEvent('ADMIN_CREATED', { username }, req.ip);
 
         const sessionId = createSession(username);
+        const csrfToken = getCsrfToken(sessionId);
 
         res.json({
             success: true,
             message: 'Admin account created' + (sambaCreated ? ' with SMB access' : ''),
             sessionId,
+            csrfToken,
             user: { username },
             sambaEnabled: sambaCreated
         });
@@ -175,10 +178,12 @@ router.post('/login', authLimiter, async (req, res) => {
 
         if (isUsernameValid && isPasswordValid) {
             const sessionId = createSession(username);
+            const csrfToken = getCsrfToken(sessionId);
             logSecurityEvent('LOGIN_SUCCESS', { username }, req.ip);
             res.json({
                 success: true,
                 sessionId,
+                csrfToken,
                 user: { username: data.user.username }
             });
         } else {
@@ -196,6 +201,7 @@ router.post('/logout', (req, res) => {
     const sessionId = req.headers['x-session-id'];
     if (sessionId) {
         destroySession(sessionId);
+        clearCsrfToken(sessionId);
         logSecurityEvent('LOGOUT', {}, req.ip);
     }
     res.json({ success: true });

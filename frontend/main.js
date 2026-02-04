@@ -7,6 +7,7 @@ const state = {
     currentView: 'loading',
     user: null,
     sessionId: null,
+    csrfToken: null,
     publicIP: 'Scanning...',
     globalStats: { cpuLoad: 0, cpuTemp: 0, ramUsed: 0, ramTotal: 0, uptime: 0 },
     storageConfig: [],
@@ -47,6 +48,10 @@ async function authFetch(url, options = {}) {
     if (state.sessionId) {
         headers['X-Session-Id'] = state.sessionId;
     }
+    
+    if (state.csrfToken) {
+        headers['X-CSRF-Token'] = state.csrfToken;
+    }
 
     const response = await fetch(url, { ...options, headers });
 
@@ -64,24 +69,34 @@ async function authFetch(url, options = {}) {
 }
 
 // Session persistence
-function saveSession(sessionId) {
+function saveSession(sessionId, csrfToken = null) {
     state.sessionId = sessionId;
     localStorage.setItem('sessionId', sessionId);
+    if (csrfToken) {
+        state.csrfToken = csrfToken;
+        localStorage.setItem('csrfToken', csrfToken);
+    }
 }
 
 function loadSession() {
     const sessionId = localStorage.getItem('sessionId');
+    const csrfToken = localStorage.getItem('csrfToken');
     if (sessionId) {
         state.sessionId = sessionId;
+    }
+    if (csrfToken) {
+        state.csrfToken = csrfToken;
     }
     return sessionId;
 }
 
 function clearSession() {
     state.sessionId = null;
+    state.csrfToken = null;
     state.user = null;
     state.isAuthenticated = false;
     localStorage.removeItem('sessionId');
+    localStorage.removeItem('csrfToken');
 }
 
 // DOM Elements
@@ -298,7 +313,7 @@ setupForm.addEventListener('submit', async (e) => {
 
         // Save session from setup response
         if (data.sessionId) {
-            saveSession(data.sessionId);
+            saveSession(data.sessionId, data.csrfToken);
         }
 
         // Store only username, never password
@@ -698,9 +713,9 @@ if (loginForm) {
                 return;
             }
 
-            // Save session
+            // Save session and CSRF token
             if (data.sessionId) {
-                saveSession(data.sessionId);
+                saveSession(data.sessionId, data.csrfToken);
             }
 
             state.isAuthenticated = true;
@@ -4886,7 +4901,7 @@ async function renderSambaSection(container) {
             statusBadge.style.cssText = `display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; margin-bottom: 15px; ${
                 status.active ? 'background: rgba(16,185,129,0.15); color: #10b981;' : 'background: rgba(239,68,68,0.15); color: #ef4444;'
             }`;
-            statusBadge.textContent = status.active ? `✅ Activo • ${status.connections || 0} conexiones` : '❌ Inactivo';
+            statusBadge.textContent = status.running ? `✅ Activo • ${status.connectedCount || 0} conexiones` : '❌ Inactivo';
             section.appendChild(statusBadge);
         }
     } catch (e) {}
