@@ -52,20 +52,21 @@ class BackupManager {
   }
 
   async _windowsImageBackup(sharePath) {
-    // Map network drive with Samba credentials
+    // wbadmin requires UNC path directly, not mapped drive letters
+    // First register credentials with net use (without drive letter)
     try {
-      await execAsync(`net use B: /delete /y 2>nul`, { shell: 'cmd.exe' });
+      await execAsync(`net use ${sharePath} /delete /y 2>nul`, { shell: 'cmd.exe' });
     } catch (e) {}
-    
+
     try {
-      await execAsync(`net use B: ${sharePath} /user:homepinas homepinas /persistent:no`, { shell: 'cmd.exe' });
+      await execAsync(`net use ${sharePath} /user:homepinas homepinas /persistent:no`, { shell: 'cmd.exe' });
     } catch (e) {
       throw new Error(`No se pudo conectar al share ${sharePath}: ${e.message}`);
     }
 
-    // Run wbadmin for full system image using mapped drive
-    const cmd = `wbadmin start backup -backupTarget:B: -include:C: -allCritical -quiet`;
-    
+    // Run wbadmin with UNC path directly
+    const cmd = `wbadmin start backup -backupTarget:${sharePath} -include:C: -allCritical -quiet`;
+
     try {
       const result = await execAsync(cmd, {
         shell: 'cmd.exe',
@@ -79,9 +80,9 @@ class BackupManager {
         timestamp: new Date().toISOString(),
       };
     } finally {
-      // Cleanup drive mapping
+      // Cleanup credentials
       try {
-        await execAsync('net use B: /delete /y 2>nul', { shell: 'cmd.exe' });
+        await execAsync(`net use ${sharePath} /delete /y 2>nul`, { shell: 'cmd.exe' });
       } catch (e) {}
     }
   }
