@@ -10,6 +10,7 @@ const path = require('path');
 const multer = require('multer');
 
 const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/rbac');
 const { logSecurityEvent } = require('../utils/security');
 const { sanitizePathWithinBase } = require('../utils/sanitize');
 
@@ -138,8 +139,9 @@ router.use(requireAuth);
 /**
  * GET /list?path=/
  * List directory contents with file metadata
+ * Permission: read
  */
-router.get('/list', (req, res) => {
+router.get('/list', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path || '/';
     const dirPath = validatePath(inputPath, res);
@@ -202,8 +204,9 @@ router.get('/list', (req, res) => {
 /**
  * GET /download?path=/some/file.txt
  * Download a file from storage
+ * Permission: read
  */
-router.get('/download', (req, res) => {
+router.get('/download', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path;
     if (!inputPath) {
@@ -234,8 +237,9 @@ router.get('/download', (req, res) => {
  * POST /upload
  * Upload files to a directory within /mnt/storage
  * Body: path (target directory), files (multipart)
+ * Permission: write
  */
-router.post('/upload', (req, res) => {
+router.post('/upload', requirePermission('write'), (req, res) => {
   // Use multer middleware inline - handle up to 10 files at once
   upload.array('files', 10)(req, res, (err) => {
     if (err) {
@@ -307,8 +311,9 @@ router.post('/upload', (req, res) => {
  * POST /mkdir
  * Create a new directory
  * Body: { path: "/new/directory" }
+ * Permission: write
  */
-router.post('/mkdir', (req, res) => {
+router.post('/mkdir', requirePermission('write'), (req, res) => {
   try {
     const inputPath = req.body.path;
     if (!inputPath) {
@@ -336,8 +341,9 @@ router.post('/mkdir', (req, res) => {
  * POST /rename
  * Rename a file or folder
  * Body: { oldPath: "/old/name", newPath: "/new/name" }
+ * Permission: write
  */
-router.post('/rename', (req, res) => {
+router.post('/rename', requirePermission('write'), (req, res) => {
   try {
     const { oldPath: oldInput, newPath: newInput } = req.body;
     if (!oldInput || !newInput) {
@@ -372,8 +378,9 @@ router.post('/rename', (req, res) => {
  * POST /delete
  * Delete a file or folder
  * Body: { path: "/file/to/delete" }
+ * Permission: delete
  */
-router.post('/delete', (req, res) => {
+router.post('/delete', requirePermission('delete'), (req, res) => {
   try {
     const inputPath = req.body.path;
     if (!inputPath) {
@@ -410,8 +417,9 @@ router.post('/delete', (req, res) => {
  * POST /move
  * Move a file or folder to a new location
  * Body: { source: "/path/to/source", destination: "/path/to/dest" }
+ * Permission: write
  */
-router.post('/move', (req, res) => {
+router.post('/move', requirePermission('write'), (req, res) => {
   try {
     const { source: srcInput, destination: destInput } = req.body;
     if (!srcInput || !destInput) {
@@ -443,8 +451,9 @@ router.post('/move', (req, res) => {
  * POST /copy
  * Copy a file or folder
  * Body: { source: "/path/to/source", destination: "/path/to/dest" }
+ * Permission: write
  */
-router.post('/copy', (req, res) => {
+router.post('/copy', requirePermission('write'), (req, res) => {
   try {
     const { source: srcInput, destination: destInput } = req.body;
     if (!srcInput || !destInput) {
@@ -475,8 +484,9 @@ router.post('/copy', (req, res) => {
 /**
  * GET /info?path=/some/file.txt
  * Get detailed file info including stat data and MIME type
+ * Permission: read
  */
-router.get('/info', (req, res) => {
+router.get('/info', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path;
     if (!inputPath) {
@@ -516,8 +526,9 @@ router.get('/info', (req, res) => {
 /**
  * GET /search?path=/&query=filename
  * Recursive search by filename within a directory. Max 100 results.
+ * Permission: read
  */
-router.get('/search', (req, res) => {
+router.get('/search', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path || '/';
     const query = req.query.query;

@@ -357,13 +357,22 @@ router.put('/:username', requireAdmin, async (req, res) => {
       }
       users[userIndex].password = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-      // Update Samba password
+      // Update Samba password using spawn (safeExec doesn't support stdin)
       try {
-        await safeExec('sudo', ['smbpasswd', '-s', users[userIndex].username], {
-          input: `${password}\n${password}\n`,
+        const { spawn } = require('child_process');
+        await new Promise((resolve, reject) => {
+          const proc = spawn('sudo', ['smbpasswd', '-s', users[userIndex].username], {
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+          proc.stdin.write(password + '\n');
+          proc.stdin.write(password + '\n');
+          proc.stdin.end();
+          proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`smbpasswd exit ${code}`)));
+          proc.on('error', reject);
+          setTimeout(() => { proc.kill(); resolve(); }, 10000);
         });
-      } catch {
-        console.warn('Samba password update failed for', users[userIndex].username);
+      } catch (err) {
+        console.warn('Samba password update failed for', users[userIndex].username, err.message);
       }
     }
 
