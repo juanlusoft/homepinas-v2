@@ -55,12 +55,18 @@ class NASDiscovery {
 
         const browser = bonjour.find({ type: 'https' }, (service) => {
           if (service.name && service.name.toLowerCase().includes('homepinas')) {
-            results.push({
-              address: service.addresses?.[0] || service.host,
-              port: service.port || 3001,
-              name: service.name,
-              method: 'mdns',
-            });
+            // Prefer IPv4 addresses over IPv6
+            const addresses = service.addresses || [];
+            const ipv4 = addresses.find(a => /^\d+\.\d+\.\d+\.\d+$/.test(a));
+            const addr = ipv4 || service.host?.replace(/\.local\.?$/, '.local') || addresses[0];
+            if (addr) {
+              results.push({
+                address: addr,
+                port: service.port || 3001,
+                name: service.name,
+                method: 'mdns',
+              });
+            }
           }
         });
 

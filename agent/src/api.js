@@ -44,7 +44,7 @@ class NASApi {
         });
       });
 
-      req.on('error', (err) => reject(new Error(`Connexion failed: ${err.message}`)));
+      req.on('error', (err) => reject(new Error(`Connection failed: ${err.message}`)));
       req.on('timeout', () => { req.destroy(); reject(new Error('Connection timeout')); });
 
       if (body) {
