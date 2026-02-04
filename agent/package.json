@@ -38,6 +38,7 @@
       "icon": "assets/icon.png",
       "category": "public.app-category.utilities"
     },
+    "publish": null,
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
