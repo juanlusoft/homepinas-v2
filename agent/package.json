@@ -1,0 +1,54 @@
+{
+  "name": "homepinas-backup-agent",
+  "version": "1.0.0",
+  "description": "HomePiNAS Backup Agent - Automatic backup to your NAS",
+  "main": "main.js",
+  "author": "HomePiNAS (homelabs.club)",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder --win --mac"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "node-cron": "^3.0.3",
+    "bonjour-service": "^1.2.1"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.homelabs.homepinas-backup",
+    "productName": "HomePiNAS Backup",
+    "directories": {
+      "output": "build/dist"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
+      "publisherName": "HomeLabs Club",
+      "legalTrademarks": "HomePiNAS by homelabs.club"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "perMachine": true,
+      "installerSidebar": null,
+      "license": null
+    }
+  }
+}
