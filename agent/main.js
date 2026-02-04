@@ -289,7 +289,7 @@ function setupIPC() {
         deviceInfo
       );
 
-      store.set('deviceId', result.id);
+      store.set('deviceId', result.device ? result.device.id : result.id);
       store.set('deviceName', name || os.hostname());
       store.set('backupType', backupType);
       if (paths) store.set('backupPaths', paths);
