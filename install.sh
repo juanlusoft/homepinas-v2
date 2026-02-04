@@ -7,7 +7,7 @@
 set -e
 
 # Version - CHANGE THIS FOR EACH RELEASE
-VERSION="2.2.13"
+VERSION="2.2.14"
 
 # Colors
 RED='\033[0;31m'
