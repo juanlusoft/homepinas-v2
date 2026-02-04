@@ -52,6 +52,7 @@ const backupRoutes = require('./routes/backup');
 const schedulerRoutes = require('./routes/scheduler');
 const upsRoutes = require('./routes/ups');
 const ddnsRoutes = require('./routes/ddns');
+const activeBackupRoutes = require('./routes/active-backup');
 
 // Import terminal WebSocket handler
 let setupTerminalWebSocket;
@@ -220,6 +221,9 @@ app.use('/api/ups', upsRoutes);
 
 // Dynamic DNS routes
 app.use('/api/ddns', ddnsRoutes);
+
+// Active Backup for Business
+app.use('/api/active-backup', activeBackupRoutes);
 
 // =============================================================================
 // SERVER STARTUP
