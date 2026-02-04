@@ -5596,11 +5596,34 @@ function showApproveDialog(agent) {
 
     // Create modal
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+    overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);';
     overlay.id = 'ab-approve-overlay';
 
+    // Build backup type options based on agent OS
+    const isLinux = agent.os === 'linux';
+    const isWindows = agent.os === 'win32';
+    const isMac = agent.os === 'darwin';
+    let typeOptions = '';
+    if (isLinux) {
+        typeOptions = `
+            <option value="image">💽 Imagen completa (partclone/dd)</option>
+            <option value="files" selected>📁 Archivos (rsync)</option>`;
+    } else if (isWindows) {
+        typeOptions = `
+            <option value="image" selected>💽 Imagen completa (wbadmin)</option>
+            <option value="files">📁 Archivos (robocopy)</option>`;
+    } else if (isMac) {
+        typeOptions = `
+            <option value="image">💽 Imagen completa (asr)</option>
+            <option value="files" selected>📁 Archivos (rsync)</option>`;
+    } else {
+        typeOptions = `
+            <option value="image">💽 Imagen completa</option>
+            <option value="files">📁 Solo archivos</option>`;
+    }
+
     overlay.innerHTML = `
-        <div style="background: var(--bg-card); border-radius: 16px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border);">
+        <div style="background: var(--bg-card, #1a1a2e); border-radius: 16px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border);">
             <h3 style="margin: 0 0 4px 0;">${osIcon} Aprobar: ${agent.hostname}</h3>
             <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 24px;">${agent.ip}</p>
             
@@ -5608,8 +5631,7 @@ function showApproveDialog(agent) {
                 <div>
                     <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Tipo de backup</label>
                     <select id="ab-approve-type" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
-                        <option value="image">💽 Imagen completa (Windows/Mac)</option>
-                        <option value="files">📁 Solo archivos</option>
+                        ${typeOptions}
                     </select>
                 </div>
                 <div>
