@@ -1,0 +1,65 @@
+name: Build HomePiNAS Finder
+
+on:
+  push:
+    paths:
+      - 'finder-app/**'
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+          - os: macos-latest
+            target: mac
+          - os: ubuntu-latest
+            target: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: finder-app
+        run: npm install
+
+      - name: Generate icons (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: finder-app
+        run: |
+          # Si no hay icon.png, usar el SVG para generar uno básico
+          if [ ! -f assets/icon.png ]; then
+            npm install -g electron-icon-builder || true
+            # Crear PNG desde SVG si existe
+            if [ -f assets/icon.svg ]; then
+              sudo apt-get install -y librsvg2-bin || true
+              rsvg-convert -w 512 -h 512 assets/icon.svg > assets/icon.png || true
+            fi
+          fi
+
+      - name: Build
+        working-directory: finder-app
+        run: npm run build:${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HomePiNAS-Finder-${{ matrix.target }}
+          path: |
+            finder-app/dist/*.exe
+            finder-app/dist/*.dmg
+            finder-app/dist/*.AppImage
+            finder-app/dist/*.deb
+          if-no-files-found: warn
