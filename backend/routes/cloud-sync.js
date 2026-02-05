@@ -6,8 +6,12 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 
-// Syncthing configuration
-const SYNCTHING_CONFIG_DIR = '/home/homepinas/.config/syncthing';
+// Syncthing configuration (check multiple possible locations)
+const SYNCTHING_CONFIG_DIRS = [
+    '/home/homepinas/.local/state/syncthing',
+    '/home/homepinas/.config/syncthing',
+    '/var/lib/syncthing/.config/syncthing'
+];
 const SYNCTHING_API_URL = 'http://127.0.0.1:8384';
 const STORAGE_BASE = '/mnt/storage';
 
@@ -17,17 +21,21 @@ let syncthingApiKey = null;
 async function getApiKey() {
     if (syncthingApiKey) return syncthingApiKey;
     
-    try {
-        const configPath = path.join(SYNCTHING_CONFIG_DIR, 'config.xml');
-        const configXml = await fs.readFile(configPath, 'utf8');
-        const match = configXml.match(/<apikey>([^<]+)<\/apikey>/);
-        if (match) {
-            syncthingApiKey = match[1];
-            return syncthingApiKey;
+    for (const configDir of SYNCTHING_CONFIG_DIRS) {
+        try {
+            const configPath = path.join(configDir, 'config.xml');
+            const configXml = await fs.readFile(configPath, 'utf8');
+            const match = configXml.match(/<apikey>([^<]+)<\/apikey>/);
+            if (match) {
+                syncthingApiKey = match[1];
+                console.log('Found Syncthing API key in:', configDir);
+                return syncthingApiKey;
+            }
+        } catch (e) {
+            // Try next location
         }
-    } catch (e) {
-        console.error('Failed to read Syncthing API key:', e.message);
     }
+    console.error('Failed to find Syncthing API key in any location');
     return null;
 }
 
