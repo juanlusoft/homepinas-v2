@@ -505,7 +505,10 @@ function showDiskActionModal() {
         ">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="color: #4ecdc4; margin: 0;">🆕 Configurar Nuevo Disco</h3>
-                <button id="disk-modal-close" style="background: none; border: none; color: #888; font-size: 24px; cursor: pointer;">×</button>
+                <div style="display: flex; gap: 8px;">
+                    <button id="disk-modal-minimize" style="background: none; border: none; color: #888; font-size: 18px; cursor: pointer; display: none;" title="Minimizar">─</button>
+                    <button id="disk-modal-close" style="background: none; border: none; color: #888; font-size: 24px; cursor: pointer;">×</button>
+                </div>
             </div>
             
             <div id="disk-action-list">
@@ -646,10 +649,18 @@ function showDiskActionModal() {
         if (target.id === 'disk-modal-close-done' || target.closest('#disk-modal-close-done')) {
             e.preventDefault();
             closeDiskActionModal();
+            removeDiskProgressWidget();
             // Refresh storage view
             if (state.currentView === 'storage') {
                 renderContent('storage');
             }
+            return;
+        }
+        
+        // Minimize button
+        if (target.id === 'disk-modal-minimize' || target.closest('#disk-modal-minimize')) {
+            e.preventDefault();
+            minimizeDiskModal();
             return;
         }
     });
@@ -671,6 +682,101 @@ function showDiskActionModal() {
 function closeDiskActionModal() {
     const modal = document.getElementById('disk-action-modal');
     if (modal) modal.remove();
+}
+
+// Minimize modal to floating widget
+function minimizeDiskModal() {
+    const modal = document.getElementById('disk-action-modal');
+    if (modal) modal.style.display = 'none';
+    
+    // Create or show floating widget
+    let widget = document.getElementById('disk-progress-widget');
+    if (!widget) {
+        widget = document.createElement('div');
+        widget.id = 'disk-progress-widget';
+        widget.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid rgba(78, 205, 196, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            min-width: 250px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            z-index: 99998;
+            cursor: pointer;
+            transition: transform 0.2s;
+        `;
+        widget.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="disk-widget-spinner" style="
+                    width: 20px;
+                    height: 20px;
+                    border: 2px solid rgba(78,205,196,0.3);
+                    border-top-color: #4ecdc4;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                "></div>
+                <div>
+                    <div style="color: #fff; font-weight: 600; font-size: 13px;">Configurando disco...</div>
+                    <div id="disk-widget-status" style="color: #888; font-size: 11px;">En progreso</div>
+                </div>
+            </div>
+        `;
+        
+        // Add spin animation if not exists
+        if (!document.getElementById('spin-keyframes')) {
+            const style = document.createElement('style');
+            style.id = 'spin-keyframes';
+            style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+            document.head.appendChild(style);
+        }
+        
+        widget.addEventListener('click', () => {
+            widget.style.display = 'none';
+            const modal = document.getElementById('disk-action-modal');
+            if (modal) modal.style.display = 'flex';
+        });
+        
+        widget.addEventListener('mouseenter', () => {
+            widget.style.transform = 'scale(1.02)';
+        });
+        widget.addEventListener('mouseleave', () => {
+            widget.style.transform = 'scale(1)';
+        });
+        
+        document.body.appendChild(widget);
+    } else {
+        widget.style.display = 'block';
+    }
+}
+
+// Update floating widget status
+function updateDiskWidget(status, isDone = false) {
+    const statusEl = document.getElementById('disk-widget-status');
+    const widget = document.getElementById('disk-progress-widget');
+    if (statusEl) statusEl.textContent = status;
+    
+    if (isDone && widget) {
+        const spinner = widget.querySelector('.disk-widget-spinner');
+        if (spinner) {
+            spinner.style.animation = 'none';
+            spinner.style.borderColor = '#10b981';
+            spinner.innerHTML = '✓';
+            spinner.style.display = 'flex';
+            spinner.style.alignItems = 'center';
+            spinner.style.justifyContent = 'center';
+            spinner.style.color = '#10b981';
+            spinner.style.fontSize = '12px';
+        }
+    }
+}
+
+// Remove floating widget
+function removeDiskProgressWidget() {
+    const widget = document.getElementById('disk-progress-widget');
+    if (widget) widget.remove();
 }
 
 // Helper to update progress step UI
@@ -701,6 +807,7 @@ async function applyDiskActions() {
     const actionList = document.getElementById('disk-action-list');
     const buttons = document.getElementById('disk-modal-buttons');
     const progressSection = document.getElementById('disk-progress-section');
+    const minimizeBtn = document.getElementById('disk-modal-minimize');
     const progressSteps = document.getElementById('disk-progress-steps');
     const doneSection = document.getElementById('disk-modal-done');
     const closeBtn = document.getElementById('disk-modal-close');
@@ -709,6 +816,7 @@ async function applyDiskActions() {
     if (buttons) buttons.style.display = 'none';
     if (closeBtn) closeBtn.style.display = 'none';
     if (progressSection) progressSection.style.display = 'block';
+    if (minimizeBtn) minimizeBtn.style.display = 'block'; // Show minimize button during progress
     
     // Build progress UI for each disk
     const diskConfigs = [];
@@ -763,6 +871,7 @@ async function applyDiskActions() {
             // Update UI: formatting
             if (format) {
                 updateDiskProgressStep(disk.id, 'format', 'running', 'Formateando disco (puede tardar unos minutos)...');
+                updateDiskWidget('Formateando ' + (disk.model || disk.id) + '...');
             }
             updateDiskProgressStep(disk.id, 'mount', 'pending', 'Montar disco...');
             if (action.startsWith('pool')) {
@@ -827,6 +936,12 @@ async function applyDiskActions() {
                 }
             }
         } catch (e) {
+            // Check if it's a session/CSRF error - redirect to login
+            if (e.message === 'CSRF_EXPIRED' || e.message.includes('CSRF') || e.message.includes('session')) {
+                closeDiskActionModal();
+                return; // authFetch already handles the redirect
+            }
+            
             results.push({ disk: disk.id, success: false, message: e.message });
             
             // Update UI: error
@@ -839,17 +954,25 @@ async function applyDiskActions() {
         }
     }
     
-    // Show done button, hide progress spinner
+    // Show done button, hide minimize button
     if (doneSection) doneSection.style.display = 'block';
+    if (minimizeBtn) minimizeBtn.style.display = 'none';
     
-    // Show summary notification
+    // Update widget as completed
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
     
     if (failCount === 0 && successCount > 0) {
+        updateDiskWidget(`✅ ${successCount} disco(s) configurado(s)`, true);
         showNotification(`✅ ${successCount} disco(s) configurado(s) correctamente`, 'success');
     } else if (failCount > 0) {
+        updateDiskWidget(`⚠️ ${failCount} error(es)`, true);
         showNotification(`⚠️ ${failCount} error(es) al configurar discos`, 'error');
+    }
+    
+    // Auto-remove widget after 5 seconds if completed successfully
+    if (failCount === 0) {
+        setTimeout(removeDiskProgressWidget, 5000);
     }
     
     // Reset detection state
