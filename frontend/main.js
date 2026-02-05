@@ -3915,7 +3915,7 @@ async function loadFolderTree() {
 async function buildFolderTree(path) {
     try {
         const res = await authFetch(`${API_BASE}/files/list?path=${encodeURIComponent(path)}`);
-        if (!res.ok) return { name: path.split('/').pop() || 'Raíz', path, children: [] };
+        if (!res.ok) return { name: path.split('/').pop() || 'Storage', path, children: [] };
         const data = await res.json();
         
         const folders = (data.files || [])
@@ -3928,12 +3928,12 @@ async function buildFolderTree(path) {
             }));
         
         return {
-            name: path === '/' ? 'Raíz' : path.split('/').pop(),
+            name: path === '/' ? 'Storage' : path.split('/').pop(),
             path,
             children: folders
         };
     } catch (e) {
-        return { name: path.split('/').pop() || 'Raíz', path, children: [] };
+        return { name: path.split('/').pop() || 'Storage', path, children: [] };
     }
 }
 
@@ -4046,7 +4046,7 @@ function updateBreadcrumb(breadcrumb, filePath) {
     const homeBtn = document.createElement('button');
     homeBtn.className = 'fm-breadcrumb-btn';
     homeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
-    homeBtn.title = 'Raíz';
+    homeBtn.title = 'Storage';
     homeBtn.addEventListener('click', () => { currentFilePath = '/'; renderFilesView(); });
     breadcrumb.appendChild(homeBtn);
 
