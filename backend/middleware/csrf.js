@@ -1,17 +1,19 @@
 /**
  * HomePiNAS v2 - CSRF Protection Middleware
  * Security audit 2026-02-04
+ * Updated 2026-02-05: SQLite-backed persistent tokens
  * 
  * Token-based CSRF protection for state-changing requests
  */
 
 const crypto = require('crypto');
-
-// Store CSRF tokens by session ID (in-memory, cleared on restart)
-const csrfTokens = new Map();
-
-// Token validity: 24 hours
-const CSRF_TOKEN_DURATION = 24 * 60 * 60 * 1000;
+const { 
+    storeCsrfToken, 
+    getCsrfTokenFromDb, 
+    deleteCsrfToken,
+    cleanExpiredCsrfTokens,
+    CSRF_TOKEN_DURATION 
+} = require('../utils/session');
 
 /**
  * Generate a CSRF token for a session
@@ -20,10 +22,7 @@ function generateCsrfToken(sessionId) {
     if (!sessionId) return null;
     
     const token = crypto.randomBytes(32).toString('hex');
-    csrfTokens.set(sessionId, {
-        token,
-        createdAt: Date.now()
-    });
+    storeCsrfToken(sessionId, token);
     
     return token;
 }
@@ -34,7 +33,7 @@ function generateCsrfToken(sessionId) {
 function getCsrfToken(sessionId) {
     if (!sessionId) return null;
     
-    const existing = csrfTokens.get(sessionId);
+    const existing = getCsrfTokenFromDb(sessionId);
     if (existing && Date.now() - existing.createdAt < CSRF_TOKEN_DURATION) {
         return existing.token;
     }
@@ -48,12 +47,12 @@ function getCsrfToken(sessionId) {
 function validateCsrfToken(sessionId, token) {
     if (!sessionId || !token) return false;
     
-    const stored = csrfTokens.get(sessionId);
+    const stored = getCsrfTokenFromDb(sessionId);
     if (!stored) return false;
     
     // Check expiration
     if (Date.now() - stored.createdAt > CSRF_TOKEN_DURATION) {
-        csrfTokens.delete(sessionId);
+        deleteCsrfToken(sessionId);
         return false;
     }
     
@@ -72,7 +71,7 @@ function validateCsrfToken(sessionId, token) {
  * Clear CSRF token for a session (on logout)
  */
 function clearCsrfToken(sessionId) {
-    csrfTokens.delete(sessionId);
+    deleteCsrfToken(sessionId);
 }
 
 /**
@@ -122,20 +121,8 @@ function csrfProtection(req, res, next) {
     next();
 }
 
-/**
- * Cleanup expired tokens periodically
- */
-function cleanExpiredCsrfTokens() {
-    const now = Date.now();
-    for (const [sessionId, data] of csrfTokens) {
-        if (now - data.createdAt > CSRF_TOKEN_DURATION) {
-            csrfTokens.delete(sessionId);
-        }
-    }
-}
-
-// Clean tokens every hour
-setInterval(cleanExpiredCsrfTokens, 60 * 60 * 1000);
+// Start periodic cleanup (called from index.js via session module)
+// cleanExpiredCsrfTokens is now handled by session.startSessionCleanup
 
 module.exports = {
     generateCsrfToken,

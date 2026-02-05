@@ -57,6 +57,15 @@ function initSessionDb() {
             ON sessions(expires_at)
         `);
 
+        // CSRF tokens table (persistent across restarts)
+        sessionDb.exec(`
+            CREATE TABLE IF NOT EXISTS csrf_tokens (
+                session_id TEXT PRIMARY KEY,
+                token TEXT NOT NULL,
+                created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+            )
+        `);
+
         console.log('Session database initialized at', SESSION_DB_PATH);
         cleanExpiredSessions();
 
@@ -196,10 +205,95 @@ function cleanExpiredSessions() {
 }
 
 /**
- * Start periodic cleanup
+ * Start periodic cleanup (sessions + CSRF tokens)
  */
 function startSessionCleanup() {
-    setInterval(cleanExpiredSessions, 60 * 60 * 1000); // Clean every hour
+    setInterval(() => {
+        cleanExpiredSessions();
+        cleanExpiredCsrfTokens();
+    }, 60 * 60 * 1000); // Clean every hour
+}
+
+// ============ CSRF Token Persistence ============
+
+const CSRF_TOKEN_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Store CSRF token in database
+ */
+function storeCsrfToken(sessionId, token) {
+    if (!sessionDb || !sessionId || !token) return false;
+
+    try {
+        const stmt = sessionDb.prepare(`
+            INSERT OR REPLACE INTO csrf_tokens (session_id, token, created_at)
+            VALUES (?, ?, ?)
+        `);
+        stmt.run(sessionId, token, Date.now());
+        return true;
+    } catch (e) {
+        console.error('Failed to store CSRF token:', e.message);
+        return false;
+    }
+}
+
+/**
+ * Get CSRF token from database
+ */
+function getCsrfTokenFromDb(sessionId) {
+    if (!sessionDb || !sessionId) return null;
+
+    try {
+        const stmt = sessionDb.prepare(`
+            SELECT token, created_at FROM csrf_tokens WHERE session_id = ?
+        `);
+        const row = stmt.get(sessionId);
+        
+        if (!row) return null;
+        
+        // Check expiration
+        if (Date.now() - row.created_at > CSRF_TOKEN_DURATION) {
+            deleteCsrfToken(sessionId);
+            return null;
+        }
+        
+        return { token: row.token, createdAt: row.created_at };
+    } catch (e) {
+        console.error('Failed to get CSRF token:', e.message);
+        return null;
+    }
+}
+
+/**
+ * Delete CSRF token from database
+ */
+function deleteCsrfToken(sessionId) {
+    if (!sessionDb || !sessionId) return;
+
+    try {
+        const stmt = sessionDb.prepare('DELETE FROM csrf_tokens WHERE session_id = ?');
+        stmt.run(sessionId);
+    } catch (e) {
+        console.error('Failed to delete CSRF token:', e.message);
+    }
+}
+
+/**
+ * Clean expired CSRF tokens
+ */
+function cleanExpiredCsrfTokens() {
+    if (!sessionDb) return;
+
+    try {
+        const threshold = Date.now() - CSRF_TOKEN_DURATION;
+        const stmt = sessionDb.prepare('DELETE FROM csrf_tokens WHERE created_at < ?');
+        const result = stmt.run(threshold);
+        if (result.changes > 0) {
+            console.log(`Cleaned ${result.changes} expired CSRF tokens`);
+        }
+    } catch (e) {
+        console.error('Failed to clean CSRF tokens:', e.message);
+    }
 }
 
 module.exports = {
@@ -211,5 +305,11 @@ module.exports = {
     cleanExpiredSessions,
     startSessionCleanup,
     SESSION_DURATION,
-    SESSION_IDLE_TIMEOUT
+    SESSION_IDLE_TIMEOUT,
+    // CSRF token persistence
+    storeCsrfToken,
+    getCsrfTokenFromDb,
+    deleteCsrfToken,
+    cleanExpiredCsrfTokens,
+    CSRF_TOKEN_DURATION
 };
