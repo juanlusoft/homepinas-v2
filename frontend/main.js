@@ -7035,10 +7035,9 @@ async function renderCloudSyncView() {
     if (!dashboardContent) return;
     
     dashboardContent.innerHTML = `
-        <h2 style="margin-bottom: 20px;">Cloud Sync</h2>
         <div class="card" style="margin-bottom: 20px;">
             <div id="cloud-sync-status">
-                <h3 style="color: var(--primary);">☁️ Estado de Syncthing</h3>
+                <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
                 <p>Cargando...</p>
             </div>
         </div>
@@ -7136,7 +7135,7 @@ async function renderCloudSyncContent(status) {
                     <div style="display: flex; gap: 10px; margin-top: 5px;">
                         <input type="text" id="device-id-input" value="${escapeHtml(deviceId)}" readonly 
                             style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-family: monospace; font-size: 0.75rem;">
-                        <button onclick="navigator.clipboard.writeText(document.getElementById('device-id-input').value); this.textContent='✓ Copiado'; setTimeout(() => this.textContent='📋 Copiar', 2000);" 
+                        <button id="copy-device-id-btn"
                             style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                             📋 Copiar
                         </button>
@@ -7184,6 +7183,19 @@ async function renderCloudSyncContent(status) {
     // Event listeners
     document.getElementById('add-folder-btn')?.addEventListener('click', showAddFolderModal);
     document.getElementById('add-device-btn')?.addEventListener('click', showAddDeviceModal);
+    
+    // Copy device ID button
+    const copyBtn = document.getElementById('copy-device-id-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const input = document.getElementById('device-id-input');
+            if (input) {
+                navigator.clipboard.writeText(input.value);
+                copyBtn.textContent = '✓ Copiado';
+                setTimeout(() => copyBtn.textContent = '📋 Copiar', 2000);
+            }
+        });
+    }
 }
 
 function generateQRCode(deviceId) {
@@ -7215,12 +7227,17 @@ function renderFoldersList(folders) {
                 </div>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button onclick="deleteFolder('${escapeHtml(f.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                <button class="delete-folder-btn" data-folder-id="${escapeHtml(f.id)}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
                     🗑️
                 </button>
             </div>
         </div>
     `).join('');
+    
+    // Attach event listeners for delete buttons
+    listDiv.querySelectorAll('.delete-folder-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteFolder(btn.dataset.folderId));
+    });
 }
 
 async function loadDevicesList() {
@@ -7250,11 +7267,16 @@ async function loadDevicesList() {
                         ${d.connected ? `📍 ${escapeHtml(d.address || 'Unknown')}` : 'Desconectado'}
                     </div>
                 </div>
-                <button onclick="deleteDevice('${escapeHtml(d.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                <button class="delete-device-btn" data-device-id="${escapeHtml(d.id)}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
                     🗑️
                 </button>
             </div>
         `).join('');
+        
+        // Attach event listeners for delete buttons
+        listDiv.querySelectorAll('.delete-device-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteDevice(btn.dataset.deviceId));
+        });
     } catch (e) {
         listDiv.innerHTML = `<p style="color: #ef4444;">Error: ${escapeHtml(e.message)}</p>`;
     }
