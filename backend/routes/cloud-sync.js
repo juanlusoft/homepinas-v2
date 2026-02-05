@@ -7,9 +7,13 @@ const https = require('https');
 const http = require('http');
 
 // Syncthing configuration (check multiple possible locations)
+// Get current system user (for syncthing service)
+const SYSTEM_USER = process.env.USER || process.env.LOGNAME || 'homepinas';
+const HOME_DIR = process.env.HOME || `/home/${SYSTEM_USER}`;
+
 const SYNCTHING_CONFIG_DIRS = [
-    '/home/homepinas/.local/state/syncthing',
-    '/home/homepinas/.config/syncthing',
+    `${HOME_DIR}/.local/state/syncthing`,
+    `${HOME_DIR}/.config/syncthing`,
     '/var/lib/syncthing/.config/syncthing'
 ];
 const SYNCTHING_API_URL = 'http://127.0.0.1:8384';
@@ -85,7 +89,7 @@ async function isSyncthingInstalled() {
 // Helper: Check if Syncthing service is running
 async function isSyncthingRunning() {
     return new Promise((resolve) => {
-        exec('systemctl is-active syncthing@homepinas', (err, stdout) => {
+        exec(`systemctl is-active syncthing@${SYSTEM_USER}`, (err, stdout) => {
             resolve(stdout.trim() === 'active');
         });
     });
@@ -102,9 +106,9 @@ async function installSyncthing() {
             // Update and install
             'sudo apt-get update',
             'sudo apt-get install -y syncthing',
-            // Enable and start service for homepinas user
-            'sudo systemctl enable syncthing@homepinas',
-            'sudo systemctl start syncthing@homepinas'
+            // Enable and start service for current user
+            `sudo systemctl enable syncthing@${SYSTEM_USER}`,
+            `sudo systemctl start syncthing@${SYSTEM_USER}`
         ];
         
         exec(commands.join(' && '), { timeout: 300000 }, (err, stdout, stderr) => {
@@ -192,7 +196,7 @@ router.post('/install', async (req, res) => {
 router.post('/start', async (req, res) => {
     try {
         await new Promise((resolve, reject) => {
-            exec('sudo systemctl start syncthing@homepinas', (err) => {
+            exec(`sudo systemctl start syncthing@${SYSTEM_USER}`, (err) => {
                 if (err) reject(err);
                 else resolve();
             });
@@ -207,7 +211,7 @@ router.post('/start', async (req, res) => {
 router.post('/stop', async (req, res) => {
     try {
         await new Promise((resolve, reject) => {
-            exec('sudo systemctl stop syncthing@homepinas', (err) => {
+            exec(`sudo systemctl stop syncthing@${SYSTEM_USER}`, (err) => {
                 if (err) reject(err);
                 else resolve();
             });
