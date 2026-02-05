@@ -7349,9 +7349,17 @@ async function buildRecoveryISO() {
 // CLOUD SYNC (Syncthing Integration)
 // =============================================================================
 
+let cloudSyncRefreshInterval = null;
+
 async function renderCloudSyncView() {
     const dashboardContent = document.getElementById('dashboard-content');
     if (!dashboardContent) return;
+    
+    // Clear any existing refresh interval
+    if (cloudSyncRefreshInterval) {
+        clearInterval(cloudSyncRefreshInterval);
+        cloudSyncRefreshInterval = null;
+    }
     
     dashboardContent.innerHTML = `
         <div class="card" style="margin-bottom: 20px;">
@@ -7364,6 +7372,17 @@ async function renderCloudSyncView() {
     `;
     
     await loadCloudSyncStatus();
+    
+    // Auto-refresh every 5 seconds when view is active
+    cloudSyncRefreshInterval = setInterval(async () => {
+        if (document.getElementById('cloud-sync-status')) {
+            await refreshSyncStatus();
+        } else {
+            // View no longer visible, stop refresh
+            clearInterval(cloudSyncRefreshInterval);
+            cloudSyncRefreshInterval = null;
+        }
+    }, 5000);
 }
 
 async function loadCloudSyncStatus() {
@@ -7536,35 +7555,161 @@ function renderFoldersList(folders) {
     }
     
     listDiv.innerHTML = folders.map(f => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px;">
-            <div>
-                <div style="font-weight: 600; color: var(--text);">📁 ${escapeHtml(f.label)}</div>
-                <div style="font-size: 0.85rem; color: var(--text-dim);">${escapeHtml(f.path)}</div>
-                <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 5px;">
-                    ${f.paused ? '<span style="color: #f59e0b;">⏸️ Pausada</span>' : '<span style="color: #10b981;">● Sincronizando</span>'}
-                    · ${f.devices} dispositivo(s)
+        <div class="sync-folder-card" data-folder-id="${escapeHtml(f.id)}" style="padding: 15px; background: rgba(255,255,255,0.03); border-radius: 10px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; color: var(--text); font-size: 1rem;">📁 ${escapeHtml(f.label)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 3px; font-family: monospace;">${escapeHtml(f.path)}</div>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <button class="pause-folder-btn" data-folder-id="${escapeHtml(f.id)}" data-paused="${f.paused}" 
+                        style="padding: 6px 10px; background: ${f.paused ? '#10b981' : '#f59e0b'}; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;" 
+                        title="${f.paused ? 'Reanudar' : 'Pausar'}">
+                        ${f.paused ? '▶️' : '⏸️'}
+                    </button>
+                    <button class="share-folder-btn" data-folder-id="${escapeHtml(f.id)}" data-folder-label="${escapeHtml(f.label)}" 
+                        style="padding: 6px 10px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;" 
+                        title="Compartir">
+                        📤
+                    </button>
+                    <button class="delete-folder-btn" data-folder-id="${escapeHtml(f.id)}" 
+                        style="padding: 6px 10px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;" 
+                        title="Eliminar">
+                        🗑️
+                    </button>
                 </div>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <button class="share-folder-btn" data-folder-id="${escapeHtml(f.id)}" data-folder-label="${escapeHtml(f.label)}" style="padding: 6px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;" title="Compartir con dispositivos">
-                    📤
-                </button>
-                <button class="delete-folder-btn" data-folder-id="${escapeHtml(f.id)}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-                    🗑️
-                </button>
+            <div class="folder-sync-status" data-folder-id="${escapeHtml(f.id)}" style="margin-top: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem;">
+                    ${f.paused 
+                        ? '<span style="color: #f59e0b;">⏸️ Pausada</span>' 
+                        : '<span class="sync-state" style="color: #10b981;">● Cargando...</span>'}
+                    <span style="color: var(--text-dim);">· ${f.devices} dispositivo(s)</span>
+                </div>
+                ${!f.paused ? `
+                <div class="sync-progress-container" style="margin-top: 8px; display: none;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 4px;">
+                        <span class="sync-files">-- archivos</span>
+                        <span class="sync-percent">--%</span>
+                    </div>
+                    <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                        <div class="sync-progress-bar" style="height: 100%; background: var(--primary); width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                ` : ''}
             </div>
         </div>
     `).join('');
     
-    // Attach event listeners for delete buttons
+    // Attach event listeners
     listDiv.querySelectorAll('.delete-folder-btn').forEach(btn => {
         btn.addEventListener('click', () => deleteFolder(btn.dataset.folderId));
     });
-    
-    // Attach event listeners for share buttons
     listDiv.querySelectorAll('.share-folder-btn').forEach(btn => {
         btn.addEventListener('click', () => showShareFolderModal(btn.dataset.folderId, btn.dataset.folderLabel));
     });
+    listDiv.querySelectorAll('.pause-folder-btn').forEach(btn => {
+        btn.addEventListener('click', () => toggleFolderPause(btn.dataset.folderId, btn.dataset.paused === 'true'));
+    });
+    
+    // Load detailed sync status for each folder
+    loadFolderSyncStatuses();
+}
+
+// Load sync status for all folders without full re-render
+async function loadFolderSyncStatuses() {
+    try {
+        const res = await authFetch(`${API_BASE}/cloud-sync/sync-status`);
+        if (!res.ok) return;
+        const statuses = await res.json();
+        
+        statuses.forEach(s => {
+            updateFolderSyncUI(s);
+        });
+    } catch (e) {
+        console.error('Error loading sync statuses:', e);
+    }
+}
+
+// Update individual folder sync UI
+function updateFolderSyncUI(status) {
+    const card = document.querySelector(`.folder-sync-status[data-folder-id="${status.id}"]`);
+    if (!card) return;
+    
+    const stateSpan = card.querySelector('.sync-state');
+    const progressContainer = card.querySelector('.sync-progress-container');
+    
+    if (!stateSpan) return;
+    
+    // State mapping
+    const stateMap = {
+        'idle': { text: '✓ Sincronizado', color: '#10b981' },
+        'scanning': { text: '🔍 Escaneando...', color: '#3b82f6' },
+        'syncing': { text: '🔄 Sincronizando...', color: '#f59e0b' },
+        'sync-preparing': { text: '⏳ Preparando...', color: '#8b5cf6' },
+        'sync-waiting': { text: '⏳ Esperando...', color: '#6b7280' },
+        'cleaning': { text: '🧹 Limpiando...', color: '#6b7280' },
+        'error': { text: '❌ Error', color: '#ef4444' }
+    };
+    
+    const stateInfo = stateMap[status.state] || { text: status.state, color: '#6b7280' };
+    stateSpan.innerHTML = `<span style="color: ${stateInfo.color};">${stateInfo.text}</span>`;
+    
+    // Show progress bar if syncing
+    if (progressContainer) {
+        if (status.state === 'syncing' || status.needFiles > 0) {
+            progressContainer.style.display = 'block';
+            const filesSpan = progressContainer.querySelector('.sync-files');
+            const percentSpan = progressContainer.querySelector('.sync-percent');
+            const progressBar = progressContainer.querySelector('.sync-progress-bar');
+            
+            if (filesSpan) filesSpan.textContent = `${status.localFiles || 0} / ${status.globalFiles || 0} archivos`;
+            if (percentSpan) percentSpan.textContent = `${status.completion || 0}%`;
+            if (progressBar) progressBar.style.width = `${status.completion || 0}%`;
+        } else {
+            progressContainer.style.display = 'none';
+        }
+    }
+}
+
+// Refresh sync status without full re-render (for auto-refresh)
+async function refreshSyncStatus() {
+    try {
+        // Update folder sync statuses
+        await loadFolderSyncStatuses();
+        
+        // Update connection count
+        const res = await authFetch(`${API_BASE}/cloud-sync/status`);
+        if (res.ok) {
+            const status = await res.json();
+            const statusDiv = document.getElementById('cloud-sync-status');
+            if (statusDiv) {
+                const connSpan = statusDiv.querySelector('span:nth-child(4)');
+                if (connSpan && connSpan.textContent.includes('dispositivos')) {
+                    connSpan.textContent = `📱 ${status.connections} dispositivos conectados`;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Refresh error:', e);
+    }
+}
+
+// Toggle folder pause/resume
+async function toggleFolderPause(folderId, isPaused) {
+    try {
+        const res = await authFetch(`${API_BASE}/cloud-sync/folders/${encodeURIComponent(folderId)}/pause`, {
+            method: 'POST',
+            body: JSON.stringify({ paused: !isPaused })
+        });
+        
+        if (!res.ok) throw new Error('Failed to toggle pause');
+        
+        showNotification(isPaused ? 'Carpeta reanudada' : 'Carpeta pausada', 'success');
+        await loadCloudSyncStatus();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
 }
 
 async function loadDevicesList() {
@@ -7582,31 +7727,111 @@ async function loadDevicesList() {
         }
         
         listDiv.innerHTML = devices.map(d => `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px;">
-                <div>
-                    <div style="font-weight: 600; color: var(--text);">
-                        ${d.connected ? '🟢' : '⚪'} ${escapeHtml(d.name)}
+            <div class="sync-device-card" style="padding: 15px; background: rgba(255,255,255,0.03); border-radius: 10px; margin-bottom: 12px; border: 1px solid ${d.connected ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.05)'};">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2rem;">${d.connected ? '🟢' : '⚪'}</span>
+                            <span style="font-weight: 600; color: var(--text); font-size: 1rem;">${escapeHtml(d.name)}</span>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim); font-family: monospace; margin-top: 6px; word-break: break-all;">
+                            ${escapeHtml(d.id.substring(0, 30))}...
+                        </div>
+                        <div style="display: flex; gap: 15px; margin-top: 8px; font-size: 0.8rem;">
+                            ${d.connected 
+                                ? `<span style="color: #10b981;">● Conectado</span><span style="color: var(--text-dim);">📍 ${escapeHtml(d.address || 'LAN')}</span>` 
+                                : '<span style="color: #6b7280;">○ Desconectado</span>'}
+                        </div>
                     </div>
-                    <div style="font-size: 0.8rem; color: var(--text-dim); font-family: monospace;">
-                        ${escapeHtml(d.id.substring(0, 20))}...
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 3px;">
-                        ${d.connected ? `📍 ${escapeHtml(d.address || 'Unknown')}` : 'Desconectado'}
+                    <div style="display: flex; gap: 6px;">
+                        <button class="rename-device-btn" data-device-id="${escapeHtml(d.id)}" data-device-name="${escapeHtml(d.name)}"
+                            style="padding: 6px 10px; background: #6b7280; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;" 
+                            title="Renombrar">
+                            ✏️
+                        </button>
+                        <button class="delete-device-btn" data-device-id="${escapeHtml(d.id)}" 
+                            style="padding: 6px 10px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;"
+                            title="Eliminar">
+                            🗑️
+                        </button>
                     </div>
                 </div>
-                <button class="delete-device-btn" data-device-id="${escapeHtml(d.id)}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-                    🗑️
-                </button>
             </div>
         `).join('');
         
-        // Attach event listeners for delete buttons
+        // Attach event listeners
+        listDiv.querySelectorAll('.rename-device-btn').forEach(btn => {
+            btn.addEventListener('click', () => showRenameDeviceModal(btn.dataset.deviceId, btn.dataset.deviceName));
+        });
         listDiv.querySelectorAll('.delete-device-btn').forEach(btn => {
             btn.addEventListener('click', () => deleteDevice(btn.dataset.deviceId));
         });
     } catch (e) {
         listDiv.innerHTML = `<p style="color: #ef4444;">Error: ${escapeHtml(e.message)}</p>`;
     }
+}
+
+// Rename device modal
+function showRenameDeviceModal(deviceId, currentName) {
+    const modal = document.createElement('div');
+    modal.id = 'rename-device-modal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+    modal.innerHTML = `
+        <div style="background: #1a1a2e; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px;">
+            <h3 style="color: var(--secondary); margin-bottom: 20px;">✏️ Renombrar Dispositivo</h3>
+            <div style="margin-bottom: 20px;">
+                <label style="color: var(--text-dim); font-size: 0.9rem;">Nombre:</label>
+                <input type="text" id="device-new-name" value="${escapeHtml(currentName)}"
+                    style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="rename-cancel-btn"
+                    style="padding: 10px 20px; background: #666; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                    Cancelar
+                </button>
+                <button id="rename-save-btn"
+                    style="padding: 10px 20px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    const input = document.getElementById('device-new-name');
+    input.focus();
+    input.select();
+    
+    document.getElementById('rename-cancel-btn').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    
+    document.getElementById('rename-save-btn').addEventListener('click', async () => {
+        const newName = input.value.trim();
+        if (!newName) {
+            showNotification('El nombre es obligatorio', 'error');
+            return;
+        }
+        
+        try {
+            const res = await authFetch(`${API_BASE}/cloud-sync/devices/${encodeURIComponent(deviceId)}/rename`, {
+                method: 'POST',
+                body: JSON.stringify({ name: newName })
+            });
+            
+            if (!res.ok) throw new Error('Failed to rename');
+            
+            modal.remove();
+            showNotification('Dispositivo renombrado', 'success');
+            await loadDevicesList();
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'error');
+        }
+    });
+    
+    // Enter to save
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('rename-save-btn').click();
+    });
 }
 
 async function installSyncthing() {
