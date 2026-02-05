@@ -293,13 +293,13 @@ let diskNotificationShown = false;
 // Check for new unconfigured disks
 async function checkForNewDisks() {
     try {
-        const res = await fetch(`${API_BASE}/storage/disks/detect`);
+        const res = await authFetch(`${API_BASE}/storage/disks/detect`);
         if (!res.ok) return;
         
         const { unconfigured } = await res.json();
         
         // Get ignored disks
-        const ignoredRes = await fetch(`${API_BASE}/storage/disks/ignored`);
+        const ignoredRes = await authFetch(`${API_BASE}/storage/disks/ignored`);
         const { ignored } = ignoredRes.ok ? await ignoredRes.json() : { ignored: [] };
         
         // Filter out ignored disks
