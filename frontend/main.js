@@ -5637,7 +5637,7 @@ async function loadABPendingAgents() {
                 </div>
                 <div style="display: flex; gap: 8px;" id="ab-pending-actions-${agent.id}">
                     <button class="btn-primary btn-sm" style="padding: 6px 14px;" id="ab-approve-${agent.id}">✓ Aprobar</button>
-                    <button class="btn-sm" style="padding: 6px 14px; background: var(--danger); color: white; border: none; border-radius: 6px; cursor: pointer;" id="ab-reject-${agent.id}">✗</button>
+                    <button class="btn-sm" style="padding: 6px 14px; background: var(--bg-hover); color: var(--text-dim); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;" id="ab-reject-${agent.id}">✗ Rechazar</button>
                 </div>`;
             list.appendChild(row);
 
@@ -5887,10 +5887,18 @@ async function loadABDevices() {
             browseBtn.textContent = '📂 Explorar';
             browseBtn.addEventListener('click', (e) => { e.stopPropagation(); isImage ? openABImageBrowse(device) : openABBrowse(device); });
 
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'btn-primary btn-sm';
+            renameBtn.style.cssText = 'padding: 8px; background: #64748b;';
+            renameBtn.textContent = '✏️';
+            renameBtn.title = 'Renombrar';
+            renameBtn.addEventListener('click', (e) => { e.stopPropagation(); showRenameDialog(device); });
+
             const editBtn = document.createElement('button');
             editBtn.className = 'btn-primary btn-sm';
             editBtn.style.cssText = 'padding: 8px; background: #64748b;';
             editBtn.textContent = '⚙️';
+            editBtn.title = 'Configurar';
             editBtn.addEventListener('click', (e) => { e.stopPropagation(); showEditDeviceForm(device); });
 
             const deleteBtn = document.createElement('button');
@@ -5900,6 +5908,7 @@ async function loadABDevices() {
             deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteABDevice(device); });
 
             actions.appendChild(browseBtn);
+            actions.appendChild(renameBtn);
             actions.appendChild(editBtn);
             actions.appendChild(deleteBtn);
             card.appendChild(actions);
@@ -6109,6 +6118,26 @@ function showAddDeviceForm(editDevice = null) {
 
 function showEditDeviceForm(device) {
     showAddDeviceForm(device);
+}
+
+function showRenameDialog(device) {
+    const newName = prompt('Nuevo nombre para el dispositivo:', device.name);
+    if (!newName || newName.trim() === '' || newName === device.name) return;
+    
+    authFetch(`${API_BASE}/active-backup/devices/${device.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            loadABDevices();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo renombrar'));
+        }
+    })
+    .catch(() => alert('Error de conexión'));
 }
 
 async function showABInstructions(device) {
