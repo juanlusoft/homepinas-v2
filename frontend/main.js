@@ -7043,7 +7043,7 @@ async function loadCloudSyncStatus() {
     const contentDiv = document.getElementById('cloud-sync-content');
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/status\`);
+        const res = await authFetch(\`${API_BASE}/cloud-sync/status\`);
         if (!res.ok) throw new Error('Failed to load status');
         const status = await res.json();
         
@@ -7084,9 +7084,9 @@ async function loadCloudSyncStatus() {
             <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
             <div style="display: flex; align-items: center; gap: 20px; margin: 15px 0; flex-wrap: wrap;">
                 <span style="color: #10b981;">● Activo</span>
-                <span style="color: var(--text-dim);">v\${escapeHtml(status.version || 'Unknown')}</span>
-                <span style="color: var(--text-dim);">📁 \${status.folders.length} carpetas</span>
-                <span style="color: var(--text-dim);">📱 \${status.connections} dispositivos conectados</span>
+                <span style="color: var(--text-dim);">v${escapeHtml(status.version || 'Unknown')}</span>
+                <span style="color: var(--text-dim);">📁 ${status.folders.length} carpetas</span>
+                <span style="color: var(--text-dim);">📱 ${status.connections} dispositivos conectados</span>
                 <button id="stop-syncthing-btn" class="btn" style="background: #ef4444; color: #fff; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
                     ⏹️ Detener
                 </button>
@@ -7101,7 +7101,7 @@ async function loadCloudSyncStatus() {
     } catch (e) {
         statusDiv.innerHTML = \`
             <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
-            <p style="color: #ef4444;">Error: \${escapeHtml(e.message)}</p>
+            <p style="color: #ef4444;">Error: ${escapeHtml(e.message)}</p>
         \`;
     }
 }
@@ -7124,7 +7124,7 @@ async function renderCloudSyncContent(status) {
                 <div style="flex: 1; min-width: 200px;">
                     <label style="color: var(--text-dim); font-size: 0.85rem;">Device ID:</label>
                     <div style="display: flex; gap: 10px; margin-top: 5px;">
-                        <input type="text" id="device-id-input" value="\${escapeHtml(deviceId)}" readonly 
+                        <input type="text" id="device-id-input" value="${escapeHtml(deviceId)}" readonly 
                             style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-family: monospace; font-size: 0.75rem;">
                         <button onclick="navigator.clipboard.writeText(document.getElementById('device-id-input').value); this.textContent='✓ Copiado'; setTimeout(() => this.textContent='📋 Copiar', 2000);" 
                             style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -7144,7 +7144,7 @@ async function renderCloudSyncContent(status) {
                 </button>
             </div>
             <div id="folders-list">
-                \${status.folders.length === 0 ? '<p style="color: var(--text-dim);">No hay carpetas sincronizadas</p>' : ''}
+                ${status.folders.length === 0 ? '<p style="color: var(--text-dim);">No hay carpetas sincronizadas</p>' : ''}
             </div>
         </div>
         
@@ -7181,8 +7181,8 @@ function generateQRCode(deviceId) {
     if (!qrDiv || !deviceId) return;
     
     // Use a simple QR code API (or implement locally)
-    const qrUrl = \`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=\${encodeURIComponent(deviceId)}\`;
-    qrDiv.innerHTML = \`<img src="\${qrUrl}" alt="QR Code" style="width: 130px; height: 130px;">\`;
+    const qrUrl = \`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(deviceId)}\`;
+    qrDiv.innerHTML = \`<img src="${qrUrl}" alt="QR Code" style="width: 130px; height: 130px;">\`;
 }
 
 function renderFoldersList(folders) {
@@ -7197,15 +7197,15 @@ function renderFoldersList(folders) {
     listDiv.innerHTML = folders.map(f => \`
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px;">
             <div>
-                <div style="font-weight: 600; color: var(--text);">📁 \${escapeHtml(f.label)}</div>
-                <div style="font-size: 0.85rem; color: var(--text-dim);">\${escapeHtml(f.path)}</div>
+                <div style="font-weight: 600; color: var(--text);">📁 ${escapeHtml(f.label)}</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim);">${escapeHtml(f.path)}</div>
                 <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 5px;">
-                    \${f.paused ? '<span style="color: #f59e0b;">⏸️ Pausada</span>' : '<span style="color: #10b981;">● Sincronizando</span>'}
-                    · \${f.devices} dispositivo(s)
+                    ${f.paused ? '<span style="color: #f59e0b;">⏸️ Pausada</span>' : '<span style="color: #10b981;">● Sincronizando</span>'}
+                    · ${f.devices} dispositivo(s)
                 </div>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button onclick="deleteFolder('\${escapeHtml(f.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                <button onclick="deleteFolder('${escapeHtml(f.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
                     🗑️
                 </button>
             </div>
@@ -7218,7 +7218,7 @@ async function loadDevicesList() {
     if (!listDiv) return;
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/devices\`);
+        const res = await authFetch(\`${API_BASE}/cloud-sync/devices\`);
         if (!res.ok) throw new Error('Failed to load devices');
         const devices = await res.json();
         
@@ -7231,22 +7231,22 @@ async function loadDevicesList() {
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px;">
                 <div>
                     <div style="font-weight: 600; color: var(--text);">
-                        \${d.connected ? '🟢' : '⚪'} \${escapeHtml(d.name)}
+                        ${d.connected ? '🟢' : '⚪'} ${escapeHtml(d.name)}
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-dim); font-family: monospace;">
-                        \${escapeHtml(d.id.substring(0, 20))}...
+                        ${escapeHtml(d.id.substring(0, 20))}...
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 3px;">
-                        \${d.connected ? \`📍 \${escapeHtml(d.address || 'Unknown')}\` : 'Desconectado'}
+                        ${d.connected ? \`📍 ${escapeHtml(d.address || 'Unknown')}\` : 'Desconectado'}
                     </div>
                 </div>
-                <button onclick="deleteDevice('\${escapeHtml(d.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                <button onclick="deleteDevice('${escapeHtml(d.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
                     🗑️
                 </button>
             </div>
         \`).join('');
     } catch (e) {
-        listDiv.innerHTML = \`<p style="color: #ef4444;">Error: \${escapeHtml(e.message)}</p>\`;
+        listDiv.innerHTML = \`<p style="color: #ef4444;">Error: ${escapeHtml(e.message)}</p>\`;
     }
 }
 
@@ -7260,7 +7260,7 @@ async function installSyncthing() {
     }
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/install\`, { method: 'POST' });
+        const res = await authFetch(\`${API_BASE}/cloud-sync/install\`, { method: 'POST' });
         if (!res.ok) {
             const data = await res.json();
             throw new Error(data.error || 'Installation failed');
@@ -7279,7 +7279,7 @@ async function installSyncthing() {
 
 async function startSyncthing() {
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/start\`, { method: 'POST' });
+        const res = await authFetch(\`${API_BASE}/cloud-sync/start\`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to start');
         
         showNotification('Syncthing iniciado', 'success');
@@ -7293,7 +7293,7 @@ async function stopSyncthing() {
     if (!confirm('¿Detener Syncthing? La sincronización se pausará.')) return;
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/stop\`, { method: 'POST' });
+        const res = await authFetch(\`${API_BASE}/cloud-sync/stop\`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to stop');
         
         showNotification('Syncthing detenido', 'success');
@@ -7346,7 +7346,7 @@ async function addFolder() {
     }
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/folders\`, {
+        const res = await authFetch(\`${API_BASE}/cloud-sync/folders\`, {
             method: 'POST',
             body: JSON.stringify({ path, label })
         });
@@ -7368,7 +7368,7 @@ async function deleteFolder(folderId) {
     if (!confirm('¿Eliminar esta carpeta de la sincronización? Los archivos no se borrarán.')) return;
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/folders/\${encodeURIComponent(folderId)}\`, {
+        const res = await authFetch(\`${API_BASE}/cloud-sync/folders/${encodeURIComponent(folderId)}\`, {
             method: 'DELETE'
         });
         
@@ -7427,7 +7427,7 @@ async function addDevice() {
     }
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/devices\`, {
+        const res = await authFetch(\`${API_BASE}/cloud-sync/devices\`, {
             method: 'POST',
             body: JSON.stringify({ deviceId, name: name || 'New Device' })
         });
@@ -7449,7 +7449,7 @@ async function deleteDevice(deviceId) {
     if (!confirm('¿Eliminar este dispositivo? Se dejará de sincronizar con él.')) return;
     
     try {
-        const res = await authFetch(\`\${API_BASE}/cloud-sync/devices/\${encodeURIComponent(deviceId)}\`, {
+        const res = await authFetch(\`${API_BASE}/cloud-sync/devices/${encodeURIComponent(deviceId)}\`, {
             method: 'DELETE'
         });
         
