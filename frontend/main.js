@@ -2140,6 +2140,64 @@ async function renderStorageDashboard() {
                 });
                 telemetryRow.appendChild(configBtn);
             }
+            
+            // Add "Remove from pool" button for disks in pool
+            if (role !== 'none') {
+                const removeBtn = document.createElement('button');
+                removeBtn.style.cssText = `
+                    margin-left: auto;
+                    padding: 6px 12px;
+                    background: transparent;
+                    border: 1px solid var(--danger, #dc3545);
+                    color: var(--danger, #dc3545);
+                    border-radius: 6px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    white-space: nowrap;
+                `;
+                removeBtn.textContent = '🗑️ Quitar del pool';
+                removeBtn.addEventListener('mouseenter', () => {
+                    removeBtn.style.background = 'var(--danger, #dc3545)';
+                    removeBtn.style.color = '#fff';
+                });
+                removeBtn.addEventListener('mouseleave', () => {
+                    removeBtn.style.background = 'transparent';
+                    removeBtn.style.color = 'var(--danger, #dc3545)';
+                });
+                removeBtn.addEventListener('click', async () => {
+                    if (!confirm(`¿Seguro que quieres quitar ${disk.model || disk.id} del pool?\n\nEl disco seguirá montado pero no formará parte del almacenamiento compartido.`)) {
+                        return;
+                    }
+                    
+                    removeBtn.disabled = true;
+                    removeBtn.textContent = '⏳ Quitando...';
+                    
+                    try {
+                        const res = await authFetch(`${API_BASE}/storage/disks/remove-from-pool`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ diskId: disk.id })
+                        });
+                        
+                        const data = await res.json();
+                        
+                        if (res.ok && data.success) {
+                            alert(`✅ ${data.message}`);
+                            renderStorageDashboard(); // Refresh view
+                        } else {
+                            alert(`❌ Error: ${data.error || 'Unknown error'}`);
+                            removeBtn.disabled = false;
+                            removeBtn.textContent = '🗑️ Quitar del pool';
+                        }
+                    } catch (e) {
+                        alert(`❌ Error: ${e.message}`);
+                        removeBtn.disabled = false;
+                        removeBtn.textContent = '🗑️ Quitar del pool';
+                    }
+                });
+                telemetryRow.appendChild(removeBtn);
+            }
 
             card.appendChild(header);
             card.appendChild(progressContainer);

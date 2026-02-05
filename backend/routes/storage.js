@@ -763,6 +763,103 @@ router.post('/disks/add-to-pool', requireAuth, async (req, res) => {
 });
 
 /**
+ * Remove disk from pool
+ * POST /disks/remove-from-pool
+ * Body: { diskId: 'sdb' }
+ */
+router.post('/disks/remove-from-pool', requireAuth, async (req, res) => {
+    try {
+        const { diskId } = req.body;
+        
+        const safeDiskId = sanitizeDiskId(diskId);
+        if (!safeDiskId) {
+            return res.status(400).json({ error: 'Invalid disk ID' });
+        }
+
+        // Find disk in storage config
+        const data = getData();
+        if (!data.storageConfig) data.storageConfig = [];
+        
+        const diskConfig = data.storageConfig.find(d => d.id === safeDiskId);
+        if (!diskConfig) {
+            return res.status(400).json({ error: 'Disk not found in pool configuration' });
+        }
+
+        const mountPoint = diskConfig.mountPoint;
+        if (!mountPoint) {
+            return res.status(400).json({ error: 'Disk mount point not found' });
+        }
+
+        // Get current MergerFS sources
+        let currentSources = '';
+        let isMounted = false;
+        
+        try {
+            const mounts = execSync('mount | grep mergerfs', { encoding: 'utf8' }).trim();
+            if (mounts) {
+                isMounted = true;
+                const match = mounts.match(/^(.+?) on \/mnt\/storage type fuse\.mergerfs/);
+                if (match) {
+                    currentSources = match[1];
+                }
+            }
+        } catch (e) {
+            // MergerFS not mounted
+        }
+
+        // Remove this mount point from sources
+        const sourcesList = currentSources.split(':').filter(s => s && s !== mountPoint);
+        
+        if (sourcesList.length === 0) {
+            return res.status(400).json({ error: 'Cannot remove last disk from pool. At least one disk must remain.' });
+        }
+
+        const newSources = sourcesList.join(':');
+
+        // Unmount MergerFS
+        if (isMounted) {
+            try {
+                execSync(`sudo umount ${POOL_MOUNT}`, { encoding: 'utf8' });
+            } catch (e) {
+                try {
+                    execSync(`sudo umount -l ${POOL_MOUNT}`, { encoding: 'utf8' });
+                } catch (e2) {
+                    return res.status(500).json({ error: 'Cannot unmount pool. Files may be in use.' });
+                }
+            }
+        }
+
+        // Remount with remaining disks
+        try {
+            execSync(
+                `sudo mergerfs -o defaults,allow_other,nonempty,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs,moveonenospc=true ${escapeShellArg(newSources)} ${POOL_MOUNT}`,
+                { encoding: 'utf8' }
+            );
+        } catch (e) {
+            return res.status(500).json({ error: `Failed to remount pool: ${e.message}` });
+        }
+
+        // Update fstab
+        updateMergerFSFstab(newSources, 'mfs');
+
+        // Remove from storage config
+        data.storageConfig = data.storageConfig.filter(d => d.id !== safeDiskId);
+        saveData(data);
+
+        logSecurityEvent('DISK_REMOVED_FROM_POOL', { diskId: safeDiskId, mountPoint }, req.ip);
+
+        res.json({ 
+            success: true, 
+            message: `Disk ${safeDiskId} removed from pool`,
+            remainingDisks: sourcesList.length
+        });
+    } catch (e) {
+        console.error('Remove from pool error:', e);
+        res.status(500).json({ error: `Failed to remove disk: ${e.message}` });
+    }
+});
+
+/**
  * Mount disk as standalone volume (not in pool)
  * POST /disks/mount-standalone
  * Body: { diskId: 'sdb', format: true/false, name: 'backups' }
