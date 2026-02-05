@@ -594,9 +594,8 @@ async function applyDiskActions() {
         try {
             let res;
             if (action === 'pool-data' || action === 'pool-cache') {
-                res = await fetch(`${API_BASE}/storage/disks/add-to-pool`, {
+                res = await authFetch(`${API_BASE}/storage/disks/add-to-pool`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         diskId: disk.id,
                         format: format,
@@ -604,9 +603,8 @@ async function applyDiskActions() {
                     })
                 });
             } else if (action === 'standalone') {
-                res = await fetch(`${API_BASE}/storage/disks/mount-standalone`, {
+                res = await authFetch(`${API_BASE}/storage/disks/mount-standalone`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         diskId: disk.id,
                         format: format,
@@ -614,9 +612,8 @@ async function applyDiskActions() {
                     })
                 });
             } else if (action === 'ignore') {
-                res = await fetch(`${API_BASE}/storage/disks/ignore`, {
+                res = await authFetch(`${API_BASE}/storage/disks/ignore`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ diskId: disk.id })
                 });
             }
@@ -640,10 +637,10 @@ async function applyDiskActions() {
     const failCount = results.filter(r => !r.success).length;
     
     if (failCount === 0) {
-        showNotification(`✅ ${successCount} disco(s) configurado(s) correctamente`, 'success');
+        alert(`✅ ${successCount} disco(s) configurado(s) correctamente`);
     } else {
         const errors = results.filter(r => !r.success).map(r => `${r.disk}: ${r.message}`).join('\n');
-        showNotification(`⚠️ ${failCount} error(es):\n${errors}`, 'error');
+        alert(`⚠️ ${failCount} error(es):\n${errors}`);
     }
     
     // Reset detection state
