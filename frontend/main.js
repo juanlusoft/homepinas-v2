@@ -2141,9 +2141,11 @@ async function checkDockerUpdates() {
 }
 
 async function updateContainer(containerId, containerName, btn) {
-    if (!confirm(`Update container "${containerName}"?\n\nThis will:\n1. Stop the container\n2. Pull the latest image\n3. Recreate the container\n\nVolumes and data will be preserved.`)) {
-        return;
-    }
+    const confirmed = await showConfirmModal(
+        `¿Actualizar "${containerName}"?`,
+        'Esto parará el container, descargará la última imagen y lo recreará. Los volúmenes y datos se conservan.'
+    );
+    if (!confirmed) return;
 
     btn.disabled = true;
     btn.innerHTML = '⏳ Updating...';
@@ -2420,9 +2422,11 @@ async function stopCompose(name, btn) {
 }
 
 async function deleteCompose(name) {
-    if (!confirm(`Delete compose "${name}"?\n\nThis will stop all containers and remove the compose file.`)) {
-        return;
-    }
+    const confirmed = await showConfirmModal(
+        `¿Eliminar "${name}"?`,
+        'Esto parará todos los containers y eliminará el archivo compose.'
+    );
+    if (!confirmed) return;
 
     try {
         const res = await authFetch(`${API_BASE}/docker/compose/${encodeURIComponent(name)}`, {
@@ -7301,7 +7305,11 @@ async function loadDevicesList() {
 }
 
 async function installSyncthing() {
-    if (!confirm('¿Instalar Syncthing? Esto puede tardar unos minutos.')) return;
+    const installConfirmed = await showConfirmModal(
+        '¿Instalar Syncthing?',
+        'Esto puede tardar unos minutos mientras se descarga e instala.'
+    );
+    if (!installConfirmed) return;
     
     const btn = document.getElementById('install-syncthing-btn');
     if (btn) {
@@ -7340,7 +7348,11 @@ async function startSyncthing() {
 }
 
 async function stopSyncthing() {
-    if (!confirm('¿Detener Syncthing? La sincronización se pausará.')) return;
+    const stopConfirmed = await showConfirmModal(
+        '¿Detener Syncthing?',
+        'La sincronización se pausará hasta que lo vuelvas a iniciar.'
+    );
+    if (!stopConfirmed) return;
     
     try {
         const res = await authFetch(`${API_BASE}/cloud-sync/stop`, { method: 'POST' });
@@ -7562,7 +7574,11 @@ async function addDevice() {
 }
 
 async function deleteDevice(deviceId) {
-    if (!confirm('¿Eliminar este dispositivo? Se dejará de sincronizar con él.')) return;
+    const deleteDeviceConfirmed = await showConfirmModal(
+        '¿Eliminar dispositivo?',
+        'Se dejará de sincronizar con este dispositivo.'
+    );
+    if (!deleteDeviceConfirmed) return;
     
     try {
         const res = await authFetch(`${API_BASE}/cloud-sync/devices/${encodeURIComponent(deviceId)}`, {

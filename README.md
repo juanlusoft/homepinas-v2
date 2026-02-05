@@ -1,8 +1,8 @@
-# HomePiNAS v2.4.0
+# HomePiNAS v2.5.0
 
 Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 
-![HomePiNAS Dashboard](https://img.shields.io/badge/version-2.4.0-brightgreen)
+![HomePiNAS Dashboard](https://img.shields.io/badge/version-2.5.0-brightgreen)
 ![PWA Ready](https://img.shields.io/badge/PWA-Ready-blueviolet)
 ![Mobile Friendly](https://img.shields.io/badge/Mobile-Friendly-blue)
 
@@ -27,6 +27,13 @@ Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 - **🔌 UPS Support** — APC UPS monitoring
 - **🌐 DDNS** — DuckDNS, No-IP, Dynu remote access
 
+### ☁️ Cloud Sync (Syncthing)
+- **Real-time folder sync** between NAS and other devices
+- **Syncthing integration** — Peer-to-peer, encrypted sync
+- **Dashboard management** — Add/remove sync folders from UI
+- **Auto-detection** — Finds Syncthing config across system users
+- **Status monitoring** — Connection and sync status at a glance
+
 ### 🖥️ Active Backup for Business
 - **Centralized backup** of PCs and servers to NAS
 - **Backup Agent** — Install on Windows/Mac, managed from NAS dashboard
@@ -34,7 +41,8 @@ Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 - **File backup** — Folders via rsync+SSH with hardlink deduplication
 - **Versioning** — Keep multiple backup copies with retention policies
 - **Web restore** — Browse and download files from any backup version
-- **USB Recovery** — Bootable USB to restore backups without OS
+- **🆕 USB Recovery Tool** — Bootable Debian ISO for bare-metal restore
+- **Dynamic user detection** — Works with any system username
 
 ### Mobile & PWA
 - **📱 Responsive UI** — Full mobile support
@@ -120,6 +128,13 @@ http://<IP>:3000                (HTTP fallback)
 ```
 
 ## 📜 Version History
+
+### v2.5.0 — Cloud Sync + Polish
+- **Cloud Sync** — Syncthing integration for real-time folder sync
+- **HTTP → HTTPS redirect** — Automatic secure connection
+- **Improved terminal** — Fixed colors on dark backgrounds
+- **Dynamic user detection** — No hardcoded usernames
+- **UI polish** — Custom modals, fixed race conditions
 
 ### v2.4.0 — Active Backup + Recovery
 - **Active Backup** — Centralized backup of PCs/servers
