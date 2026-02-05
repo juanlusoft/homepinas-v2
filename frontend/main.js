@@ -7321,11 +7321,11 @@ function showAddFolderModal() {
                     style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);">
             </div>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="document.getElementById('add-folder-modal').remove();" 
+                <button id="cancel-folder-btn"
                     style="padding: 10px 20px; background: #666; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
                     Cancelar
                 </button>
-                <button onclick="addFolder();" 
+                <button id="add-folder-confirm-btn"
                     style="padding: 10px 20px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     Añadir
                 </button>
@@ -7333,6 +7333,8 @@ function showAddFolderModal() {
         </div>
     `;
     document.body.appendChild(modal);
+    document.getElementById('cancel-folder-btn').addEventListener('click', () => modal.remove());
+    document.getElementById('add-folder-confirm-btn').addEventListener('click', addFolder);
     document.getElementById('folder-path').focus();
 }
 
@@ -7402,11 +7404,11 @@ function showAddDeviceModal() {
                     style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);">
             </div>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="document.getElementById('add-device-modal').remove();" 
+                <button id="cancel-device-btn"
                     style="padding: 10px 20px; background: #666; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
                     Cancelar
                 </button>
-                <button onclick="addDevice();" 
+                <button id="add-device-confirm-btn"
                     style="padding: 10px 20px; background: var(--secondary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     Añadir
                 </button>
@@ -7414,6 +7416,8 @@ function showAddDeviceModal() {
         </div>
     `;
     document.body.appendChild(modal);
+    document.getElementById('cancel-device-btn').addEventListener('click', () => modal.remove());
+    document.getElementById('add-device-confirm-btn').addEventListener('click', addDevice);
     document.getElementById('device-id').focus();
 }
 
