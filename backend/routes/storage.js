@@ -650,7 +650,31 @@ router.post('/disks/add-to-pool', requireAuth, async (req, res) => {
             console.log('Partition creation skipped or failed (may already exist):', e.message);
         }
 
-        // Step 2: Format if requested
+        // Step 2: Unmount if mounted (required before formatting)
+        try {
+            // Check if partition is mounted
+            const mountCheck = execSync(`mount | grep ${escapeShellArg(partitionPath)} || true`, { encoding: 'utf8' });
+            if (mountCheck.trim()) {
+                console.log(`Unmounting ${partitionPath} before format...`);
+                execSync(`sudo umount ${escapeShellArg(partitionPath)}`, { encoding: 'utf8' });
+            }
+            // Also try unmounting by device path without partition number
+            const deviceMountCheck = execSync(`mount | grep ${escapeShellArg(devicePath)} || true`, { encoding: 'utf8' });
+            if (deviceMountCheck.trim()) {
+                console.log(`Unmounting ${devicePath} before format...`);
+                try {
+                    execSync(`sudo umount ${escapeShellArg(devicePath)}`, { encoding: 'utf8' });
+                } catch (e) {
+                    // Try lazy unmount
+                    execSync(`sudo umount -l ${escapeShellArg(devicePath)}`, { encoding: 'utf8' });
+                }
+            }
+        } catch (e) {
+            console.log('Unmount check/attempt:', e.message);
+            // Continue anyway
+        }
+        
+        // Step 3: Format if requested
         if (format) {
             const label = `${role}_${safeDiskId}`.substring(0, 16);
             try {

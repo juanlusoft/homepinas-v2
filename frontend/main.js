@@ -1025,6 +1025,12 @@ function switchView(viewName, skipRender = false) {
         }
     }
     updateHeaderIPVisibility();
+    
+    // Hide old settings controls when dashboard is active (dashboard has its own header)
+    const settingsControls = document.getElementById('settings-controls');
+    if (settingsControls) {
+        settingsControls.style.display = viewName === 'dashboard' ? 'none' : 'flex';
+    }
 }
 
 function updateHeaderIPVisibility() {

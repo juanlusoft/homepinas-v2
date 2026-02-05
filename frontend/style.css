@@ -2231,7 +2231,7 @@ input:checked+.slider:before {
    v2.1.0 NEW STYLES
    ============================================================================= */
 
-/* Settings Controls (Theme + Language) */
+/* Settings Controls (Theme + Language) - Only for login/setup views */
 .settings-controls {
     position: fixed;
     top: 20px;
@@ -2239,6 +2239,13 @@ input:checked+.slider:before {
     z-index: 1000;
     display: flex;
     gap: 8px;
+}
+
+/* Hide old settings controls when dashboard is active (has its own header) */
+#dashboard-view.active ~ .settings-controls,
+#dashboard-view.view.active ~ .settings-controls,
+body:has(#dashboard-view.active) .settings-controls {
+    display: none !important;
 }
 
 .settings-btn {
