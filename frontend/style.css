@@ -3366,3 +3366,29 @@ select option,
         font-size: 0.8rem;
     }
 }
+
+/* ========== DRAG & DROP STYLES ========== */
+.fm-row.dragging,
+.fm-grid-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+}
+
+body.fm-dragging .fm-tree-item {
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.fm-tree-item.drop-target {
+    background: rgba(132, 204, 22, 0.3) !important;
+    box-shadow: inset 0 0 0 2px var(--primary, #84cc16);
+}
+
+.fm-row[draggable="true"],
+.fm-grid-item[draggable="true"] {
+    cursor: grab;
+}
+
+.fm-row[draggable="true"]:active,
+.fm-grid-item[draggable="true"]:active {
+    cursor: grabbing;
+}

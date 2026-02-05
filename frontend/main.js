@@ -3985,6 +3985,46 @@ function renderFolderTree(container, node, level) {
         }
     });
     
+    // ── Drop target for drag & drop ──
+    item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        item.classList.add('drop-target');
+    });
+    item.addEventListener('dragleave', () => {
+        item.classList.remove('drop-target');
+    });
+    item.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        item.classList.remove('drop-target');
+        
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            if (data.path && data.name) {
+                // Don't move to same folder
+                const srcFolder = data.path.substring(0, data.path.lastIndexOf('/')) || '/';
+                if (srcFolder === node.path) return;
+                
+                // Move file
+                const destPath = node.path === '/' ? '/' + data.name : node.path + '/' + data.name;
+                const res = await authFetch(`${API_BASE}/files/move`, {
+                    method: 'POST',
+                    body: JSON.stringify({ source: data.path, destination: destPath })
+                });
+                
+                if (res.ok) {
+                    showNotification(`"${data.name}" movido a ${node.path}`, 'success');
+                    await renderFilesView();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    showNotification('Error: ' + (err.error || 'No se pudo mover'), 'error');
+                }
+            }
+        } catch (e) {
+            console.error('Drop error:', e);
+        }
+    });
+    
     container.appendChild(item);
     
     // Render children if expanded
@@ -4147,6 +4187,19 @@ function renderFilesList(container, files, filePath) {
             showFileContextMenu(e, fullPath, file);
         });
 
+        // ── Drag & Drop ──
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', JSON.stringify({ path: fullPath, name: file.name }));
+            e.dataTransfer.effectAllowed = 'move';
+            row.classList.add('dragging');
+            document.body.classList.add('fm-dragging');
+        });
+        row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            document.body.classList.remove('fm-dragging');
+        });
+
         container.appendChild(row);
     });
 }
@@ -4208,6 +4261,19 @@ function renderFilesGrid(container, files, filePath) {
         card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             showFileContextMenu(e, fullPath, file);
+        });
+
+        // ── Drag & Drop ──
+        card.draggable = true;
+        card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', JSON.stringify({ path: fullPath, name: file.name }));
+            e.dataTransfer.effectAllowed = 'move';
+            card.classList.add('dragging');
+            document.body.classList.add('fm-dragging');
+        });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+            document.body.classList.remove('fm-dragging');
         });
 
         container.appendChild(card);
