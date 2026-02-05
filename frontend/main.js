@@ -1974,9 +1974,27 @@ async function renderStorageDashboard() {
             // Add configure button for unconfigured disks
             if (role === 'none') {
                 const configBtn = document.createElement('button');
-                configBtn.className = 'btn-primary';
-                configBtn.style.cssText = 'margin-top: 12px; width: 100%; background: #4ecdc4;';
-                configBtn.textContent = '⚙️ Configurar disco';
+                configBtn.style.cssText = `
+                    margin-left: auto;
+                    padding: 6px 12px;
+                    background: transparent;
+                    border: 1px solid var(--primary, #0078d4);
+                    color: var(--primary, #0078d4);
+                    border-radius: 6px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    white-space: nowrap;
+                `;
+                configBtn.textContent = '⚙️ Configurar';
+                configBtn.addEventListener('mouseenter', () => {
+                    configBtn.style.background = 'var(--primary, #0078d4)';
+                    configBtn.style.color = '#fff';
+                });
+                configBtn.addEventListener('mouseleave', () => {
+                    configBtn.style.background = 'transparent';
+                    configBtn.style.color = 'var(--primary, #0078d4)';
+                });
                 configBtn.addEventListener('click', () => {
                     // Normalize disk object for showDiskActionModal (same format as /disks/detect)
                     detectedNewDisks = [{
