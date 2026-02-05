@@ -54,6 +54,7 @@ const schedulerRoutes = require('./routes/scheduler');
 const upsRoutes = require('./routes/ups');
 const ddnsRoutes = require('./routes/ddns');
 const activeBackupRoutes = require('./routes/active-backup');
+const cloudSyncRoutes = require('./routes/cloud-sync');
 
 // Import terminal WebSocket handler
 let setupTerminalWebSocket;
@@ -228,6 +229,9 @@ app.use('/api/ddns', ddnsRoutes);
 
 // Active Backup for Business
 app.use('/api/active-backup', activeBackupRoutes);
+
+// Cloud Sync (Syncthing integration)
+app.use('/api/cloud-sync', cloudSyncRoutes);
 
 // =============================================================================
 // SERVER STARTUP

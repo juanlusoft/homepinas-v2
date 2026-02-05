@@ -133,6 +133,7 @@ const viewsMap = {
     'network': 'Gestión de Red',
     'backup': 'Backup y Tareas',
     'active-backup': 'Active Backup',
+    'cloud-sync': 'Cloud Sync',
     'logs': 'Visor de Logs',
     'users': 'Gestión de Usuarios',
     'system': 'System Administration'
@@ -1248,6 +1249,7 @@ async function renderContent(view) {
     }
     else if (view === 'backup') renderBackupView();
     else if (view === 'active-backup') renderActiveBackupView();
+    else if (view === 'cloud-sync') renderCloudSyncView();
     else if (view === 'logs') renderLogsView();
     else if (view === 'users') renderUsersView();
     else if (view === 'system') {
@@ -7014,5 +7016,457 @@ async function buildRecoveryISO() {
     }
 }
 
+// =============================================================================
+// CLOUD SYNC (Syncthing Integration)
+// =============================================================================
+
+async function renderCloudSyncView() {
+    const dashboardContent = document.getElementById('dashboard-content');
+    if (!dashboardContent) return;
+    
+    dashboardContent.innerHTML = `
+        <h2 style="margin-bottom: 20px;">Cloud Sync</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <div id="cloud-sync-status">
+                <h3 style="color: var(--primary);">☁️ Estado de Syncthing</h3>
+                <p>Cargando...</p>
+            </div>
+        </div>
+        <div id="cloud-sync-content"></div>
+    `;
+    
+    await loadCloudSyncStatus();
+}
+
+async function loadCloudSyncStatus() {
+    const statusDiv = document.getElementById('cloud-sync-status');
+    const contentDiv = document.getElementById('cloud-sync-content');
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/status\`);
+        if (!res.ok) throw new Error('Failed to load status');
+        const status = await res.json();
+        
+        if (!status.installed) {
+            // Syncthing not installed
+            statusDiv.innerHTML = \`
+                <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
+                <p style="margin: 15px 0;">Syncthing no está instalado. Instálalo para sincronizar archivos entre tu NAS y otros dispositivos.</p>
+                <button id="install-syncthing-btn" class="btn" style="background: var(--primary); color: #000; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    📦 Instalar Syncthing
+                </button>
+            \`;
+            
+            document.getElementById('install-syncthing-btn')?.addEventListener('click', installSyncthing);
+            contentDiv.innerHTML = '';
+            return;
+        }
+        
+        if (!status.running) {
+            // Syncthing installed but not running
+            statusDiv.innerHTML = \`
+                <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
+                <div style="display: flex; align-items: center; gap: 15px; margin: 15px 0;">
+                    <span style="color: #f59e0b;">⚠️ Syncthing está detenido</span>
+                    <button id="start-syncthing-btn" class="btn" style="background: #10b981; color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;">
+                        ▶️ Iniciar
+                    </button>
+                </div>
+            \`;
+            
+            document.getElementById('start-syncthing-btn')?.addEventListener('click', startSyncthing);
+            contentDiv.innerHTML = '';
+            return;
+        }
+        
+        // Syncthing is running
+        statusDiv.innerHTML = \`
+            <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
+            <div style="display: flex; align-items: center; gap: 20px; margin: 15px 0; flex-wrap: wrap;">
+                <span style="color: #10b981;">● Activo</span>
+                <span style="color: var(--text-dim);">v\${escapeHtml(status.version || 'Unknown')}</span>
+                <span style="color: var(--text-dim);">📁 \${status.folders.length} carpetas</span>
+                <span style="color: var(--text-dim);">📱 \${status.connections} dispositivos conectados</span>
+                <button id="stop-syncthing-btn" class="btn" style="background: #ef4444; color: #fff; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                    ⏹️ Detener
+                </button>
+            </div>
+        \`;
+        
+        document.getElementById('stop-syncthing-btn')?.addEventListener('click', stopSyncthing);
+        
+        // Load folders and devices
+        await renderCloudSyncContent(status);
+        
+    } catch (e) {
+        statusDiv.innerHTML = \`
+            <h3 style="color: var(--primary);">☁️ Cloud Sync</h3>
+            <p style="color: #ef4444;">Error: \${escapeHtml(e.message)}</p>
+        \`;
+    }
+}
+
+async function renderCloudSyncContent(status) {
+    const contentDiv = document.getElementById('cloud-sync-content');
+    
+    // Get device ID for QR
+    let deviceId = status.deviceId || '';
+    
+    contentDiv.innerHTML = \`
+        <!-- Device ID / QR Section -->
+        <div class="card" style="margin-bottom: 20px;">
+            <h3 style="color: var(--secondary); margin-bottom: 15px;">🔗 Vincular Dispositivo</h3>
+            <p style="color: var(--text-dim); margin-bottom: 10px;">Escanea el QR o copia el ID para añadir este NAS en Syncthing de tu PC/móvil:</p>
+            <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+                <div id="qr-code" style="background: #fff; padding: 10px; border-radius: 8px; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center;">
+                    <span style="color: #666; font-size: 0.8rem;">Generando QR...</span>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="color: var(--text-dim); font-size: 0.85rem;">Device ID:</label>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <input type="text" id="device-id-input" value="\${escapeHtml(deviceId)}" readonly 
+                            style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-family: monospace; font-size: 0.75rem;">
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('device-id-input').value); this.textContent='✓ Copiado'; setTimeout(() => this.textContent='📋 Copiar', 2000);" 
+                            style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                            📋 Copiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Folders Section -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: var(--secondary);">📁 Carpetas Sincronizadas</h3>
+                <button id="add-folder-btn" style="padding: 8px 16px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    + Añadir Carpeta
+                </button>
+            </div>
+            <div id="folders-list">
+                \${status.folders.length === 0 ? '<p style="color: var(--text-dim);">No hay carpetas sincronizadas</p>' : ''}
+            </div>
+        </div>
+        
+        <!-- Devices Section -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: var(--secondary);">📱 Dispositivos</h3>
+                <button id="add-device-btn" style="padding: 8px 16px; background: var(--secondary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    + Añadir Dispositivo
+                </button>
+            </div>
+            <div id="devices-list">
+                <p style="color: var(--text-dim);">Cargando dispositivos...</p>
+            </div>
+        </div>
+    \`;
+    
+    // Generate QR code
+    generateQRCode(deviceId);
+    
+    // Render folders
+    renderFoldersList(status.folders);
+    
+    // Load and render devices
+    await loadDevicesList();
+    
+    // Event listeners
+    document.getElementById('add-folder-btn')?.addEventListener('click', showAddFolderModal);
+    document.getElementById('add-device-btn')?.addEventListener('click', showAddDeviceModal);
+}
+
+function generateQRCode(deviceId) {
+    const qrDiv = document.getElementById('qr-code');
+    if (!qrDiv || !deviceId) return;
+    
+    // Use a simple QR code API (or implement locally)
+    const qrUrl = \`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=\${encodeURIComponent(deviceId)}\`;
+    qrDiv.innerHTML = \`<img src="\${qrUrl}" alt="QR Code" style="width: 130px; height: 130px;">\`;
+}
+
+function renderFoldersList(folders) {
+    const listDiv = document.getElementById('folders-list');
+    if (!listDiv) return;
+    
+    if (folders.length === 0) {
+        listDiv.innerHTML = '<p style="color: var(--text-dim);">No hay carpetas sincronizadas. Añade una carpeta para empezar.</p>';
+        return;
+    }
+    
+    listDiv.innerHTML = folders.map(f => \`
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px;">
+            <div>
+                <div style="font-weight: 600; color: var(--text);">📁 \${escapeHtml(f.label)}</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim);">\${escapeHtml(f.path)}</div>
+                <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 5px;">
+                    \${f.paused ? '<span style="color: #f59e0b;">⏸️ Pausada</span>' : '<span style="color: #10b981;">● Sincronizando</span>'}
+                    · \${f.devices} dispositivo(s)
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="deleteFolder('\${escapeHtml(f.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                    🗑️
+                </button>
+            </div>
+        </div>
+    \`).join('');
+}
+
+async function loadDevicesList() {
+    const listDiv = document.getElementById('devices-list');
+    if (!listDiv) return;
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/devices\`);
+        if (!res.ok) throw new Error('Failed to load devices');
+        const devices = await res.json();
+        
+        if (devices.length === 0) {
+            listDiv.innerHTML = '<p style="color: var(--text-dim);">No hay dispositivos vinculados. Añade el Device ID de tu PC o móvil.</p>';
+            return;
+        }
+        
+        listDiv.innerHTML = devices.map(d => \`
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: 600; color: var(--text);">
+                        \${d.connected ? '🟢' : '⚪'} \${escapeHtml(d.name)}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim); font-family: monospace;">
+                        \${escapeHtml(d.id.substring(0, 20))}...
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 3px;">
+                        \${d.connected ? \`📍 \${escapeHtml(d.address || 'Unknown')}\` : 'Desconectado'}
+                    </div>
+                </div>
+                <button onclick="deleteDevice('\${escapeHtml(d.id)}')" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                    🗑️
+                </button>
+            </div>
+        \`).join('');
+    } catch (e) {
+        listDiv.innerHTML = \`<p style="color: #ef4444;">Error: \${escapeHtml(e.message)}</p>\`;
+    }
+}
+
+async function installSyncthing() {
+    if (!confirm('¿Instalar Syncthing? Esto puede tardar unos minutos.')) return;
+    
+    const btn = document.getElementById('install-syncthing-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Instalando...';
+    }
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/install\`, { method: 'POST' });
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'Installation failed');
+        }
+        
+        showNotification('Syncthing instalado correctamente', 'success');
+        await loadCloudSyncStatus();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📦 Instalar Syncthing';
+        }
+    }
+}
+
+async function startSyncthing() {
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/start\`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to start');
+        
+        showNotification('Syncthing iniciado', 'success');
+        setTimeout(loadCloudSyncStatus, 2000);
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
+}
+
+async function stopSyncthing() {
+    if (!confirm('¿Detener Syncthing? La sincronización se pausará.')) return;
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/stop\`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to stop');
+        
+        showNotification('Syncthing detenido', 'success');
+        await loadCloudSyncStatus();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
+}
+
+function showAddFolderModal() {
+    const modal = document.createElement('div');
+    modal.id = 'add-folder-modal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+    modal.innerHTML = \`
+        <div style="background: #1a1a2e; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px;">
+            <h3 style="color: var(--primary); margin-bottom: 20px;">📁 Añadir Carpeta Sincronizada</h3>
+            <div style="margin-bottom: 15px;">
+                <label style="color: var(--text-dim); font-size: 0.9rem;">Ruta (relativa a /mnt/storage):</label>
+                <input type="text" id="folder-path" placeholder="ej: Documents, Photos, Backup" 
+                    style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="color: var(--text-dim); font-size: 0.9rem;">Nombre (opcional):</label>
+                <input type="text" id="folder-label" placeholder="Nombre para mostrar"
+                    style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="document.getElementById('add-folder-modal').remove();" 
+                    style="padding: 10px 20px; background: #666; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                    Cancelar
+                </button>
+                <button onclick="addFolder();" 
+                    style="padding: 10px 20px; background: var(--primary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Añadir
+                </button>
+            </div>
+        </div>
+    \`;
+    document.body.appendChild(modal);
+    document.getElementById('folder-path').focus();
+}
+
+async function addFolder() {
+    const path = document.getElementById('folder-path')?.value.trim();
+    const label = document.getElementById('folder-label')?.value.trim();
+    
+    if (!path) {
+        showNotification('La ruta es obligatoria', 'error');
+        return;
+    }
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/folders\`, {
+            method: 'POST',
+            body: JSON.stringify({ path, label })
+        });
+        
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'Failed to add folder');
+        }
+        
+        document.getElementById('add-folder-modal')?.remove();
+        showNotification('Carpeta añadida', 'success');
+        await loadCloudSyncStatus();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
+}
+
+async function deleteFolder(folderId) {
+    if (!confirm('¿Eliminar esta carpeta de la sincronización? Los archivos no se borrarán.')) return;
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/folders/\${encodeURIComponent(folderId)}\`, {
+            method: 'DELETE'
+        });
+        
+        if (!res.ok) throw new Error('Failed to delete');
+        
+        showNotification('Carpeta eliminada', 'success');
+        await loadCloudSyncStatus();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
+}
+
+function showAddDeviceModal() {
+    const modal = document.createElement('div');
+    modal.id = 'add-device-modal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+    modal.innerHTML = \`
+        <div style="background: #1a1a2e; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px;">
+            <h3 style="color: var(--secondary); margin-bottom: 20px;">📱 Añadir Dispositivo</h3>
+            <p style="color: var(--text-dim); margin-bottom: 15px; font-size: 0.9rem;">
+                Copia el Device ID de Syncthing desde tu PC o móvil (Ajustes → Mostrar ID).
+            </p>
+            <div style="margin-bottom: 15px;">
+                <label style="color: var(--text-dim); font-size: 0.9rem;">Device ID:</label>
+                <input type="text" id="device-id" placeholder="XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX"
+                    style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-family: monospace; font-size: 0.8rem;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="color: var(--text-dim); font-size: 0.9rem;">Nombre:</label>
+                <input type="text" id="device-name" placeholder="Mi PC, iPhone, etc."
+                    style="width: 100%; padding: 12px; margin-top: 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="document.getElementById('add-device-modal').remove();" 
+                    style="padding: 10px 20px; background: #666; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+                    Cancelar
+                </button>
+                <button onclick="addDevice();" 
+                    style="padding: 10px 20px; background: var(--secondary); color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Añadir
+                </button>
+            </div>
+        </div>
+    \`;
+    document.body.appendChild(modal);
+    document.getElementById('device-id').focus();
+}
+
+async function addDevice() {
+    const deviceId = document.getElementById('device-id')?.value.trim().toUpperCase();
+    const name = document.getElementById('device-name')?.value.trim();
+    
+    if (!deviceId) {
+        showNotification('El Device ID es obligatorio', 'error');
+        return;
+    }
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/devices\`, {
+            method: 'POST',
+            body: JSON.stringify({ deviceId, name: name || 'New Device' })
+        });
+        
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'Failed to add device');
+        }
+        
+        document.getElementById('add-device-modal')?.remove();
+        showNotification('Dispositivo añadido', 'success');
+        await loadDevicesList();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
+}
+
+async function deleteDevice(deviceId) {
+    if (!confirm('¿Eliminar este dispositivo? Se dejará de sincronizar con él.')) return;
+    
+    try {
+        const res = await authFetch(\`\${API_BASE}/cloud-sync/devices/\${encodeURIComponent(deviceId)}\`, {
+            method: 'DELETE'
+        });
+        
+        if (!res.ok) throw new Error('Failed to delete');
+        
+        showNotification('Dispositivo eliminado', 'success');
+        await loadDevicesList();
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    }
+}
+
+// Expose functions globally for onclick handlers
+window.deleteFolder = deleteFolder;
+window.deleteDevice = deleteDevice;
+window.addFolder = addFolder;
+window.addDevice = addDevice;
+
 init();
-console.log("HomePiNAS Core v2.4.0 Loaded - Active Backup + Recovery USB");
+console.log("HomePiNAS Core v2.5.0 Loaded - Cloud Sync");
