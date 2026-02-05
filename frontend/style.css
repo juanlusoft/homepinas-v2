@@ -2042,7 +2042,7 @@ input:checked+.slider:before {
 
 .terminal-container {
     flex: 1;
-    background: #0d0d0d;
+    background: #1a1a2e;
     padding: 10px;
     overflow: hidden;
 }

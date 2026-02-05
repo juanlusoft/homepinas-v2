@@ -3347,10 +3347,28 @@ function openTerminal(command = 'bash', title = 'Terminal') {
             fontSize: 14,
             fontFamily: '"Fira Code", "Monaco", "Consolas", monospace',
             theme: {
-                background: '#0d0d0d',
-                foreground: '#e5e5e5',
+                background: '#1a1a2e',
+                foreground: '#ffffff',
                 cursor: '#84cc16',
-                selection: 'rgba(132, 204, 22, 0.3)'
+                cursorAccent: '#1a1a2e',
+                selection: 'rgba(132, 204, 22, 0.3)',
+                // ANSI colors - brighter versions for dark background
+                black: '#3a3a4a',
+                red: '#ff6b6b',
+                green: '#69ff94',
+                yellow: '#fff56d',
+                blue: '#6eb5ff',
+                magenta: '#ff77ff',
+                cyan: '#6ef5ff',
+                white: '#ffffff',
+                brightBlack: '#666677',
+                brightRed: '#ff8080',
+                brightGreen: '#8affaa',
+                brightYellow: '#ffff88',
+                brightBlue: '#88ccff',
+                brightMagenta: '#ff99ff',
+                brightCyan: '#88ffff',
+                brightWhite: '#ffffff'
             },
             scrollback: 5000
         });
