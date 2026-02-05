@@ -553,6 +553,8 @@ router.get('/disks/detect', requireAuth, async (req, res) => {
         for (const dev of devices) {
             // Skip non-disk devices (loop, rom, etc)
             if (dev.type !== 'disk') continue;
+            // Skip virtual/RAM disks
+            if (dev.name.startsWith('zram') || dev.name.startsWith('ram') || dev.name.startsWith('loop')) continue;
             // Skip small devices (<1GB, likely USB sticks or boot media)
             if (dev.size < 1000000000) continue;
             // Skip mmcblk (SD card, usually boot)
