@@ -3689,15 +3689,31 @@ let fmCurrentFiles = []; // current loaded file list for reference
 let fmClipboard = { action: null, files: [] }; // { action: 'copy'|'cut', files: [{path, name}] }
 
 async function renderFilesView() {
-    const container = document.createElement('div');
-    container.className = 'files-container';
-    container.style.cssText = 'display: contents;';
-
-    // ── Toolbar ──
+    // ══════════════════════════════════════════════════════════════════════════
+    // FILE MANAGER - SYNOLOGY STYLE LAYOUT
+    // ══════════════════════════════════════════════════════════════════════════
+    
+    // Main layout container
+    const layout = document.createElement('div');
+    layout.className = 'fm-layout';
+    
+    // ── LEFT SIDEBAR: Folder Tree ──
+    const sidebar = document.createElement('div');
+    sidebar.className = 'fm-sidebar';
+    sidebar.innerHTML = `
+        <div class="fm-sidebar-header">📂 Carpetas</div>
+        <div class="fm-tree" id="fm-tree"></div>
+    `;
+    layout.appendChild(sidebar);
+    
+    // ── RIGHT PANEL: Main Content ──
+    const main = document.createElement('div');
+    main.className = 'fm-main';
+    
+    // Toolbar
     const toolbar = document.createElement('div');
-    toolbar.className = 'glass-card fm-toolbar';
-    toolbar.innerHTML = '';
-
+    toolbar.className = 'fm-main-toolbar';
+    
     // Row 1: breadcrumb + actions
     const toolbarRow1 = document.createElement('div');
     toolbarRow1.className = 'fm-toolbar-row';
@@ -3786,11 +3802,11 @@ async function renderFilesView() {
         toolbar.appendChild(pasteBar);
     }
 
-    container.appendChild(toolbar);
-
-    // ── Upload progress bar ──
+    main.appendChild(toolbar);
+    
+    // Upload progress bar
     const uploadProgress = document.createElement('div');
-    uploadProgress.className = 'glass-card fm-upload-progress';
+    uploadProgress.className = 'fm-upload-progress';
     uploadProgress.id = 'fm-upload-progress';
     uploadProgress.style.display = 'none';
     uploadProgress.innerHTML = `
@@ -3802,9 +3818,14 @@ async function renderFilesView() {
             <div class="fm-progress-fill" id="fm-progress-fill" style="width: 0%"></div>
         </div>
     `;
-    container.appendChild(uploadProgress);
+    main.appendChild(uploadProgress);
 
-    // ── Drag & drop overlay ──
+    // Main content area (files list)
+    const content = document.createElement('div');
+    content.className = 'fm-main-content';
+    content.id = 'fm-main-content';
+    
+    // Drag & drop overlay
     const dropZone = document.createElement('div');
     dropZone.className = 'fm-drop-zone';
     dropZone.id = 'fm-drop-zone';
@@ -3816,15 +3837,10 @@ async function renderFilesView() {
                 <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             <p style="margin-top: 12px; font-size: 1.1rem; font-weight: 600;">Suelta los archivos aquí</p>
-            <p style="font-size: 0.85rem; color: var(--text-dim);">Se subirán a <strong>${currentFilePath}</strong></p>
+            <p style="font-size: 0.85rem; color: var(--text-dim);">Se subirán a <strong>${escapeHtml(currentFilePath)}</strong></p>
         </div>
     `;
-    container.appendChild(dropZone);
-
-    // ── File list card ──
-    const listCard = document.createElement('div');
-    listCard.className = 'glass-card fm-list-card';
-    listCard.id = 'files-list-card';
+    content.appendChild(dropZone);
 
     // Table header (only for list view)
     if (fmViewMode === 'list') {
@@ -3839,19 +3855,20 @@ async function renderFilesView() {
             <span class="fm-hide-mobile">Permisos</span>
             <span></span>
         `;
-        listCard.appendChild(tableHeader);
+        content.appendChild(tableHeader);
     }
 
     const filesList = document.createElement('div');
     filesList.id = 'files-list';
     filesList.className = fmViewMode === 'grid' ? 'fm-grid' : 'fm-list';
-    listCard.appendChild(filesList);
+    content.appendChild(filesList);
 
-    container.appendChild(listCard);
-    dashboardContent.appendChild(container);
+    main.appendChild(content);
+    layout.appendChild(main);
+    dashboardContent.appendChild(layout);
 
     // ── Setup drag & drop ──
-    fmSetupDragDrop(container);
+    fmSetupDragDrop(layout);
 
     // Hidden file input
     let fileInput = document.getElementById('file-upload-input');
@@ -3866,7 +3883,119 @@ async function renderFilesView() {
     }
 
     fmSelectedFiles.clear();
-    await loadFiles(currentFilePath);
+    
+    // Load folder tree and files in parallel
+    await Promise.all([
+        loadFolderTree(),
+        loadFiles(currentFilePath)
+    ]);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FOLDER TREE (Synology-style sidebar)
+// ══════════════════════════════════════════════════════════════════════════════
+let fmExpandedFolders = new Set(['/']);
+
+async function loadFolderTree() {
+    const treeContainer = document.getElementById('fm-tree');
+    if (!treeContainer) return;
+    
+    treeContainer.innerHTML = '<div style="padding: 12px; color: var(--text-dim);">Cargando...</div>';
+    
+    try {
+        // Build tree starting from root
+        const tree = await buildFolderTree('/');
+        treeContainer.innerHTML = '';
+        renderFolderTree(treeContainer, tree, 0);
+    } catch (e) {
+        treeContainer.innerHTML = '<div style="padding: 12px; color: #ef4444;">Error al cargar</div>';
+    }
+}
+
+async function buildFolderTree(path) {
+    try {
+        const res = await authFetch(`${API_BASE}/files/list?path=${encodeURIComponent(path)}`);
+        if (!res.ok) return { name: path.split('/').pop() || 'Raíz', path, children: [] };
+        const data = await res.json();
+        
+        const folders = (data.files || [])
+            .filter(f => f.isDirectory)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(f => ({
+                name: f.name,
+                path: path === '/' ? '/' + f.name : path + '/' + f.name,
+                children: null // Lazy load
+            }));
+        
+        return {
+            name: path === '/' ? 'Raíz' : path.split('/').pop(),
+            path,
+            children: folders
+        };
+    } catch (e) {
+        return { name: path.split('/').pop() || 'Raíz', path, children: [] };
+    }
+}
+
+function renderFolderTree(container, node, level) {
+    const item = document.createElement('div');
+    item.className = 'fm-tree-item' + (currentFilePath === node.path ? ' active' : '');
+    item.style.paddingLeft = (12 + level * 16) + 'px';
+    
+    const hasChildren = node.children && node.children.length > 0;
+    const isExpanded = fmExpandedFolders.has(node.path);
+    
+    // Expand/collapse arrow
+    const expandBtn = document.createElement('span');
+    expandBtn.className = 'fm-tree-expand' + (isExpanded ? ' expanded' : '');
+    expandBtn.innerHTML = hasChildren ? '▶' : '';
+    expandBtn.style.visibility = hasChildren ? 'visible' : 'hidden';
+    
+    // Folder icon
+    const icon = document.createElement('span');
+    icon.className = 'fm-tree-icon';
+    icon.textContent = isExpanded && hasChildren ? '📂' : '📁';
+    
+    // Folder name
+    const name = document.createElement('span');
+    name.textContent = node.name;
+    name.style.overflow = 'hidden';
+    name.style.textOverflow = 'ellipsis';
+    
+    item.appendChild(expandBtn);
+    item.appendChild(icon);
+    item.appendChild(name);
+    
+    // Click to navigate
+    item.addEventListener('click', async (e) => {
+        if (e.target === expandBtn || e.target.closest('.fm-tree-expand')) {
+            // Toggle expand/collapse
+            e.stopPropagation();
+            if (isExpanded) {
+                fmExpandedFolders.delete(node.path);
+            } else {
+                fmExpandedFolders.add(node.path);
+            }
+            await loadFolderTree();
+        } else {
+            // Navigate to folder
+            currentFilePath = node.path;
+            fmExpandedFolders.add(node.path);
+            await renderFilesView();
+        }
+    });
+    
+    container.appendChild(item);
+    
+    // Render children if expanded
+    if (hasChildren && isExpanded) {
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'fm-tree-children';
+        node.children.forEach(child => {
+            renderFolderTree(childrenContainer, child, level + 1);
+        });
+        container.appendChild(childrenContainer);
+    }
 }
 
 // ── Breadcrumb ──
