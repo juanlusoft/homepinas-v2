@@ -905,49 +905,131 @@ async function getNextDiskIndex() {
 // Helper: Add disk to MergerFS pool (hot add)
 async function addDiskToMergerFS(mountPoint, role) {
     try {
-        // Get current mergerfs mount options
-        const mounts = execSync('mount | grep mergerfs', { encoding: 'utf8' });
-        if (!mounts) {
-            throw new Error('MergerFS not running');
-        }
-
-        // Parse current source paths from mount
-        const match = mounts.match(/^(.+?) on \/mnt\/storage type fuse\.mergerfs/);
-        if (!match) {
-            throw new Error('Could not parse MergerFS mount');
-        }
-
-        const currentSources = match[1];
+        // Check if MergerFS is currently mounted
+        let currentSources = '';
+        let isMounted = false;
         
-        // For hot-add, we need to remount with the new path included
-        // Cache disks go first for write prioritization
+        try {
+            const mounts = execSync('mount | grep mergerfs', { encoding: 'utf8' }).trim();
+            if (mounts) {
+                isMounted = true;
+                const match = mounts.match(/^(.+?) on \/mnt\/storage type fuse\.mergerfs/);
+                if (match) {
+                    currentSources = match[1];
+                }
+            }
+        } catch (e) {
+            // MergerFS not mounted, that's OK
+            isMounted = false;
+        }
+
+        // Build new sources list
         let newSources;
-        if (role === 'cache') {
-            newSources = `${mountPoint}:${currentSources}`;
+        if (currentSources) {
+            // Add to existing sources
+            if (role === 'cache') {
+                newSources = `${mountPoint}:${currentSources}`;
+            } else {
+                newSources = `${currentSources}:${mountPoint}`;
+            }
         } else {
-            newSources = `${currentSources}:${mountPoint}`;
+            // First disk in pool or MergerFS not running
+            // Scan for all mounted data disks in /mnt/disks
+            const diskDirs = fs.readdirSync(STORAGE_MOUNT_BASE)
+                .filter(d => d.startsWith('disk'))
+                .map(d => `${STORAGE_MOUNT_BASE}/${d}`)
+                .filter(p => {
+                    try {
+                        // Check if it's a mount point (has something mounted)
+                        const stat = execSync(`mountpoint -q ${escapeShellArg(p)} && echo yes || echo no`, { encoding: 'utf8' }).trim();
+                        return stat === 'yes';
+                    } catch {
+                        return false;
+                    }
+                });
+            
+            // Include the new mount point if not already in list
+            if (!diskDirs.includes(mountPoint)) {
+                diskDirs.push(mountPoint);
+            }
+            
+            if (diskDirs.length === 0) {
+                throw new Error('No disks available for pool');
+            }
+            
+            newSources = diskDirs.join(':');
         }
 
-        // Remount MergerFS with new source
-        execSync(`sudo umount ${POOL_MOUNT}`, { encoding: 'utf8' });
-        
+        // Unmount if currently mounted
+        if (isMounted) {
+            try {
+                execSync(`sudo umount ${POOL_MOUNT}`, { encoding: 'utf8' });
+            } catch (e) {
+                console.error('Failed to unmount MergerFS:', e.message);
+                // Try lazy unmount
+                try {
+                    execSync(`sudo umount -l ${POOL_MOUNT}`, { encoding: 'utf8' });
+                } catch (e2) {
+                    throw new Error('Cannot unmount MergerFS pool. Files may be in use.');
+                }
+            }
+        }
+
+        // Create pool mount point if needed
+        if (!fs.existsSync(POOL_MOUNT)) {
+            execSync(`sudo mkdir -p ${POOL_MOUNT}`, { encoding: 'utf8' });
+        }
+
         // Determine policy
         const hasCache = newSources.includes('cache') || role === 'cache';
         const policy = hasCache ? 'lfs' : 'mfs';
         
+        // Mount MergerFS
         execSync(
-            `sudo mergerfs -o defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=${policy},moveonenospc=true ${escapeShellArg(newSources)} ${POOL_MOUNT}`,
+            `sudo mergerfs -o defaults,allow_other,nonempty,use_ino,cache.files=partial,dropcacheonclose=true,category.create=${policy},moveonenospc=true,nofail ${escapeShellArg(newSources)} ${POOL_MOUNT}`,
             { encoding: 'utf8' }
         );
 
-        // Update fstab for mergerfs line
-        // This is a bit complex, so we'll leave the existing line and trust the next reboot
-        // A full implementation would update the mergerfs fstab entry here
+        // Update fstab for MergerFS
+        updateMergerFSFstab(newSources, policy);
 
         return true;
     } catch (e) {
-        console.error('MergerFS hot-add failed:', e);
+        console.error('MergerFS add disk failed:', e);
         throw e;
+    }
+}
+
+// Update MergerFS line in fstab
+function updateMergerFSFstab(sources, policy = 'mfs') {
+    try {
+        const fstabPath = '/etc/fstab';
+        let fstab = fs.readFileSync(fstabPath, 'utf8');
+        
+        // New MergerFS fstab entry
+        const newEntry = `${sources} ${POOL_MOUNT} fuse.mergerfs defaults,allow_other,nonempty,use_ino,cache.files=partial,dropcacheonclose=true,category.create=${policy},moveonenospc=true,nofail 0 0`;
+        
+        // Check if MergerFS entry exists
+        const mergerfsRegex = /^.*\/mnt\/storage\s+fuse\.mergerfs.*$/gm;
+        
+        if (fstab.match(mergerfsRegex)) {
+            // Replace existing entry
+            fstab = fstab.replace(mergerfsRegex, `# HomePiNAS MergerFS Pool\n${newEntry}`);
+        } else {
+            // Add new entry
+            fstab += `\n# HomePiNAS MergerFS Pool\n${newEntry}\n`;
+        }
+        
+        // Write to temp file and copy (for safety)
+        const tempFile = `/tmp/fstab-mergerfs-${Date.now()}`;
+        fs.writeFileSync(tempFile, fstab);
+        execSync(`sudo cp ${escapeShellArg(tempFile)} ${fstabPath}`, { encoding: 'utf8' });
+        fs.unlinkSync(tempFile);
+        
+        console.log('Updated MergerFS fstab entry:', newEntry);
+    } catch (e) {
+        console.error('Failed to update MergerFS fstab:', e);
+        // Don't throw - the mount worked, fstab is just for persistence
     }
 }
 
