@@ -7398,8 +7398,54 @@ async function addFolder() {
     }
 }
 
+// Custom confirm modal (replaces native confirm() which has issues in some contexts)
+function showConfirmModal(title, message) {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.id = 'confirm-modal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+        modal.innerHTML = `
+            <div style="background: #1a1a2e; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center;">
+                <h3 style="color: #ef4444; margin-bottom: 15px;">⚠️ ${escapeHtml(title)}</h3>
+                <p style="color: #ccc; margin-bottom: 25px;">${escapeHtml(message)}</p>
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button id="confirm-cancel-btn" style="padding: 12px 24px; background: #666; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem;">
+                        Cancelar
+                    </button>
+                    <button id="confirm-ok-btn" style="padding: 12px 24px; background: #ef4444; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600;">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+            modal.remove();
+            resolve(false);
+        });
+        document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+            modal.remove();
+            resolve(true);
+        });
+        
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+                resolve(false);
+            }
+        });
+    });
+}
+
 async function deleteFolder(folderId) {
-    if (!confirm('¿Eliminar esta carpeta de la sincronización? Los archivos no se borrarán.')) return;
+    // Use custom modal instead of confirm() which has issues in some contexts
+    const confirmed = await showConfirmModal(
+        '¿Eliminar carpeta?',
+        'La carpeta se eliminará de la sincronización. Los archivos no se borrarán del disco.'
+    );
+    if (!confirmed) return;
     
     try {
         const res = await authFetch(`${API_BASE}/cloud-sync/folders/${encodeURIComponent(folderId)}`, {
