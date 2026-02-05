@@ -7447,17 +7447,33 @@ async function deleteFolder(folderId) {
     );
     if (!confirmed) return;
     
+    // Show loading state
+    const foldersList = document.getElementById('folders-list');
+    if (foldersList) {
+        foldersList.style.opacity = '0.5';
+        foldersList.style.pointerEvents = 'none';
+    }
+    
     try {
         const res = await authFetch(`${API_BASE}/cloud-sync/folders/${encodeURIComponent(folderId)}`, {
             method: 'DELETE'
         });
         
-        if (!res.ok) throw new Error('Failed to delete');
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to delete');
+        }
         
         showNotification('Carpeta eliminada', 'success');
-        await loadCloudSyncStatus();
+        // Force full re-render of Cloud Sync view
+        await renderCloudSyncView();
     } catch (e) {
         showNotification('Error: ' + e.message, 'error');
+        // Restore state on error
+        if (foldersList) {
+            foldersList.style.opacity = '1';
+            foldersList.style.pointerEvents = 'auto';
+        }
     }
 }
 
