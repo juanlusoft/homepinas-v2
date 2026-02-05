@@ -223,15 +223,24 @@ async function initAuth() {
         // If we have a session, try to validate it
         if (state.sessionId && state.user && state.storageConfig.length > 0) {
             state.isAuthenticated = true;
-            switchView('dashboard');
-
-            // Check URL and navigate to correct view
+            
+            // Check URL first to avoid rendering dashboard then immediately re-rendering
             const urlPath = window.location.pathname;
-            if (urlPath && urlPath !== '/' && urlPath !== '/login' && urlPath !== '/setup') {
-                const urlView = getViewFromPath(urlPath);
-                if (urlView !== 'dashboard') {
-                    handleRouteChange();
-                }
+            const urlView = getViewFromPath(urlPath);
+            
+            // Switch to dashboard view (CSS) but skip auto-render - we'll render the correct view below
+            switchView('dashboard', true);
+            
+            // Render the correct view based on URL
+            if (urlView !== 'dashboard' && urlPath && urlPath !== '/' && urlPath !== '/login' && urlPath !== '/setup') {
+                // Update sidebar to highlight correct nav item
+                navLinks.forEach(link => {
+                    link.classList.toggle('active', link.dataset.view === urlView);
+                });
+                if (viewTitle) viewTitle.textContent = viewsMap[urlView] || 'HomePiNAS';
+                await renderContent(urlView);
+            } else {
+                await renderContent('dashboard');
             }
         } else if (state.user && state.storageConfig.length > 0) {
             switchView('login');
@@ -706,11 +715,12 @@ function startDiskDetectionPolling() {
 }
 
 // Router / View Switcher
-function switchView(viewName) {
+// skipRender=true when caller will handle rendering separately (e.g. initAuth with URL routing)
+function switchView(viewName, skipRender = false) {
     Object.values(views).forEach(v => v.classList.remove('active'));
     if (views[viewName]) {
         views[viewName].classList.add('active');
-        if (viewName === 'dashboard') renderContent('dashboard');
+        if (viewName === 'dashboard' && !skipRender) renderContent('dashboard');
         // Update username display
         const usernameEl = document.getElementById("username-display");
         if (usernameEl && state.user) usernameEl.textContent = state.user.username || "Admin";
@@ -1236,24 +1246,24 @@ navLinks.forEach(link => {
 async function renderContent(view) {
     state.currentView = view;
     dashboardContent.innerHTML = '';
-    if (view === 'dashboard') renderDashboard();
-    else if (view === 'docker') renderDockerManager();
-    else if (view === 'storage') renderStorageDashboard();
-    else if (view === 'files') renderFilesView();
-    else if (view === 'terminal') renderTerminalView();
+    if (view === 'dashboard') await renderDashboard();
+    else if (view === 'docker') await renderDockerManager();
+    else if (view === 'storage') await renderStorageDashboard();
+    else if (view === 'files') await renderFilesView();
+    else if (view === 'terminal') await renderTerminalView();
     else if (view === 'network') {
         await renderNetworkManager();
         // Append Samba + DDNS sections after network interfaces
         await renderSambaSection(dashboardContent);
         await renderDDNSSection(dashboardContent);
     }
-    else if (view === 'backup') renderBackupView();
-    else if (view === 'active-backup') renderActiveBackupView();
-    else if (view === 'cloud-sync') renderCloudSyncView();
-    else if (view === 'logs') renderLogsView();
-    else if (view === 'users') renderUsersView();
+    else if (view === 'backup') await renderBackupView();
+    else if (view === 'active-backup') await renderActiveBackupView();
+    else if (view === 'cloud-sync') await renderCloudSyncView();
+    else if (view === 'logs') await renderLogsView();
+    else if (view === 'users') await renderUsersView();
     else if (view === 'system') {
-        renderSystemView();
+        await renderSystemView();
         // Append UPS + Notifications after system view
         setTimeout(async () => {
             await renderUPSSection(dashboardContent);
