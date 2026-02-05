@@ -721,9 +721,11 @@ function switchView(viewName, skipRender = false) {
     if (views[viewName]) {
         views[viewName].classList.add('active');
         if (viewName === 'dashboard' && !skipRender) renderContent('dashboard');
-        // Update username display
-        const usernameEl = document.getElementById("username-display");
-        if (usernameEl && state.user) usernameEl.textContent = state.user.username || "Admin";
+        // Update username display and avatar
+        if (state.user) {
+            state.username = state.user.username || "Admin";
+            if (typeof updateUserAvatar === 'function') updateUserAvatar();
+        }
     }
     updateHeaderIPVisibility();
 }
@@ -1225,10 +1227,12 @@ if (loginForm) {
     });
 }
 
-// Navigation
-navLinks.forEach(link => {
+// Navigation - supports multiple nav-links groups (Synology-style layout)
+const allNavLinks = document.querySelectorAll('.nav-links li[data-view]');
+allNavLinks.forEach(link => {
     link.addEventListener('click', () => {
-        navLinks.forEach(l => l.classList.remove('active'));
+        // Remove active from ALL nav items across all groups
+        allNavLinks.forEach(l => l.classList.remove('active'));
         link.classList.add('active');
         const view = link.dataset.view;
 
@@ -1241,6 +1245,55 @@ navLinks.forEach(link => {
         updateHeaderIPVisibility();
     });
 });
+
+// Sidebar Toggle (Synology-style)
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const mainSidebar = document.getElementById('main-sidebar');
+const mainContent = document.getElementById('main-content');
+
+if (sidebarToggle && mainSidebar) {
+    sidebarToggle.addEventListener('click', () => {
+        mainSidebar.classList.toggle('collapsed');
+        if (mainContent) mainContent.classList.toggle('sidebar-collapsed');
+        // Save preference
+        localStorage.setItem('sidebarCollapsed', mainSidebar.classList.contains('collapsed'));
+    });
+    
+    // Restore preference
+    if (localStorage.getItem('sidebarCollapsed') === 'true') {
+        mainSidebar.classList.add('collapsed');
+        if (mainContent) mainContent.classList.add('sidebar-collapsed');
+    }
+}
+
+// Header theme toggle
+const headerThemeToggle = document.getElementById('header-theme-toggle');
+if (headerThemeToggle) {
+    headerThemeToggle.addEventListener('click', () => {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        headerThemeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+    });
+    
+    // Set initial icon
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    headerThemeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+}
+
+// Update user avatar letter
+function updateUserAvatar() {
+    const avatarEl = document.getElementById('user-avatar-letter');
+    const usernameEl = document.getElementById('username-display');
+    if (avatarEl && state.username) {
+        avatarEl.textContent = state.username.charAt(0).toUpperCase();
+    }
+    if (usernameEl && state.username) {
+        usernameEl.textContent = state.username;
+    }
+}
 
 async function renderContent(view) {
     state.currentView = view;

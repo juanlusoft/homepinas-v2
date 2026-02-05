@@ -1,74 +1,88 @@
 :root {
-    /* HomeLabs Brand Colors - Always the same */
-    --primary: #84cc16;              /* Verde Lima */
-    --primary-glow: rgba(132, 204, 22, 0.4);
-    --accent-cyan: #06b6d4;          /* Cian */
-    --accent-cyan-glow: rgba(6, 182, 212, 0.4);
-    --font-main: 'Outfit', sans-serif;
+    /* HomePiNAS Brand Colors - Synology-inspired */
+    --primary: #0078d4;              /* Azul Synology */
+    --primary-hover: #106ebe;
+    --primary-glow: rgba(0, 120, 212, 0.3);
+    --accent-cyan: #0078d4;          /* Mismo azul para consistencia */
+    --accent-cyan-glow: rgba(0, 120, 212, 0.3);
+    --success: #28a745;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* ========== LIGHT MODE (Default) ========== */
+/* ========== LIGHT MODE (Default) - Synology Style ========== */
 [data-theme="light"], :root {
-    --bg-main: #f8f9fa;              /* Fondo principal */
+    --bg-main: #f4f4f5;              /* Fondo gris claro Synology */
     --bg-surface: #ffffff;           /* Superficies/tarjetas */
-    --sidebar-bg: #1f2937;           /* Sidebar oscuro */
-    --sidebar-hover: #374151;
-    --sidebar-text: rgba(255, 255, 255, 0.6);
-    --sidebar-text-active: #84cc16;
+    --header-bg: #ffffff;            /* Header blanco */
+    --header-border: #e5e7eb;
+    --sidebar-bg: #2c3e50;           /* Sidebar azul-gris oscuro */
+    --sidebar-hover: #34495e;
+    --sidebar-text: rgba(255, 255, 255, 0.7);
+    --sidebar-text-active: #ffffff;
+    --sidebar-active-bg: rgba(0, 120, 212, 0.9);
 
-    --text-primary: #1f2937;         /* Texto principal */
-    --text-secondary: #6b7280;       /* Texto secundario */
+    --text-primary: #333333;         /* Texto principal oscuro */
+    --text-secondary: #666666;       /* Texto secundario */
     --text-on-sidebar: #ffffff;
 
     --card-bg: #ffffff;
-    --card-border: #e5e7eb;
-    --card-shadow: rgba(0, 0, 0, 0.08);
-    --hover-bg: rgba(0, 0, 0, 0.04);
-    --active-bg: rgba(0, 0, 0, 0.06);
+    --card-border: #e0e0e0;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --hover-bg: #f5f5f5;
+    --active-bg: #ebebeb;
 
-    --input-bg: transparent;
-    --input-border: #374151;
-    --input-text: #1f2937;
+    --input-bg: #ffffff;
+    --input-border: #d0d0d0;
+    --input-text: #333333;
 
-    /* Legacy */
-    --bg-dark: #1f2937;
-    --glass-bg: rgba(255, 255, 255, 0.95);
-    --glass-border: #e5e7eb;
+    /* Legacy compatibility */
+    --bg-dark: #2c3e50;
+    --glass-bg: #ffffff;
+    --glass-border: #e0e0e0;
     --text-dark: var(--text-primary);
     --text-dim: var(--text-secondary);
     --text-white: #ffffff;
+    --text: var(--text-primary);
+    --secondary: var(--primary);
 }
 
 /* ========== DARK MODE ========== */
 [data-theme="dark"] {
-    --bg-main: #0a0a0a;              /* Negro mate - fondo principal */
-    --bg-surface: #1a1a1a;           /* Gris grafito - superficies */
-    --sidebar-bg: #141414;           /* Sidebar más oscuro */
-    --sidebar-hover: #252525;
-    --sidebar-text: rgba(255, 255, 255, 0.5);
-    --sidebar-text-active: #84cc16;
+    --bg-main: #1a1a1a;              /* Fondo oscuro */
+    --bg-surface: #242424;           /* Superficies */
+    --header-bg: #242424;
+    --header-border: #333333;
+    --sidebar-bg: #1a1a1a;           /* Sidebar oscuro */
+    --sidebar-hover: #2a2a2a;
+    --sidebar-text: rgba(255, 255, 255, 0.6);
+    --sidebar-text-active: #ffffff;
+    --sidebar-active-bg: rgba(0, 120, 212, 0.9);
 
-    --text-primary: #f5f5f5;         /* Texto blanco */
-    --text-secondary: #a3a3a3;       /* Gris claro */
+    --text-primary: #e5e5e5;         /* Texto claro */
+    --text-secondary: #999999;       /* Texto secundario */
     --text-on-sidebar: #ffffff;
 
-    --card-bg: #1a1a1a;              /* Gris grafito */
-    --card-border: #2a2a2a;
-    --card-shadow: rgba(0, 0, 0, 0.3);
-    --hover-bg: rgba(255, 255, 255, 0.05);
-    --active-bg: rgba(255, 255, 255, 0.08);
+    --card-bg: #242424;
+    --card-border: #333333;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --hover-bg: #2a2a2a;
+    --active-bg: #333333;
 
-    --input-bg: #252525;
-    --input-border: #404040;
-    --input-text: #f5f5f5;
+    --input-bg: #1a1a1a;
+    --input-border: #444444;
+    --input-text: #e5e5e5;
 
-    /* Legacy */
-    --bg-dark: #0a0a0a;
-    --glass-bg: rgba(26, 26, 26, 0.95);
-    --glass-border: #2a2a2a;
+    /* Legacy compatibility */
+    --bg-dark: #1a1a1a;
+    --glass-bg: #242424;
+    --glass-border: #333333;
     --text-dark: var(--text-primary);
     --text-dim: var(--text-secondary);
     --text-white: #ffffff;
+    --text: var(--text-primary);
+    --secondary: var(--primary);
 }
 
 /* Dark mode glow effects */
@@ -159,24 +173,62 @@ body {
     margin: auto;
 }
 
-/* Card Style - HomeLabs Design */
-.glass-card {
+/* Card Style - Synology Design */
+.glass-card, .card {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px var(--card-shadow);
-    transition: background-color 0.3s ease, border-color 0.3s ease;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .glass-card h3,
-.glass-card h4 {
-    color: var(--accent-cyan);
-    transition: text-shadow 0.3s ease;
+.glass-card h4,
+.card h3,
+.card h4 {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 16px;
 }
 
 .glass-card p,
-.glass-card span {
+.glass-card span,
+.card p,
+.card span {
+    color: var(--text-secondary);
+}
+
+/* Card Header with Icon */
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.card-header-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.card-header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
     color: var(--text-primary);
 }
 
@@ -261,65 +313,270 @@ body {
     box-shadow: 0 6px 20px var(--primary-glow);
 }
 
-/* Dashboard Sidebar - HomeLabs Dark */
+/* ========== SYNOLOGY-STYLE LAYOUT ========== */
+
+/* Top Header Bar */
+.top-header {
+    height: 48px;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--header-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+}
+
+.top-header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.top-header-logo {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.top-header-logo img {
+    height: 28px;
+    width: auto;
+}
+
+.header-search {
+    position: relative;
+    width: 300px;
+}
+
+.header-search input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--input-text);
+    font-size: 0.9rem;
+}
+
+.header-search input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.header-search::before {
+    content: '🔍';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+    opacity: 0.5;
+}
+
+.top-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.header-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.header-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.header-user:hover {
+    background: var(--hover-bg);
+}
+
+.header-user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.header-user-name {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+/* Dashboard Sidebar - Synology Style */
 .sidebar {
-    width: 260px;
+    width: 220px;
+    min-width: 220px;
     background: var(--sidebar-bg);
-    border-right: 1px solid var(--card-border);
     display: flex;
     flex-direction: column;
-    padding: 30px 0;
+    padding: 12px 0;
+    position: fixed;
+    top: 48px;
+    left: 0;
+    bottom: 0;
+    z-index: 90;
+    overflow-y: auto;
+    transition: width 0.3s ease;
 }
 
-.sidebar-logo {
-    font-size: 1.5rem;
+.sidebar.collapsed {
+    width: 60px;
+    min-width: 60px;
+}
+
+.sidebar.collapsed .nav-text {
+    display: none;
+}
+
+.sidebar.collapsed .nav-links li {
+    padding: 12px;
+    justify-content: center;
+}
+
+.sidebar-section {
+    padding: 8px 16px;
+    font-size: 0.7rem;
     font-weight: 600;
-    padding: 0 30px 40px;
-    color: var(--primary);
+    color: var(--sidebar-text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 12px;
 }
 
-.sidebar-logo img {
-    max-width: 200px;
-    height: auto;
+.sidebar.collapsed .sidebar-section {
+    display: none;
 }
 
 .nav-links {
     list-style: none;
     flex-grow: 1;
+    padding: 0;
+    margin: 0;
 }
 
 .nav-links li {
-    padding: 15px 30px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    margin: 2px 8px;
     cursor: pointer;
     color: var(--sidebar-text);
-    transition: all 0.3s;
-    border-left: 3px solid transparent;
+    transition: all 0.2s;
+    border-radius: 6px;
+    font-size: 0.9rem;
 }
 
 .nav-links li:hover {
-    color: var(--text-white);
+    color: var(--sidebar-text-active);
     background: var(--sidebar-hover);
 }
 
 .nav-links li.active {
-    color: var(--primary);
-    background: var(--sidebar-hover);
-    border-left-color: var(--primary);
+    color: var(--sidebar-text-active);
+    background: var(--sidebar-active-bg);
+}
+
+.nav-links li .nav-icon {
+    font-size: 1.1rem;
+    width: 24px;
+    text-align: center;
+}
+
+.nav-links li .nav-text {
+    white-space: nowrap;
+}
+
+/* Main Content Area */
+.dashboard-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.dashboard-body {
+    display: flex;
+    flex: 1;
+    margin-top: 48px;
 }
 
 .content {
     flex-grow: 1;
-    padding: 40px;
+    padding: 24px;
     overflow-y: auto;
-    width: 100%;
-    max-width: 100%;
+    margin-left: 220px;
+    background: var(--bg-main);
+    min-height: calc(100vh - 48px);
+    transition: margin-left 0.3s ease;
 }
 
+.sidebar.collapsed + .content,
+.content.sidebar-collapsed {
+    margin-left: 60px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.page-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* Legacy header support */
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
 }
 
 .system-stats {

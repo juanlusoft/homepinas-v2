@@ -177,39 +177,104 @@
         </div>
 
         <!-- Dashboard View (Hidden by default) -->
-        <div id="dashboard-view" class="view">
-            <nav class="sidebar">
-                <div class="sidebar-logo">
-                    <img src="frontend/logo.svg" alt="HomeLabs">
+        <div id="dashboard-view" class="view dashboard-wrapper">
+            <!-- Top Header Bar (Synology-style) -->
+            <header class="top-header">
+                <div class="top-header-left">
+                    <button class="header-btn sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
+                    <div class="top-header-logo">
+                        <img src="frontend/logo.svg" alt="HomePiNAS">
+                        <span>HomePiNAS</span>
+                    </div>
                 </div>
-                <ul class="nav-links">
-                    <li class="active" data-view="dashboard" data-i18n="nav.overview">Resumen</li>
-                    <li data-view="docker" data-i18n="nav.docker">Docker</li>
-                    <li data-view="storage" data-i18n="nav.storage">Almacenamiento</li>
-                    <li data-view="files" data-i18n="nav.files">Archivos</li>
-                    <li data-view="terminal" data-i18n="nav.terminal">Terminal</li>
-                    <li data-view="network" data-i18n="nav.network">Red</li>
-                    <li data-view="backup" data-i18n="nav.backup">Backup</li>
-                    <li data-view="active-backup" data-i18n="nav.activeBackup">Active Backup</li>
-                    <li data-view="cloud-sync" data-i18n="nav.cloudSync">Cloud Sync</li>
-                    <li data-view="logs" data-i18n="nav.logs">Logs</li>
-                    <li data-view="users" data-i18n="nav.users">Usuarios</li>
-                    <li data-view="system" data-i18n="nav.system">Sistema</li>
-                </ul>
-                <div class="user-info">
-                    <div class="avatar"></div>
-                    <span id="username-display">Usuario</span>
-                    <button id="logout-btn" class="logout-btn" title="Cerrar sesión">⏻</button>
+                <div class="header-search">
+                    <input type="text" id="global-search" placeholder="Buscar..." data-i18n-placeholder="search.placeholder">
                 </div>
-            </nav>
-            <main class="content">
-                <header>
-                    <h2 id="view-title" data-i18n="dashboard.systemOverview">Resumen del Sistema</h2>
-                </header>
-                <div id="dashboard-content" class="grid-container">
-                    <!-- Dynamic Content -->
+                <div class="top-header-right">
+                    <button class="header-btn" id="header-notifications" title="Notificaciones">🔔</button>
+                    <button class="header-btn" id="header-theme-toggle" title="Cambiar tema">🌙</button>
+                    <div class="header-user" id="header-user-menu">
+                        <div class="header-user-avatar" id="user-avatar-letter">U</div>
+                        <span class="header-user-name" id="username-display">Usuario</span>
+                    </div>
+                    <button class="header-btn" id="logout-btn" title="Cerrar sesión">⏻</button>
                 </div>
-            </main>
+            </header>
+
+            <div class="dashboard-body">
+                <!-- Sidebar Navigation -->
+                <nav class="sidebar" id="main-sidebar">
+                    <div class="sidebar-section">Principal</div>
+                    <ul class="nav-links">
+                        <li class="active" data-view="dashboard">
+                            <span class="nav-icon">📊</span>
+                            <span class="nav-text" data-i18n="nav.overview">Resumen</span>
+                        </li>
+                        <li data-view="files">
+                            <span class="nav-icon">📁</span>
+                            <span class="nav-text" data-i18n="nav.files">File Station</span>
+                        </li>
+                        <li data-view="storage">
+                            <span class="nav-icon">💾</span>
+                            <span class="nav-text" data-i18n="nav.storage">Almacenamiento</span>
+                        </li>
+                    </ul>
+                    
+                    <div class="sidebar-section">Servicios</div>
+                    <ul class="nav-links">
+                        <li data-view="docker">
+                            <span class="nav-icon">🐳</span>
+                            <span class="nav-text" data-i18n="nav.docker">Docker</span>
+                        </li>
+                        <li data-view="cloud-sync">
+                            <span class="nav-icon">☁️</span>
+                            <span class="nav-text" data-i18n="nav.cloudSync">Cloud Sync</span>
+                        </li>
+                        <li data-view="backup">
+                            <span class="nav-icon">📦</span>
+                            <span class="nav-text" data-i18n="nav.backup">Backup</span>
+                        </li>
+                        <li data-view="active-backup">
+                            <span class="nav-icon">🔄</span>
+                            <span class="nav-text" data-i18n="nav.activeBackup">Active Backup</span>
+                        </li>
+                    </ul>
+                    
+                    <div class="sidebar-section">Sistema</div>
+                    <ul class="nav-links">
+                        <li data-view="network">
+                            <span class="nav-icon">🌐</span>
+                            <span class="nav-text" data-i18n="nav.network">Red</span>
+                        </li>
+                        <li data-view="users">
+                            <span class="nav-icon">👥</span>
+                            <span class="nav-text" data-i18n="nav.users">Usuarios</span>
+                        </li>
+                        <li data-view="terminal">
+                            <span class="nav-icon">💻</span>
+                            <span class="nav-text" data-i18n="nav.terminal">Terminal</span>
+                        </li>
+                        <li data-view="logs">
+                            <span class="nav-icon">📋</span>
+                            <span class="nav-text" data-i18n="nav.logs">Logs</span>
+                        </li>
+                        <li data-view="system">
+                            <span class="nav-icon">⚙️</span>
+                            <span class="nav-text" data-i18n="nav.system">Sistema</span>
+                        </li>
+                    </ul>
+                </nav>
+
+                <!-- Main Content Area -->
+                <main class="content" id="main-content">
+                    <div class="page-header">
+                        <h1 class="page-title" id="view-title" data-i18n="dashboard.systemOverview">Resumen del Sistema</h1>
+                    </div>
+                    <div id="dashboard-content" class="grid-container">
+                        <!-- Dynamic Content -->
+                    </div>
+                </main>
+            </div>
         </div>
     </div>
 
