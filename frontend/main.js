@@ -3693,6 +3693,9 @@ async function renderFilesView() {
     // FILE MANAGER - SYNOLOGY STYLE LAYOUT
     // ══════════════════════════════════════════════════════════════════════════
     
+    // Clear previous content to avoid duplicates
+    dashboardContent.innerHTML = '';
+    
     // Main layout container
     const layout = document.createElement('div');
     layout.className = 'fm-layout';
@@ -3918,6 +3921,7 @@ async function loadFolderTree() {
         treeContainer.innerHTML = '';
         renderFolderTree(treeContainer, tree, 0);
     } catch (e) {
+        console.error('loadFolderTree error:', e);
         treeContainer.innerHTML = '<div style="padding: 12px; color: #ef4444;">Error al cargar</div>';
     }
 }
@@ -3928,8 +3932,9 @@ async function buildFolderTree(path) {
         if (!res.ok) return { name: path.split('/').pop() || 'Storage', path, children: [] };
         const data = await res.json();
         
-        const folders = (data.files || [])
-            .filter(f => f.isDirectory)
+        const items = data.items || data.files || [];
+        const folders = items
+            .filter(f => f.type === 'directory' || f.isDirectory)
             .sort((a, b) => a.name.localeCompare(b.name))
             .map(f => ({
                 name: f.name,
@@ -3952,7 +3957,8 @@ function renderFolderTree(container, node, level) {
     item.className = 'fm-tree-item' + (currentFilePath === node.path ? ' active' : '');
     item.style.paddingLeft = (12 + level * 16) + 'px';
     
-    const hasChildren = node.children && node.children.length > 0;
+    // hasChildren: true if has loaded children OR children is null (not yet loaded)
+    const hasChildren = node.children === null || (node.children && node.children.length > 0);
     const isExpanded = fmExpandedFolders.has(node.path);
     
     // Expand/collapse arrow
@@ -3985,6 +3991,11 @@ function renderFolderTree(container, node, level) {
                 fmExpandedFolders.delete(node.path);
             } else {
                 fmExpandedFolders.add(node.path);
+                // Load children if not yet loaded
+                if (node.children === null) {
+                    const childData = await buildFolderTree(node.path);
+                    node.children = childData.children || [];
+                }
             }
             await loadFolderTree();
         } else {
@@ -4037,8 +4048,8 @@ function renderFolderTree(container, node, level) {
     
     container.appendChild(item);
     
-    // Render children if expanded
-    if (hasChildren && isExpanded) {
+    // Render children if expanded AND loaded
+    if (hasChildren && isExpanded && node.children) {
         const childrenContainer = document.createElement('div');
         childrenContainer.className = 'fm-tree-children';
         node.children.forEach(child => {
