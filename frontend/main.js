@@ -5664,13 +5664,13 @@ function showApproveDialog(agent) {
     else if (agent.os === 'darwin') defaultPlatform = 'mac';
 
     overlay.innerHTML = `
-        <div style="background: var(--bg-card, #1a1a2e); border-radius: 16px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border);">
-            <h3 style="margin: 0 0 4px 0;">${osIcon} Aprobar: ${agent.hostname}</h3>
-            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 24px;">${agent.ip}</p>
+        <div style="background: var(--bg-card, #1a1a2e); border-radius: 16px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid var(--border); color: #f5f5f5;">
+            <h3 style="margin: 0 0 4px 0; color: #f5f5f5;">${osIcon} Aprobar: ${agent.hostname}</h3>
+            <p style="color: #a3a3a3; font-size: 0.85rem; margin-bottom: 24px;">${agent.ip}</p>
             
             <div style="display: flex; flex-direction: column; gap: 16px;">
                 <div>
-                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Plataforma</label>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px; color: #f5f5f5;">Plataforma</label>
                     <select id="ab-approve-platform" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
                         <option value="windows" ${defaultPlatform === 'windows' ? 'selected' : ''}>🪟 Windows</option>
                         <option value="linux" ${defaultPlatform === 'linux' ? 'selected' : ''}>🐧 Linux</option>
@@ -5679,14 +5679,14 @@ function showApproveDialog(agent) {
                     </select>
                 </div>
                 <div>
-                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Tipo de backup</label>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px; color: #f5f5f5;">Tipo de backup</label>
                     <select id="ab-approve-type" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
                         <option value="image">💽 Imagen completa</option>
                         <option value="files">📁 Solo archivos</option>
                     </select>
                 </div>
                 <div>
-                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Programación</label>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px; color: #f5f5f5;">Programación</label>
                     <select id="ab-approve-schedule" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
                         <option value="0 3 * * *">Diario a las 3:00 AM</option>
                         <option value="0 2 * * *">Diario a las 2:00 AM</option>
@@ -5697,7 +5697,7 @@ function showApproveDialog(agent) {
                     </select>
                 </div>
                 <div>
-                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Copias a conservar</label>
+                    <label style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px; color: #f5f5f5;">Copias a conservar</label>
                     <select id="ab-approve-retention" style="width: 100%; padding: 10px 12px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem;">
                         <option value="2">2 copias</option>
                         <option value="3" selected>3 copias</option>
@@ -5709,7 +5709,7 @@ function showApproveDialog(agent) {
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 28px; justify-content: flex-end;">
-                <button id="ab-approve-cancel" class="btn-sm" style="padding: 8px 20px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer;">Cancelar</button>
+                <button id="ab-approve-cancel" class="btn-sm" style="padding: 8px 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #f5f5f5; cursor: pointer;">Cancelar</button>
                 <button id="ab-approve-confirm" class="btn-primary btn-sm" style="padding: 8px 20px;">✓ Aprobar</button>
             </div>
         </div>`;
