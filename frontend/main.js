@@ -10871,11 +10871,16 @@ async function loadCloudBackupStatus() {
                     <p style="color: var(--text-dim); margin-bottom: 20px;">
                         Añade tu primera nube para empezar a sincronizar archivos
                     </p>
-                    <button onclick="showAddCloudModal()" class="btn-primary" style="padding: 12px 24px;">
+                    <button id="btn-add-first-cloud" class="btn-primary" style="padding: 12px 24px;">
                         + Añadir Nube
                     </button>
                 </div>
             `;
+            // Attach event listener after DOM update
+            setTimeout(() => {
+                const btn = document.getElementById('btn-add-first-cloud');
+                if (btn) btn.addEventListener('click', showAddCloudModal);
+            }, 0);
         }
         
         // Load scheduled syncs
@@ -11080,9 +11085,10 @@ async function installRclone() {
         
         if (data.success) {
             updateProgress(3, 100, '¡Completado!');
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 1500));
             showToast(`rclone v${data.version} instalado correctamente`, 'success');
-            await loadCloudBackupStatus();
+            // Force full view re-render
+            await renderCloudBackupView();
         } else {
             throw new Error(data.error);
         }
