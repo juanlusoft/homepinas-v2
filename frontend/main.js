@@ -3113,8 +3113,15 @@ async function renderDockerManager() {
     importComposeBtn.innerHTML = '📦 Import Compose';
     importComposeBtn.addEventListener('click', openComposeModal);
 
+    const stacksBtn = document.createElement('button');
+    stacksBtn.className = 'btn-primary';
+    stacksBtn.style.cssText = 'background: #f59e0b; padding: 8px 16px; font-size: 0.85rem;';
+    stacksBtn.innerHTML = '🗂️ Stacks';
+    stacksBtn.addEventListener('click', openStacksManager);
+
     headerRight.appendChild(checkUpdatesBtn);
     headerRight.appendChild(importComposeBtn);
+    headerRight.appendChild(stacksBtn);
     headerCard.appendChild(headerLeft);
     headerCard.appendChild(headerRight);
     dashboardContent.appendChild(headerCard);
@@ -9745,6 +9752,35 @@ function renderHomeStoreAppCard(app, categories) {
         return `<span style="background: ${isCurrentArch ? '#10b981' : 'var(--bg-card)'}; color: ${isCurrentArch ? '#fff' : 'var(--text-secondary)'}; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; border: 1px solid var(--border);">${a}</span>`;
     }).join(' ');
     
+    // Build config info section for installed apps
+    let configInfoHtml = '';
+    if (app.installed && app.config) {
+        const configVolumes = app.config.volumes || app.volumes || {};
+        const configPorts = app.config.ports || app.ports || {};
+        
+        // Show key paths (first 2 volumes)
+        const volumeEntries = Object.entries(configVolumes).slice(0, 2);
+        const volumeInfo = volumeEntries.map(([container, host]) => {
+            const shortPath = host.length > 30 ? '...' + host.slice(-27) : host;
+            return `<span style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);" title="${escapeHtml(host)}">📁 ${escapeHtml(shortPath)}</span>`;
+        }).join('<br>');
+        
+        // Show port
+        const portEntry = Object.entries(configPorts)[0];
+        const portInfo = portEntry ? `<span style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">🌐 :${escapeHtml(portEntry[0].split('/')[0])}</span>` : '';
+        
+        if (volumeInfo || portInfo) {
+            configInfoHtml = `
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 0.8rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                        <div style="flex: 1; line-height: 1.6;">${volumeInfo}</div>
+                        <div>${portInfo}</div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
     return `
         <div id="homestore-app-${app.id}" class="card" style="background: var(--bg-card); border: 1px solid ${isCompatible ? 'var(--border)' : '#f59e0b'}; border-radius: 12px; padding: 20px; ${!isCompatible ? 'opacity: 0.7;' : ''}">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
@@ -9761,6 +9797,7 @@ function renderHomeStoreAppCard(app, categories) {
             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px; line-height: 1.4;">
                 ${app.description}
             </p>
+            ${configInfoHtml}
             <div style="margin-bottom: 12px;">
                 ${archBadges}
             </div>
@@ -9771,30 +9808,365 @@ function renderHomeStoreAppCard(app, categories) {
     `;
 }
 
-async function installHomeStoreApp(appId) {
-    const btn = document.querySelector(`#homestore-app-${appId} .homestore-install-btn`);
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Instalando...';
+// Show configuration modal before installing an app
+async function showHomeStoreConfigModal(appId) {
+    // Find the app in the catalog
+    const app = homestoreCatalog?.apps?.find(a => a.id === appId);
+    if (!app) {
+        showNotification('App no encontrada en el catálogo', 'error');
+        return;
     }
     
+    // Try to load previous configuration for reinstalls
+    let previousConfig = null;
     try {
-        const res = await authFetch(`${API_BASE}/homestore/install/${appId}`, { method: 'POST' });
-        const data = await res.json();
-        
-        if (!data.success) throw new Error(data.error);
-        
-        alert(`✅ ${appId} instalado correctamente!${data.webUI ? `\n\nAccede en: ${data.webUI}` : ''}`);
-        await loadHomeStoreCatalog();
-        
-    } catch (error) {
-        console.error('Install error:', error);
-        alert(`❌ Error al instalar: ${error.message}`);
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Instalar';
+        const configRes = await authFetch(`${API_BASE}/homestore/app/${appId}/config`);
+        if (configRes.ok) {
+            const configData = await configRes.json();
+            if (configData.success && configData.config) {
+                previousConfig = configData.config;
+            }
         }
+    } catch (e) {
+        // No previous config, that's fine
     }
+    
+    // Build volume config inputs
+    const defaultVolumes = app.volumes || {};
+    const volumeInputs = Object.entries(defaultVolumes).map(([containerPath, hostPath]) => {
+        // Use previous config if available
+        const savedPath = previousConfig?.volumes?.[containerPath] || hostPath;
+        const isConfigDir = containerPath.toLowerCase().includes('config') || containerPath.toLowerCase().includes('data');
+        const isMediaDir = containerPath.toLowerCase().includes('media') || 
+                          containerPath.toLowerCase().includes('download') || 
+                          containerPath.toLowerCase().includes('photos') ||
+                          containerPath.toLowerCase().includes('storage');
+        
+        let label = containerPath;
+        let icon = '📁';
+        if (isConfigDir) {
+            label = 'Configuración';
+            icon = '⚙️';
+        } else if (isMediaDir) {
+            label = 'Media/Datos';
+            icon = '🎬';
+        }
+        
+        return `
+            <div class="homestore-config-volume" style="margin-bottom: 16px;">
+                <label style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 6px;">
+                    ${icon} ${escapeHtml(label)} <code style="font-size: 0.75rem; opacity: 0.7;">(${escapeHtml(containerPath)})</code>
+                </label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" 
+                           class="homestore-volume-input" 
+                           data-container-path="${escapeHtml(containerPath)}"
+                           value="${escapeHtml(savedPath)}"
+                           placeholder="${escapeHtml(hostPath)}"
+                           style="flex: 1; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: monospace; font-size: 0.9rem;">
+                    <button type="button" class="homestore-browse-btn" data-target="${escapeHtml(containerPath)}"
+                            style="padding: 10px 14px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text);"
+                            title="Explorar carpetas">
+                        📂
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Build port config if applicable
+    const defaultPorts = app.ports || {};
+    const portInputs = Object.entries(defaultPorts).map(([hostPort, containerPort]) => {
+        const savedPort = previousConfig?.ports?.[hostPort] || hostPort;
+        return `
+            <div class="homestore-config-port" style="margin-bottom: 12px;">
+                <label style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 6px;">
+                    🌐 Puerto ${escapeHtml(String(containerPort).replace('/udp', ' (UDP)').replace('/tcp', ''))}
+                </label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="number" 
+                           class="homestore-port-input" 
+                           data-original-port="${escapeHtml(hostPort)}"
+                           data-container-port="${escapeHtml(containerPort)}"
+                           value="${escapeHtml(savedPort.toString().split('/')[0])}"
+                           min="1" max="65535"
+                           style="width: 100px; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: monospace;">
+                    <span style="color: var(--text-secondary);">→ ${escapeHtml(containerPort)}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Build environment variables if applicable
+    const defaultEnv = app.env || {};
+    const envInputs = Object.entries(defaultEnv).length > 0 ? Object.entries(defaultEnv).map(([key, value]) => {
+        const savedValue = previousConfig?.env?.[key] ?? value;
+        const isPassword = key.toLowerCase().includes('password') || key.toLowerCase().includes('secret');
+        return `
+            <div class="homestore-config-env" style="margin-bottom: 12px;">
+                <label style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 6px;">
+                    ${isPassword ? '🔑' : '📝'} ${escapeHtml(key)}
+                </label>
+                <input type="${isPassword ? 'password' : 'text'}" 
+                       class="homestore-env-input" 
+                       data-env-key="${escapeHtml(key)}"
+                       value="${escapeHtml(savedValue)}"
+                       placeholder="${escapeHtml(value)}"
+                       style="width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: monospace; font-size: 0.9rem;">
+            </div>
+        `;
+    }).join('') : '';
+    
+    // Create the modal
+    const modal = document.createElement('div');
+    modal.id = 'homestore-config-modal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 99999;';
+    modal.innerHTML = `
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 600px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 2rem;">${app.icon}</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--text);">Configurar ${escapeHtml(app.name)}</h3>
+                        <span style="color: var(--text-secondary); font-size: 0.85rem;">Personaliza la instalación</span>
+                    </div>
+                </div>
+                <button id="homestore-config-close" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); padding: 4px 8px;">&times;</button>
+            </div>
+            
+            <div style="padding: 24px; overflow-y: auto; flex: 1;">
+                ${previousConfig ? `
+                    <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid #22c55e; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.2rem;">♻️</span>
+                        <div>
+                            <div style="color: #22c55e; font-weight: 500;">Configuración anterior encontrada</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem;">Se han restaurado los paths de la instalación previa</div>
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${volumeInputs ? `
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="color: var(--primary); margin: 0 0 16px 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                            📂 Rutas de almacenamiento
+                        </h4>
+                        ${volumeInputs}
+                    </div>
+                ` : ''}
+                
+                ${portInputs ? `
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="color: var(--primary); margin: 0 0 16px 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                            🌐 Puertos
+                        </h4>
+                        ${portInputs}
+                    </div>
+                ` : ''}
+                
+                ${envInputs ? `
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="color: var(--primary); margin: 0 0 16px 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                            ⚙️ Variables de entorno
+                        </h4>
+                        ${envInputs}
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div style="padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 12px; justify-content: flex-end;">
+                <button id="homestore-config-cancel" style="padding: 12px 24px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text); font-size: 0.95rem;">
+                    Cancelar
+                </button>
+                <button id="homestore-config-install" style="padding: 12px 24px; background: var(--primary); border: none; border-radius: 8px; cursor: pointer; color: #000; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                    🚀 Instalar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close handlers
+    const closeModal = () => modal.remove();
+    document.getElementById('homestore-config-close').addEventListener('click', closeModal);
+    document.getElementById('homestore-config-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    
+    // Browse button handlers - open folder picker
+    modal.querySelectorAll('.homestore-browse-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const targetPath = btn.dataset.target;
+            const input = modal.querySelector(`.homestore-volume-input[data-container-path="${targetPath}"]`);
+            if (!input) return;
+            
+            // Simple folder picker modal
+            const currentPath = input.value || '/mnt/storage';
+            const pickerModal = document.createElement('div');
+            pickerModal.id = 'folder-picker-modal';
+            pickerModal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 999999;';
+            
+            pickerModal.innerHTML = `
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 500px; max-height: 70vh; display: flex; flex-direction: column;">
+                    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 1rem;">📂 Seleccionar carpeta</h3>
+                        <button id="folder-picker-close" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+                    </div>
+                    <div style="padding: 16px 20px;">
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                            <input type="text" id="folder-picker-path" value="${escapeHtml(currentPath)}" 
+                                   style="flex: 1; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: monospace;">
+                            <button id="folder-picker-go" style="padding: 10px 14px; background: var(--primary); border: none; border-radius: 8px; cursor: pointer; color: #000;">Ir</button>
+                        </div>
+                        <div id="folder-picker-list" style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 8px;">
+                            <div style="padding: 20px; text-align: center; color: var(--text-secondary);">Cargando...</div>
+                        </div>
+                    </div>
+                    <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
+                        <button id="folder-picker-cancel" style="padding: 10px 20px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text);">Cancelar</button>
+                        <button id="folder-picker-select" style="padding: 10px 20px; background: var(--primary); border: none; border-radius: 8px; cursor: pointer; color: #000; font-weight: 600;">Seleccionar</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(pickerModal);
+            
+            const pathInput = document.getElementById('folder-picker-path');
+            const listDiv = document.getElementById('folder-picker-list');
+            
+            async function loadFolders(path) {
+                listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">Cargando...</div>';
+                try {
+                    const res = await authFetch(`${API_BASE}/files/list?path=${encodeURIComponent(path)}`);
+                    const data = await res.json();
+                    
+                    if (!data.success && data.error) {
+                        listDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #ef4444;">${escapeHtml(data.error)}</div>`;
+                        return;
+                    }
+                    
+                    const folders = (data.files || []).filter(f => f.isDirectory);
+                    
+                    // Add parent directory option
+                    let html = '';
+                    if (path !== '/') {
+                        html += `<div class="folder-item" data-path="${escapeHtml(path.split('/').slice(0, -1).join('/') || '/')}" 
+                                     style="padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 6px; margin-bottom: 4px;"
+                                     onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                                    📁 <span style="color: var(--text-secondary);">..</span>
+                                 </div>`;
+                    }
+                    
+                    folders.forEach(f => {
+                        const fullPath = path === '/' ? `/${f.name}` : `${path}/${f.name}`;
+                        html += `<div class="folder-item" data-path="${escapeHtml(fullPath)}" 
+                                     style="padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 6px; margin-bottom: 4px;"
+                                     onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                                    📁 ${escapeHtml(f.name)}
+                                 </div>`;
+                    });
+                    
+                    if (folders.length === 0 && path !== '/') {
+                        html += '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">Sin subcarpetas</div>';
+                    }
+                    
+                    listDiv.innerHTML = html || '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">Vacío</div>';
+                    
+                    // Add click handlers for folders
+                    listDiv.querySelectorAll('.folder-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            pathInput.value = item.dataset.path;
+                            loadFolders(item.dataset.path);
+                        });
+                    });
+                } catch (e) {
+                    listDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #ef4444;">Error: ${escapeHtml(e.message)}</div>`;
+                }
+            }
+            
+            loadFolders(currentPath.split('/').slice(0, -1).join('/') || '/');
+            
+            document.getElementById('folder-picker-go').addEventListener('click', () => loadFolders(pathInput.value));
+            document.getElementById('folder-picker-close').addEventListener('click', () => pickerModal.remove());
+            document.getElementById('folder-picker-cancel').addEventListener('click', () => pickerModal.remove());
+            document.getElementById('folder-picker-select').addEventListener('click', () => {
+                input.value = pathInput.value;
+                pickerModal.remove();
+            });
+            pickerModal.addEventListener('click', (e) => { if (e.target === pickerModal) pickerModal.remove(); });
+        });
+    });
+    
+    // Install button handler
+    document.getElementById('homestore-config-install').addEventListener('click', async () => {
+        const installBtn = document.getElementById('homestore-config-install');
+        installBtn.disabled = true;
+        installBtn.innerHTML = '⏳ Instalando...';
+        
+        // Collect configuration
+        const config = {
+            volumes: {},
+            ports: {},
+            env: {}
+        };
+        
+        // Collect volumes
+        modal.querySelectorAll('.homestore-volume-input').forEach(input => {
+            const containerPath = input.dataset.containerPath;
+            const hostPath = input.value.trim();
+            if (containerPath && hostPath) {
+                config.volumes[containerPath] = hostPath;
+            }
+        });
+        
+        // Collect ports
+        modal.querySelectorAll('.homestore-port-input').forEach(input => {
+            const originalPort = input.dataset.originalPort;
+            const containerPort = input.dataset.containerPort;
+            const hostPort = input.value.trim();
+            if (originalPort && hostPort) {
+                // Preserve protocol suffix if present (e.g., /udp)
+                const suffix = containerPort.includes('/') ? containerPort.split('/')[1] : '';
+                config.ports[suffix ? `${hostPort}/${suffix}` : hostPort] = containerPort;
+            }
+        });
+        
+        // Collect environment variables
+        modal.querySelectorAll('.homestore-env-input').forEach(input => {
+            const key = input.dataset.envKey;
+            const value = input.value;
+            if (key) {
+                config.env[key] = value;
+            }
+        });
+        
+        try {
+            const res = await authFetch(`${API_BASE}/homestore/install/${appId}`, {
+                method: 'POST',
+                body: JSON.stringify({ config })
+            });
+            const data = await res.json();
+            
+            if (!data.success) throw new Error(data.error);
+            
+            closeModal();
+            showNotification(`✅ ${app.name} instalado correctamente!`, 'success');
+            if (data.webUI) {
+                showNotification(`Accede en: http://${window.location.hostname}:${data.webUI}`, 'info');
+            }
+            await loadHomeStoreCatalog();
+            
+        } catch (error) {
+            console.error('Install error:', error);
+            showNotification(`❌ Error al instalar: ${error.message}`, 'error');
+            installBtn.disabled = false;
+            installBtn.innerHTML = '🚀 Instalar';
+        }
+    });
+}
+
+async function installHomeStoreApp(appId) {
+    // Show configuration modal instead of installing directly
+    await showHomeStoreConfigModal(appId);
 }
 
 async function uninstallHomeStoreApp(appId) {
@@ -9922,5 +10294,483 @@ window.deleteDevice = deleteDevice;
 window.addFolder = addFolder;
 window.addDevice = addDevice;
 
+// ============================================
+// DOCKER STACKS MANAGER
+// ============================================
+
+let stacksCache = [];
+
+async function openStacksManager() {
+    // Remove existing modal
+    const existing = document.getElementById('stacks-modal');
+    if (existing) existing.remove();
+    
+    const modal = document.createElement('div');
+    modal.id = 'stacks-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+    `;
+    
+    modal.innerHTML = `
+        <div style="
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        ">
+            <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; color: var(--primary);">🗂️ Docker Stacks</h2>
+                <button id="stacks-close-btn" style="background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer;">×</button>
+            </div>
+            <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="stacks-new-btn" class="btn-primary" style="background: #10b981;">➕ Nuevo Stack</button>
+                <button id="stacks-template-btn" class="btn-primary" style="background: #6366f1;">📋 Desde Template</button>
+                <button id="stacks-refresh-btn" class="btn-primary" style="background: var(--bg-hover);">🔄 Refrescar</button>
+            </div>
+            <div id="stacks-list" style="flex: 1; overflow-y: auto; padding: 20px;">
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    Cargando stacks...
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Event listeners
+    document.getElementById('stacks-close-btn').addEventListener('click', () => modal.remove());
+    document.getElementById('stacks-new-btn').addEventListener('click', openNewStackModal);
+    document.getElementById('stacks-template-btn').addEventListener('click', openTemplateSelector);
+    document.getElementById('stacks-refresh-btn').addEventListener('click', loadStacksList);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    
+    await loadStacksList();
+}
+
+async function loadStacksList() {
+    const listDiv = document.getElementById('stacks-list');
+    if (!listDiv) return;
+    
+    listDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">Cargando...</div>';
+    
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/list`);
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        stacksCache = data.stacks;
+        
+        if (data.stacks.length === 0) {
+            listDiv.innerHTML = `
+                <div style="text-align: center; padding: 60px; color: var(--text-secondary);">
+                    <div style="font-size: 48px; margin-bottom: 20px;">📦</div>
+                    <h3>No hay stacks</h3>
+                    <p>Crea tu primer stack o usa una plantilla predefinida.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        listDiv.innerHTML = data.stacks.map(stack => `
+            <div class="stack-card" style="
+                background: var(--bg-hover);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 12px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 12px;
+            ">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 32px;">${stack.icon || '📦'}</span>
+                    <div>
+                        <h4 style="margin: 0; color: var(--text);">${escapeHtml(stack.name || stack.id)}</h4>
+                        <p style="margin: 4px 0 0; color: var(--text-secondary); font-size: 13px;">${escapeHtml(stack.description || 'Sin descripción')}</p>
+                        <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                            ${stack.services.map(s => `
+                                <span style="
+                                    padding: 2px 8px;
+                                    border-radius: 4px;
+                                    font-size: 11px;
+                                    background: ${s.state === 'running' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'};
+                                    color: ${s.state === 'running' ? '#10b981' : '#ef4444'};
+                                ">${escapeHtml(s.name)}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        background: ${stack.status === 'running' ? 'rgba(16,185,129,0.2)' : stack.status === 'partial' ? 'rgba(245,158,11,0.2)' : 'rgba(107,114,128,0.2)'};
+                        color: ${stack.status === 'running' ? '#10b981' : stack.status === 'partial' ? '#f59e0b' : '#6b7280'};
+                    ">${stack.status === 'running' ? '● Running' : stack.status === 'partial' ? '◐ Partial' : '○ Stopped'}</span>
+                    
+                    <button onclick="stackAction('${stack.id}', '${stack.status === 'running' ? 'down' : 'up'}')" 
+                        class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: ${stack.status === 'running' ? '#ef4444' : '#10b981'};">
+                        ${stack.status === 'running' ? '⏹ Stop' : '▶ Start'}
+                    </button>
+                    <button onclick="openStackEditor('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: #6366f1;">
+                        ✏️ Edit
+                    </button>
+                    <button onclick="showStackLogs('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: var(--bg-hover);">
+                        📜 Logs
+                    </button>
+                    <button onclick="deleteStack('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: #ef4444;">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+    } catch (e) {
+        listDiv.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">Error: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function openNewStackModal() {
+    const modal = document.getElementById('stacks-modal');
+    if (!modal) return;
+    
+    const content = modal.querySelector('div > div');
+    content.innerHTML = `
+        <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; color: var(--primary);">➕ Nuevo Stack</h2>
+            <button id="stack-back-btn" style="background: none; border: none; color: var(--text); font-size: 14px; cursor: pointer;">← Volver</button>
+        </div>
+        <div style="padding: 20px; overflow-y: auto; max-height: 70vh;">
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Nombre del Stack</label>
+                <input type="text" id="stack-name" placeholder="mi-stack" style="
+                    width: 100%;
+                    padding: 10px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border);
+                    background: var(--bg-hover);
+                    color: var(--text);
+                    font-size: 14px;
+                ">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">Descripción (opcional)</label>
+                <input type="text" id="stack-desc" placeholder="Descripción del stack" style="
+                    width: 100%;
+                    padding: 10px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border);
+                    background: var(--bg-hover);
+                    color: var(--text);
+                    font-size: 14px;
+                ">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">docker-compose.yml</label>
+                <textarea id="stack-compose" placeholder="version: '3.8'
+services:
+  web:
+    image: nginx
+    ports:
+      - '8080:80'" style="
+                    width: 100%;
+                    height: 300px;
+                    padding: 12px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border);
+                    background: var(--bg-hover);
+                    color: var(--text);
+                    font-family: monospace;
+                    font-size: 13px;
+                    resize: vertical;
+                "></textarea>
+            </div>
+            <button id="stack-create-btn" class="btn-primary" style="width: 100%; padding: 12px; background: #10b981; font-size: 14px;">
+                🚀 Crear Stack
+            </button>
+        </div>
+    `;
+    
+    document.getElementById('stack-back-btn').addEventListener('click', openStacksManager);
+    document.getElementById('stack-create-btn').addEventListener('click', createStack);
+}
+
+async function createStack() {
+    const name = document.getElementById('stack-name').value.trim();
+    const description = document.getElementById('stack-desc').value.trim();
+    const compose = document.getElementById('stack-compose').value;
+    
+    if (!name) return alert('El nombre es requerido');
+    if (!compose) return alert('El contenido docker-compose es requerido');
+    
+    const btn = document.getElementById('stack-create-btn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Creando...';
+    
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, compose })
+        });
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        alert('Stack creado correctamente');
+        openStacksManager();
+    } catch (e) {
+        alert('Error: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = '🚀 Crear Stack';
+    }
+}
+
+async function openTemplateSelector() {
+    const modal = document.getElementById('stacks-modal');
+    if (!modal) return;
+    
+    const content = modal.querySelector('div > div');
+    content.innerHTML = `
+        <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; color: var(--primary);">📋 Plantillas</h2>
+            <button id="template-back-btn" style="background: none; border: none; color: var(--text); font-size: 14px; cursor: pointer;">← Volver</button>
+        </div>
+        <div id="templates-list" style="padding: 20px; overflow-y: auto; max-height: 70vh;">
+            <div style="text-align: center; padding: 40px;">Cargando plantillas...</div>
+        </div>
+    `;
+    
+    document.getElementById('template-back-btn').addEventListener('click', openStacksManager);
+    
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/templates`);
+        const data = await res.json();
+        
+        const list = document.getElementById('templates-list');
+        list.innerHTML = data.templates.map(t => `
+            <div style="
+                background: var(--bg-hover);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 12px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            ">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 32px;">${t.icon}</span>
+                    <div>
+                        <h4 style="margin: 0;">${escapeHtml(t.name)}</h4>
+                        <p style="margin: 4px 0 0; color: var(--text-secondary); font-size: 13px;">${escapeHtml(t.description)}</p>
+                    </div>
+                </div>
+                <button onclick="useTemplate('${t.id}')" class="btn-primary" style="padding: 8px 16px; background: #10b981;">
+                    Usar
+                </button>
+            </div>
+        `).join('');
+    } catch (e) {
+        document.getElementById('templates-list').innerHTML = `<div style="color: #ef4444;">Error: ${e.message}</div>`;
+    }
+}
+
+async function useTemplate(templateId) {
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/templates/${templateId}`);
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        // Open new stack modal with template content
+        openNewStackModal();
+        setTimeout(() => {
+            document.getElementById('stack-name').value = templateId;
+            document.getElementById('stack-desc').value = data.template.description;
+            document.getElementById('stack-compose').value = data.template.compose;
+        }, 100);
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function stackAction(stackId, action) {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳...';
+    
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/${stackId}/${action}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        await loadStacksList();
+    } catch (e) {
+        alert('Error: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+async function openStackEditor(stackId) {
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/${stackId}`);
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        const modal = document.getElementById('stacks-modal');
+        const content = modal.querySelector('div > div');
+        
+        content.innerHTML = `
+            <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; color: var(--primary);">✏️ Editar: ${escapeHtml(data.stack.name || stackId)}</h2>
+                <button id="editor-back-btn" style="background: none; border: none; color: var(--text); font-size: 14px; cursor: pointer;">← Volver</button>
+            </div>
+            <div style="padding: 20px; overflow-y: auto; max-height: 70vh;">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 6px; color: var(--text-secondary);">docker-compose.yml</label>
+                    <textarea id="edit-compose" style="
+                        width: 100%;
+                        height: 400px;
+                        padding: 12px;
+                        border-radius: 8px;
+                        border: 1px solid var(--border);
+                        background: var(--bg-hover);
+                        color: var(--text);
+                        font-family: monospace;
+                        font-size: 13px;
+                    ">${escapeHtml(data.stack.compose)}</textarea>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="save-stack-btn" class="btn-primary" style="flex: 1; padding: 12px; background: #10b981;">
+                        💾 Guardar
+                    </button>
+                    <button id="redeploy-stack-btn" class="btn-primary" style="flex: 1; padding: 12px; background: #6366f1;">
+                        🚀 Guardar y Redesplegar
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('editor-back-btn').addEventListener('click', openStacksManager);
+        document.getElementById('save-stack-btn').addEventListener('click', () => saveStack(stackId, false));
+        document.getElementById('redeploy-stack-btn').addEventListener('click', () => saveStack(stackId, true));
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function saveStack(stackId, redeploy) {
+    const compose = document.getElementById('edit-compose').value;
+    const btn = redeploy ? document.getElementById('redeploy-stack-btn') : document.getElementById('save-stack-btn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳...';
+    
+    try {
+        // Save
+        let res = await authFetch(`${API_BASE}/stacks/${stackId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ compose })
+        });
+        let data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        
+        // Redeploy if requested
+        if (redeploy) {
+            res = await authFetch(`${API_BASE}/stacks/${stackId}/up`, { method: 'POST' });
+            data = await res.json();
+            if (!data.success) throw new Error(data.error);
+        }
+        
+        alert(redeploy ? 'Stack guardado y redesplegado' : 'Stack guardado');
+        openStacksManager();
+    } catch (e) {
+        alert('Error: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = redeploy ? '🚀 Guardar y Redesplegar' : '💾 Guardar';
+    }
+}
+
+async function showStackLogs(stackId) {
+    const modal = document.getElementById('stacks-modal');
+    const content = modal.querySelector('div > div');
+    
+    content.innerHTML = `
+        <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; color: var(--primary);">📜 Logs: ${escapeHtml(stackId)}</h2>
+            <button id="logs-back-btn" style="background: none; border: none; color: var(--text); font-size: 14px; cursor: pointer;">← Volver</button>
+        </div>
+        <div style="padding: 20px; overflow-y: auto; max-height: 70vh;">
+            <pre id="stack-logs" style="
+                background: #0a0a0a;
+                padding: 16px;
+                border-radius: 8px;
+                overflow-x: auto;
+                font-size: 12px;
+                color: #10b981;
+                max-height: 500px;
+                overflow-y: auto;
+            ">Cargando logs...</pre>
+        </div>
+    `;
+    
+    document.getElementById('logs-back-btn').addEventListener('click', openStacksManager);
+    
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/${stackId}/logs?lines=200`);
+        const data = await res.json();
+        document.getElementById('stack-logs').textContent = data.logs || 'Sin logs';
+    } catch (e) {
+        document.getElementById('stack-logs').textContent = 'Error: ' + e.message;
+    }
+}
+
+async function deleteStack(stackId) {
+    if (!confirm(`¿Eliminar el stack "${stackId}"? Esto detendrá y eliminará todos sus contenedores.`)) return;
+    
+    try {
+        const res = await authFetch(`${API_BASE}/stacks/${stackId}`, { method: 'DELETE' });
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        await loadStacksList();
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+// Expose stack functions globally
+window.openStacksManager = openStacksManager;
+window.stackAction = stackAction;
+window.openStackEditor = openStackEditor;
+window.showStackLogs = showStackLogs;
+window.deleteStack = deleteStack;
+window.useTemplate = useTemplate;
+
 init();
-console.log("HomePiNAS Core v2.5.0 Loaded - HomeStore");
+console.log("HomePiNAS Core v2.5.0 Loaded - HomeStore + Stacks");

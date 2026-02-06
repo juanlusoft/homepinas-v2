@@ -8,6 +8,7 @@ const path = require('path');
 const CATALOG_PATH = path.join(__dirname, '../data/homestore-catalog.json');
 const APPS_BASE = '/opt/homepinas/apps';
 const INSTALLED_PATH = path.join(__dirname, '../config/homestore-installed.json');
+const APP_CONFIGS_PATH = path.join(__dirname, '../config/homestore-app-configs');
 
 // Helper: Load catalog
 async function loadCatalog() {
@@ -28,6 +29,44 @@ async function loadInstalled() {
 // Helper: Save installed apps
 async function saveInstalled(installed) {
     await fs.writeFile(INSTALLED_PATH, JSON.stringify(installed, null, 2));
+}
+
+// Helper: Load app-specific config (for reinstalls)
+async function loadAppConfig(appId) {
+    try {
+        await fs.mkdir(APP_CONFIGS_PATH, { recursive: true });
+        const configPath = path.join(APP_CONFIGS_PATH, `${appId}.json`);
+        const data = await fs.readFile(configPath, 'utf8');
+        return JSON.parse(data);
+    } catch {
+        return null;
+    }
+}
+
+// Helper: Save app-specific config
+async function saveAppConfig(appId, config) {
+    try {
+        await fs.mkdir(APP_CONFIGS_PATH, { recursive: true });
+        const configPath = path.join(APP_CONFIGS_PATH, `${appId}.json`);
+        await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+        console.error(`Failed to save config for ${appId}:`, e);
+    }
+}
+
+// Helper: Validate and create directory if needed
+async function ensureDirectory(dirPath) {
+    try {
+        // Skip special paths like docker.sock
+        if (dirPath.includes('.sock') || dirPath.includes('/dev/')) {
+            return true;
+        }
+        await fs.mkdir(dirPath, { recursive: true });
+        return true;
+    } catch (e) {
+        console.error(`Failed to create directory ${dirPath}:`, e);
+        return false;
+    }
 }
 
 // Helper: Check if Docker is available
@@ -151,6 +190,7 @@ router.get('/app/:id', async (req, res) => {
         
         const status = await getContainerStatus(id);
         const stats = status === 'running' ? await getContainerStats(id) : null;
+        const savedConfig = await loadAppConfig(id);
         
         res.json({
             success: true,
@@ -160,9 +200,26 @@ router.get('/app/:id', async (req, res) => {
                 status,
                 stats,
                 installedAt: installed.apps[id]?.installedAt,
-                config: installed.apps[id]?.config
+                config: installed.apps[id]?.config,
+                savedConfig: savedConfig
             }
         });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /homestore/app/:id/config - Get saved app config (for reinstalls)
+router.get('/app/:id/config', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const config = await loadAppConfig(id);
+        
+        if (config) {
+            res.json({ success: true, config });
+        } else {
+            res.json({ success: true, config: null });
+        }
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -191,10 +248,36 @@ router.post('/install/:id', async (req, res) => {
             return res.status(400).json({ success: false, error: 'App is already installed' });
         }
         
-        // Create app directories
-        for (const [containerPath, hostPath] of Object.entries(app.volumes)) {
-            if (!hostPath.includes('.sock')) { // Don't create docker.sock
-                await fs.mkdir(hostPath, { recursive: true }).catch(() => {});
+        // Merge default volumes with custom config
+        const finalVolumes = { ...app.volumes };
+        if (config?.volumes) {
+            // Custom volumes override defaults (key is container path)
+            for (const [containerPath, hostPath] of Object.entries(config.volumes)) {
+                if (finalVolumes[containerPath] !== undefined) {
+                    finalVolumes[containerPath] = hostPath;
+                }
+            }
+        }
+        
+        // Merge default ports with custom config
+        const finalPorts = { ...app.ports };
+        if (config?.ports) {
+            // Custom ports: the config.ports has hostPort as key
+            // We need to rebuild the ports mapping
+            const newPorts = {};
+            for (const [hostPort, containerPort] of Object.entries(config.ports)) {
+                newPorts[hostPort] = containerPort;
+            }
+            // Replace all ports with custom ones
+            Object.keys(finalPorts).forEach(k => delete finalPorts[k]);
+            Object.assign(finalPorts, newPorts);
+        }
+        
+        // Create app directories for volumes
+        for (const [containerPath, hostPath] of Object.entries(finalVolumes)) {
+            const created = await ensureDirectory(hostPath);
+            if (!created) {
+                console.warn(`Could not create directory: ${hostPath}`);
             }
         }
         
@@ -202,23 +285,25 @@ router.post('/install/:id', async (req, res) => {
         let cmd = `docker run -d --name homestore-${id} --restart unless-stopped`;
         
         // Add ports
-        if (app.ports) {
-            for (const [host, container] of Object.entries(app.ports)) {
-                cmd += ` -p ${host}:${container}`;
-            }
+        for (const [host, container] of Object.entries(finalPorts)) {
+            // Handle port formats like "51820/udp"
+            const hostPort = host.split('/')[0];
+            const protocol = host.includes('/') ? host.split('/')[1] : '';
+            const containerPort = container.includes('/') ? container : (protocol ? `${container}/${protocol}` : container);
+            cmd += ` -p ${hostPort}:${containerPort}`;
         }
         
         // Add volumes
-        if (app.volumes) {
-            for (const [container, host] of Object.entries(app.volumes)) {
-                cmd += ` -v ${host}:${container}`;
-            }
+        for (const [container, host] of Object.entries(finalVolumes)) {
+            cmd += ` -v ${host}:${container}`;
         }
         
         // Add environment variables (merge defaults with user config)
         const envVars = { ...app.env, ...(config?.env || {}) };
         for (const [key, value] of Object.entries(envVars)) {
-            cmd += ` -e ${key}="${value}"`;
+            // Escape quotes in values for shell
+            const escapedValue = String(value).replace(/"/g, '\\"');
+            cmd += ` -e ${key}="${escapedValue}"`;
         }
         
         // Add capabilities
@@ -257,17 +342,41 @@ router.post('/install/:id', async (req, res) => {
             });
         });
         
+        // Build full config to save
+        const fullConfig = {
+            volumes: finalVolumes,
+            ports: finalPorts,
+            env: envVars,
+            installedAt: new Date().toISOString()
+        };
+        
+        // Save config for future reinstalls
+        await saveAppConfig(id, fullConfig);
+        
         // Save to installed
         installed.apps[id] = {
             installedAt: new Date().toISOString(),
-            config: config || {}
+            config: fullConfig
         };
         await saveInstalled(installed);
+        
+        // Determine which port to use for webUI
+        let webUIPort = app.webUI;
+        if (config?.ports) {
+            // Find the port mapping for the webUI
+            for (const [hostPort, containerPort] of Object.entries(finalPorts)) {
+                const cPort = String(containerPort).split('/')[0];
+                if (cPort === String(app.webUI)) {
+                    webUIPort = hostPort.split('/')[0];
+                    break;
+                }
+            }
+        }
         
         res.json({
             success: true,
             message: `${app.name} installed successfully`,
-            webUI: app.webUI ? `http://localhost:${app.webUI}` : null
+            webUI: webUIPort || null
         });
         
     } catch (error) {
