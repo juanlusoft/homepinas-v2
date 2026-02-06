@@ -9940,11 +9940,14 @@ async function showHomeStoreConfigModal(appId) {
     
     document.body.appendChild(modal);
     
-    // Close handlers - also remove any picker modals
+    // Close handlers - also remove any picker modals and restore focus
     const closeModal = () => {
         const pickerModal = document.getElementById('folder-picker-modal');
         if (pickerModal) pickerModal.remove();
         modal.remove();
+        // Restore focus to body to ensure sidebar clicks work
+        document.body.focus();
+        document.body.click();
     };
     document.getElementById('homestore-config-close').addEventListener('click', closeModal);
     document.getElementById('homestore-config-cancel').addEventListener('click', closeModal);
