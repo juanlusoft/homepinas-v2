@@ -155,10 +155,22 @@ router.get('/pool/status', async (req, res) => {
         // ══════════════════════════════════════════════════════════════════
         // 3. Get individual disk status
         // ══════════════════════════════════════════════════════════════════
+        
+        // Get disk serials and models from lsblk
+        let diskDetails = {};
+        try {
+            const lsblkJson = execSync('lsblk -Jbo NAME,MODEL,SERIAL 2>/dev/null || echo "{}"', { encoding: 'utf8' });
+            const parsed = JSON.parse(lsblkJson);
+            for (const dev of (parsed.blockdevices || [])) {
+                diskDetails[dev.name] = { model: dev.model || '', serial: dev.serial || '' };
+            }
+        } catch (e) {}
+        
         const data = getData();
         const configuredDisks = data.storageConfig || [];
         
         for (const diskConf of configuredDisks) {
+            const details = diskDetails[diskConf.id] || {};
             const diskInfo = {
                 id: diskConf.id,
                 role: diskConf.role,
@@ -167,7 +179,9 @@ router.get('/pool/status', async (req, res) => {
                 size: '0 GB',
                 used: '0 GB',
                 free: '0 GB',
-                health: 'unknown'
+                health: 'unknown',
+                model: details.model || 'Unknown',
+                serial: details.serial || ''
             };
             
             // Check if mounted

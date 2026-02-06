@@ -2811,9 +2811,8 @@ async function renderStorageDashboard() {
 
         // Pool mount (if configured)
         if (poolStatus.configured && poolStatus.running) {
-            const poolUsedNum = parseFloat(poolStatus.poolUsed) || 0;
-            const poolSizeNum = parseFloat(poolStatus.poolSize) || 1;
-            const poolPercent = Math.round((poolUsedNum / poolSizeNum) * 100);
+            // Use backend-calculated percentage (avoids GB/TB unit mismatch)
+            const poolPercent = poolStatus.usedPercent || 0;
             const poolFillClass = poolPercent > 90 ? 'high' : poolPercent > 70 ? 'medium' : 'low';
 
             const poolRow = document.createElement('div');
