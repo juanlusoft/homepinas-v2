@@ -10834,7 +10834,7 @@ async function loadCloudBackupStatus() {
                 <div class="glass-card" style="margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h4 style="margin: 0;">🌐 Nubes Configuradas</h4>
-                        <button onclick="showAddCloudModal()" class="btn-primary" style="padding: 8px 16px;">
+                        <button data-action="add-cloud" class="btn-primary" style="padding: 8px 16px;">
                             + Añadir Nube
                         </button>
                     </div>
@@ -10849,13 +10849,13 @@ async function loadCloudBackupStatus() {
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 8px;">
-                                    <button onclick="browseRemote('${escapeHtml(r.name)}')" class="btn-sm" style="background: #6366f1;" title="Explorar">
+                                    <button data-action="browse-remote" data-remote="${escapeHtml(r.name)}" class="btn-sm" style="background: #6366f1;" title="Explorar">
                                         📂
                                     </button>
-                                    <button onclick="syncRemote('${escapeHtml(r.name)}')" class="btn-sm" style="background: #10b981;" title="Sincronizar">
+                                    <button data-action="sync-remote" data-remote="${escapeHtml(r.name)}" class="btn-sm" style="background: #10b981;" title="Sincronizar">
                                         🔄
                                     </button>
-                                    <button onclick="deleteRemote('${escapeHtml(r.name)}')" class="btn-sm" style="background: #ef4444;" title="Eliminar">
+                                    <button data-action="delete-remote" data-remote="${escapeHtml(r.name)}" class="btn-sm" style="background: #ef4444;" title="Eliminar">
                                         🗑️
                                     </button>
                                 </div>
@@ -10871,7 +10871,7 @@ async function loadCloudBackupStatus() {
                     <p style="color: var(--text-dim); margin-bottom: 20px;">
                         Añade tu primera nube para empezar a sincronizar archivos
                     </p>
-                    <button id="btn-add-first-cloud" class="btn-primary" style="padding: 12px 24px;">
+                    <button data-action="add-cloud" class="btn-primary" style="padding: 12px 24px;">
                         + Añadir Nube
                     </button>
                 </div>
@@ -10908,10 +10908,10 @@ async function loadCloudBackupStatus() {
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button onclick="toggleScheduledSync('${s.id}')" class="btn-sm" style="background: ${s.enabled ? '#10b981' : '#4a4a6a'};" title="${s.enabled ? 'Pausar' : 'Activar'}">
+                        <button data-action="toggle-schedule" data-id="${s.id}" class="btn-sm" style="background: ${s.enabled ? '#10b981' : '#4a4a6a'};" title="${s.enabled ? 'Pausar' : 'Activar'}">
                             ${s.enabled ? '⏸️' : '▶️'}
                         </button>
-                        <button onclick="deleteScheduledSync('${s.id}')" class="btn-sm" style="background: #ef4444;" title="Eliminar">
+                        <button data-action="delete-schedule" data-id="${s.id}" class="btn-sm" style="background: #ef4444;" title="Eliminar">
                             🗑️
                         </button>
                     </div>
@@ -10928,7 +10928,7 @@ async function loadCloudBackupStatus() {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h4 style="margin: 0;">📜 Historial de Transferencias</h4>
                     ${historyData.history && historyData.history.length > 0 ? `
-                        <button onclick="clearTransferHistory()" class="btn-sm" style="background: #4a4a6a;">Limpiar</button>
+                        <button data-action="clear-history" class="btn-sm" style="background: #4a4a6a;">Limpiar</button>
                     ` : ''}
                 </div>
                 <div id="transfer-history-list" style="max-height: 300px; overflow-y: auto;">
@@ -10966,19 +10966,48 @@ async function loadCloudBackupStatus() {
     }
 }
 
-// Bind all event listeners for Cloud Backup view
+// Bind all event listeners for Cloud Backup view using event delegation
 function bindCloudBackupEventListeners() {
-    // Add cloud button (when no clouds configured)
-    const addFirstBtn = document.getElementById('btn-add-first-cloud');
-    if (addFirstBtn) {
-        addFirstBtn.addEventListener('click', showAddCloudModal);
-    }
+    const contentDiv = document.getElementById('cloud-backup-content');
+    if (!contentDiv) return;
     
-    // Clear history button
-    const clearHistoryBtn = document.querySelector('[onclick*="clearTransferHistory"]');
-    if (clearHistoryBtn) {
-        clearHistoryBtn.removeAttribute('onclick');
-        clearHistoryBtn.addEventListener('click', clearTransferHistory);
+    // Remove old listener if exists
+    contentDiv.removeEventListener('click', handleCloudBackupClick);
+    // Add new listener
+    contentDiv.addEventListener('click', handleCloudBackupClick);
+}
+
+// Event delegation handler for Cloud Backup
+async function handleCloudBackupClick(e) {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    
+    const action = btn.dataset.action;
+    const remote = btn.dataset.remote;
+    const id = btn.dataset.id;
+    
+    switch (action) {
+        case 'add-cloud':
+            showAddCloudModal();
+            break;
+        case 'browse-remote':
+            browseRemote(remote);
+            break;
+        case 'sync-remote':
+            syncRemote(remote);
+            break;
+        case 'delete-remote':
+            deleteRemote(remote);
+            break;
+        case 'toggle-schedule':
+            toggleScheduledSync(id);
+            break;
+        case 'delete-schedule':
+            deleteScheduledSync(id);
+            break;
+        case 'clear-history':
+            clearTransferHistory();
+            break;
     }
 }
 
