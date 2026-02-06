@@ -505,8 +505,8 @@ async function updatePublicIP() {
     state.publicIP = mockIps[Math.floor(Math.random() * mockIps.length)];
     if (val) val.textContent = state.publicIP;
 
-    const activeNav = document.querySelector('.nav-links li.active');
-    if (activeNav && activeNav.dataset.view === 'network') renderNetworkManager();
+    // Don't re-render network view on IP update - causes duplicate cards
+    // The network view already has the IP displayed
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3863,6 +3863,10 @@ async function renderNetworkManager() {
         dashboardContent.innerHTML = '<div class="glass-card"><h3>Error loading network data</h3></div>';
         return;
     }
+
+    // Remove any existing network-grid to prevent duplicates
+    const existingGrid = dashboardContent.querySelector('.network-grid');
+    if (existingGrid) existingGrid.remove();
 
     const container = document.createElement('div');
     container.className = 'network-grid';
