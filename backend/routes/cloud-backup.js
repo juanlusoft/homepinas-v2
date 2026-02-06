@@ -662,20 +662,45 @@ function getProviderFields(provider) {
 // POST /install - Install rclone
 router.post('/install', requireAuth, async (req, res) => {
     try {
-        // Download and install rclone using official script
-        // Use -fsSL for silent curl, pipe to sudo bash
-        const result = execSync('curl -fsSL https://rclone.org/install.sh | sudo bash 2>&1', { 
+        console.log('Starting rclone installation...');
+        
+        // Detect architecture
+        const arch = execSync('uname -m', { encoding: 'utf8' }).trim();
+        let rcloneArch = 'amd64';
+        if (arch === 'aarch64' || arch === 'arm64') rcloneArch = 'arm64';
+        else if (arch.startsWith('arm')) rcloneArch = 'arm';
+        
+        console.log(`Detected architecture: ${arch} -> rclone arch: ${rcloneArch}`);
+        
+        // Download rclone
+        const tmpDir = '/tmp/rclone-install-' + Date.now();
+        execSync(`mkdir -p ${tmpDir}`, { encoding: 'utf8' });
+        
+        const downloadUrl = `https://downloads.rclone.org/rclone-current-linux-${rcloneArch}.zip`;
+        console.log(`Downloading from: ${downloadUrl}`);
+        
+        execSync(`curl -fsSL "${downloadUrl}" -o ${tmpDir}/rclone.zip`, { 
             encoding: 'utf8',
-            timeout: 180000,
-            stdio: ['pipe', 'pipe', 'pipe']
+            timeout: 60000 
         });
         
-        console.log('rclone install output:', result);
+        // Extract
+        execSync(`cd ${tmpDir} && unzip -o rclone.zip`, { encoding: 'utf8' });
         
-        // Wait a moment for installation to complete
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Find the extracted binary
+        const extractedDir = execSync(`ls -d ${tmpDir}/rclone-*/`, { encoding: 'utf8' }).trim();
+        console.log(`Extracted to: ${extractedDir}`);
+        
+        // Install binary
+        execSync(`sudo cp ${extractedDir}rclone /usr/local/bin/rclone`, { encoding: 'utf8' });
+        execSync('sudo chmod 755 /usr/local/bin/rclone', { encoding: 'utf8' });
+        
+        // Cleanup
+        execSync(`rm -rf ${tmpDir}`, { encoding: 'utf8' });
         
         const version = getRcloneVersion();
+        console.log(`rclone installed: ${version}`);
+        
         if (version) {
             res.json({ success: true, version });
         } else {
