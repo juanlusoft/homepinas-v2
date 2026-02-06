@@ -753,13 +753,19 @@ if [ ! -d "backend" ]; then
     exit 1
 fi
 
-# Install Node.js if needed
-if ! command -v node &> /dev/null; then
-    echo -e "${BLUE}Installing Node.js...${NC}"
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+# Install Node.js if needed (requires Node 20+ for dependencies)
+NODE_REQUIRED_MAJOR=20
+CURRENT_NODE_MAJOR=$(node -v 2>/dev/null | cut -d. -f1 | tr -d 'v' || echo "0")
+
+if ! command -v node &> /dev/null || [ "$CURRENT_NODE_MAJOR" -lt "$NODE_REQUIRED_MAJOR" ]; then
+    echo -e "${BLUE}Installing Node.js 22 LTS...${NC}"
+    if [ "$CURRENT_NODE_MAJOR" -gt 0 ] && [ "$CURRENT_NODE_MAJOR" -lt "$NODE_REQUIRED_MAJOR" ]; then
+        echo -e "${YELLOW}Upgrading from Node.js v${CURRENT_NODE_MAJOR} to v22 (required for dependencies)${NC}"
+    fi
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     apt-get install -y $APT_OPTS nodejs
 else
-    echo -e "${GREEN}Node.js already installed${NC}"
+    echo -e "${GREEN}Node.js v${CURRENT_NODE_MAJOR} already installed${NC}"
 fi
 
 # Build application
@@ -1354,7 +1360,6 @@ echo -e ""
 echo -e "${YELLOW}Dashboard Access:${NC}"
 echo -e "  ${CYAN}mDNS (Local):${NC}      ${GREEN}https://${CURRENT_HOSTNAME}.local${NC}"
 echo -e "  HTTPS (IP):         ${GREEN}https://${IP_ADDR}${NC}"
-echo -e "  HTTP  (Fallback):   ${BLUE}http://${IP_ADDR}:3000${NC}"
 echo -e ""
 echo -e "${YELLOW}Note:${NC} Your browser will show a certificate warning for HTTPS."
 echo -e "      This is normal for self-signed certificates. Click 'Advanced'"

@@ -1,8 +1,11 @@
 {
   "name": "homepinas",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "HomePiNAS - Secure NAS Dashboard for Raspberry Pi",
   "main": "backend/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node backend/index.js",
     "dev": "nodemon backend/index.js",
@@ -22,21 +25,21 @@
   "type": "commonjs",
   "dependencies": {
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^11.7.0",
-    "cors": "^2.8.6",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
     "dockerode": "^4.0.9",
-    "express": "^5.2.1",
+    "express": "^5.0.1",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
+    "multer": "1.4.5-lts.2",
     "node-pty": "^1.0.0",
-    "systeminformation": "^5.30.6",
+    "nodemailer": "^6.10.0",
+    "otpauth": "^9.3.6",
+    "systeminformation": "^5.25.11",
     "uuid": "^11.1.0",
-    "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.9.0",
-    "otpauth": "^9.3.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.9"
   }
 }
