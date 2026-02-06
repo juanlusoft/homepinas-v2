@@ -10297,8 +10297,8 @@ async function openStacksManager() {
     
     modal.innerHTML = `
         <div style="
-            background: var(--bg-card);
-            border: 1px solid var(--border);
+            background: #1a1a2e;
+            border: 1px solid #3d3d5c;
             border-radius: 16px;
             width: 95%;
             max-width: 900px;
@@ -10307,17 +10307,17 @@ async function openStacksManager() {
             display: flex;
             flex-direction: column;
         ">
-            <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="margin: 0; color: var(--primary);">🗂️ Docker Stacks</h2>
-                <button id="stacks-close-btn" style="background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer;">×</button>
+            <div style="padding: 20px; border-bottom: 1px solid #3d3d5c; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; color: #10b981;">🗂️ Docker Stacks</h2>
+                <button id="stacks-close-btn" style="background: none; border: none; color: #ffffff; font-size: 24px; cursor: pointer;">×</button>
             </div>
-            <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap;">
-                <button id="stacks-new-btn" class="btn-primary" style="background: #10b981;">➕ Nuevo Stack</button>
-                <button id="stacks-template-btn" class="btn-primary" style="background: #6366f1;">📋 Desde Template</button>
-                <button id="stacks-refresh-btn" class="btn-primary" style="background: var(--bg-hover);">🔄 Refrescar</button>
+            <div style="padding: 20px; border-bottom: 1px solid #3d3d5c; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="stacks-new-btn" class="btn-primary" style="background: #10b981; color: white;">➕ Nuevo Stack</button>
+                <button id="stacks-template-btn" class="btn-primary" style="background: #6366f1; color: white;">📋 Desde Template</button>
+                <button id="stacks-refresh-btn" class="btn-primary" style="background: #4a4a6a; color: white;">🔄 Refrescar</button>
             </div>
             <div id="stacks-list" style="flex: 1; overflow-y: auto; padding: 20px;">
-                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div style="text-align: center; padding: 40px; color: #a0a0b0;">
                     Cargando stacks...
                 </div>
             </div>
@@ -10526,12 +10526,12 @@ async function openTemplateSelector() {
     
     const content = modal.querySelector('div > div');
     content.innerHTML = `
-        <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="margin: 0; color: var(--primary);">📋 Plantillas</h2>
-            <button id="template-back-btn" style="background: none; border: none; color: var(--text); font-size: 14px; cursor: pointer;">← Volver</button>
+        <div style="padding: 20px; border-bottom: 1px solid #3d3d5c; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; color: #10b981;">📋 Plantillas</h2>
+            <button id="template-back-btn" style="background: #4a4a6a; border: none; color: #ffffff; font-size: 14px; cursor: pointer; padding: 8px 16px; border-radius: 6px;">← Volver</button>
         </div>
         <div id="templates-list" style="padding: 20px; overflow-y: auto; max-height: 70vh;">
-            <div style="text-align: center; padding: 40px;">Cargando plantillas...</div>
+            <div style="text-align: center; padding: 40px; color: #a0a0b0;">Cargando plantillas...</div>
         </div>
     `;
     
@@ -10544,8 +10544,8 @@ async function openTemplateSelector() {
         const list = document.getElementById('templates-list');
         list.innerHTML = data.templates.map(t => `
             <div style="
-                background: var(--bg-hover);
-                border: 1px solid var(--border);
+                background: #2d2d44;
+                border: 1px solid #3d3d5c;
                 border-radius: 12px;
                 padding: 16px;
                 margin-bottom: 12px;
@@ -10556,11 +10556,11 @@ async function openTemplateSelector() {
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <span style="font-size: 32px;">${t.icon}</span>
                     <div>
-                        <h4 style="margin: 0;">${escapeHtml(t.name)}</h4>
-                        <p style="margin: 4px 0 0; color: var(--text-secondary); font-size: 13px;">${escapeHtml(t.description)}</p>
+                        <h4 style="margin: 0; color: #ffffff;">${escapeHtml(t.name)}</h4>
+                        <p style="margin: 4px 0 0; color: #a0a0b0; font-size: 13px;">${escapeHtml(t.description)}</p>
                     </div>
                 </div>
-                <button onclick="useTemplate('${t.id}')" class="btn-primary" style="padding: 8px 16px; background: #10b981;">
+                <button onclick="useTemplate('${t.id}')" class="btn-primary" style="padding: 8px 16px; background: #10b981; color: white;">
                     Usar
                 </button>
             </div>
