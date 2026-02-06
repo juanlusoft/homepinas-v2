@@ -119,7 +119,7 @@ app.use(cors({
         // Allow requests with no origin (same-origin, mobile apps, curl, etc.)
         if (!origin) return callback(null, true);
         
-        // Allow local network IPs and localhost
+        // Allow local network IPs, localhost, and mDNS (.local) hostnames
         const allowedPatterns = [
             /^https?:\/\/localhost(:\d+)?$/,
             /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
@@ -127,6 +127,7 @@ app.use(cors({
             /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
             /^https?:\/\/172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
             /^https?:\/\/\[::1\](:\d+)?$/,
+            /^https?:\/\/[a-zA-Z0-9-]+\.local(:\d+)?$/,  // mDNS hostnames (homepinas.local, etc.)
         ];
         
         const isAllowed = allowedPatterns.some(pattern => pattern.test(origin));
