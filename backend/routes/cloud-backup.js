@@ -10,7 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Auth middleware
-const { requireAuth } = require('./auth');
+const { requireAuth } = require('../middleware/auth');
 
 // Config paths
 const RCLONE_CONFIG = '/home/homepinas/.config/rclone/rclone.conf';
