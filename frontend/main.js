@@ -10813,11 +10813,12 @@ async function loadCloudBackupStatus() {
                     <p style="color: var(--text-dim); margin-bottom: 20px;">
                         rclone es necesario para conectar con servicios de nube como Google Drive, Dropbox, OneDrive, etc.
                     </p>
-                    <button onclick="installRclone()" class="btn-primary" style="padding: 12px 24px;">
+                    <button id="btn-install-rclone" class="btn-primary" style="padding: 12px 24px;">
                         Instalar rclone
                     </button>
                 </div>
             `;
+            document.getElementById('btn-install-rclone').addEventListener('click', installRclone);
             return;
         }
         
@@ -11026,7 +11027,9 @@ async function clearTransferHistory() {
 }
 
 async function installRclone() {
+    console.log('[Cloud Backup] installRclone called');
     if (!confirm('¿Instalar rclone? Esto puede tardar unos minutos.')) return;
+    console.log('[Cloud Backup] User confirmed, starting install...');
     
     const contentDiv = document.getElementById('cloud-backup-content');
     
