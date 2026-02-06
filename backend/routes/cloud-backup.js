@@ -295,6 +295,41 @@ router.post('/config/save-oauth', requireAuth, async (req, res) => {
     }
 });
 
+// Helper: Load transfer history
+function loadTransferHistory() {
+    const historyPath = '/opt/homepinas/backend/data/transfer-history.json';
+    try {
+        if (fs.existsSync(historyPath)) {
+            return JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading transfer history:', e);
+    }
+    return [];
+}
+
+// Helper: Save transfer history
+function saveTransferHistory(history) {
+    const historyPath = '/opt/homepinas/backend/data/transfer-history.json';
+    try {
+        // Keep only last 100 entries
+        const trimmed = history.slice(-100);
+        fs.writeFileSync(historyPath, JSON.stringify(trimmed, null, 2));
+    } catch (e) {
+        console.error('Error saving transfer history:', e);
+    }
+}
+
+// Helper: Add transfer to history
+function logTransfer(transfer) {
+    const history = loadTransferHistory();
+    history.push({
+        ...transfer,
+        timestamp: new Date().toISOString()
+    });
+    saveTransferHistory(history);
+}
+
 // POST /sync - Start sync operation
 router.post('/sync', requireAuth, async (req, res) => {
     const { source, dest, mode = 'copy', deleteFiles = false } = req.body;
@@ -331,8 +366,29 @@ router.post('/sync', requireAuth, async (req, res) => {
         const jobId = Date.now().toString();
         const logFile = `/tmp/rclone-job-${jobId}.log`;
         
-        exec(`${cmd} > ${logFile} 2>&1 &`, (err) => {
-            if (err) console.error('Rclone job error:', err);
+        // Create dest directory if needed
+        execSync(`mkdir -p "${dest}"`, { encoding: 'utf8' });
+        
+        // Log start of transfer
+        logTransfer({
+            id: jobId,
+            source,
+            dest,
+            mode,
+            status: 'running'
+        });
+        
+        // Run in background and update status when done
+        const child = exec(`${cmd} > ${logFile} 2>&1`, (err) => {
+            const status = err ? 'failed' : 'completed';
+            const history = loadTransferHistory();
+            const idx = history.findIndex(t => t.id === jobId);
+            if (idx !== -1) {
+                history[idx].status = status;
+                history[idx].completedAt = new Date().toISOString();
+                if (err) history[idx].error = err.message;
+                saveTransferHistory(history);
+            }
         });
         
         res.json({ 
@@ -356,8 +412,10 @@ router.get('/jobs/:id', requireAuth, (req, res) => {
             const lines = log.trim().split('\n');
             const lastLine = lines[lines.length - 1] || '';
             
-            // Check if process is still running
-            const isRunning = lastLine.includes('Transferred:') && !lastLine.includes('100%');
+            // Check if process is still running (check in history)
+            const history = loadTransferHistory();
+            const transfer = history.find(t => t.id === id);
+            const isRunning = transfer?.status === 'running';
             
             res.json({
                 jobId: id,
@@ -368,6 +426,197 @@ router.get('/jobs/:id', requireAuth, (req, res) => {
         } else {
             res.json({ jobId: id, running: false, error: 'Job not found' });
         }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /history - Get transfer history
+router.get('/history', requireAuth, (req, res) => {
+    try {
+        const history = loadTransferHistory();
+        // Return most recent first
+        res.json({ history: history.reverse() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /history - Clear transfer history
+router.delete('/history', requireAuth, (req, res) => {
+    try {
+        saveTransferHistory([]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHEDULED SYNC - Cron integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Helper: Load scheduled syncs
+function loadScheduledSyncs() {
+    const schedulePath = '/opt/homepinas/backend/data/scheduled-syncs.json';
+    try {
+        if (fs.existsSync(schedulePath)) {
+            return JSON.parse(fs.readFileSync(schedulePath, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading scheduled syncs:', e);
+    }
+    return [];
+}
+
+// Helper: Save scheduled syncs
+function saveScheduledSyncs(syncs) {
+    const schedulePath = '/opt/homepinas/backend/data/scheduled-syncs.json';
+    try {
+        fs.writeFileSync(schedulePath, JSON.stringify(syncs, null, 2));
+    } catch (e) {
+        console.error('Error saving scheduled syncs:', e);
+    }
+}
+
+// Helper: Convert schedule preset to cron expression
+function scheduleToCron(schedule) {
+    switch (schedule) {
+        case 'hourly': return '0 * * * *';          // Every hour at :00
+        case 'daily': return '0 3 * * *';            // Daily at 3:00 AM
+        case 'weekly': return '0 3 * * 0';           // Sunday at 3:00 AM
+        case 'monthly': return '0 3 1 * *';          // 1st of month at 3:00 AM
+        default: return schedule;                     // Custom cron expression
+    }
+}
+
+// Helper: Write scheduled syncs to system crontab
+function writeCloudBackupCrontab() {
+    return new Promise((resolve, reject) => {
+        const syncs = loadScheduledSyncs().filter(s => s.enabled);
+        
+        // Read existing crontab (to preserve non-cloud-backup entries)
+        exec('crontab -l 2>/dev/null || echo ""', (err, existingCrontab) => {
+            // Filter out old cloud-backup entries
+            const otherLines = existingCrontab.split('\n').filter(line => 
+                !line.includes('# HomePiNAS Cloud Backup:') && 
+                !line.includes('rclone sync') && 
+                !line.includes('rclone copy')
+            );
+            
+            // Add cloud backup entries
+            let content = otherLines.join('\n').trim() + '\n\n';
+            content += '# ═══ HomePiNAS Cloud Backup Scheduled Syncs ═══\n';
+            
+            syncs.forEach(sync => {
+                const cronExpr = scheduleToCron(sync.schedule);
+                const logFile = `/var/log/homepinas/cloud-backup-${sync.id}.log`;
+                const cmd = sync.mode === 'sync' 
+                    ? `rclone sync "${sync.source}" "${sync.dest}"` 
+                    : `rclone copy "${sync.source}" "${sync.dest}"`;
+                
+                content += `# HomePiNAS Cloud Backup: ${sync.name} (ID: ${sync.id})\n`;
+                content += `${cronExpr} ${cmd} >> ${logFile} 2>&1\n`;
+            });
+            
+            // Write to temp file and apply
+            const tmpFile = `/tmp/homepinas-crontab-${Date.now()}`;
+            fs.writeFile(tmpFile, content, (writeErr) => {
+                if (writeErr) return reject(writeErr);
+                
+                exec(`crontab ${tmpFile}`, (cronErr) => {
+                    fs.unlink(tmpFile, () => {});
+                    if (cronErr) return reject(cronErr);
+                    resolve();
+                });
+            });
+        });
+    });
+}
+
+// GET /schedules - List scheduled syncs
+router.get('/schedules', requireAuth, (req, res) => {
+    try {
+        const schedules = loadScheduledSyncs();
+        res.json({ schedules });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST /schedules - Create scheduled sync
+router.post('/schedules', requireAuth, async (req, res) => {
+    const { name, source, dest, mode = 'copy', schedule } = req.body;
+    
+    if (!name || !source || !dest || !schedule) {
+        return res.status(400).json({ error: 'Name, source, dest, and schedule required' });
+    }
+    
+    try {
+        const syncs = loadScheduledSyncs();
+        const newSync = {
+            id: Date.now().toString(),
+            name,
+            source,
+            dest,
+            mode,
+            schedule,
+            enabled: true,
+            createdAt: new Date().toISOString()
+        };
+        
+        syncs.push(newSync);
+        saveScheduledSyncs(syncs);
+        
+        // Update system crontab
+        await writeCloudBackupCrontab();
+        
+        // Create log directory
+        execSync('sudo mkdir -p /var/log/homepinas && sudo chmod 777 /var/log/homepinas', { encoding: 'utf8' });
+        
+        res.json({ success: true, schedule: newSync });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /schedules/:id - Delete scheduled sync
+router.delete('/schedules/:id', requireAuth, async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        let syncs = loadScheduledSyncs();
+        syncs = syncs.filter(s => s.id !== id);
+        saveScheduledSyncs(syncs);
+        
+        // Update system crontab
+        await writeCloudBackupCrontab();
+        
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST /schedules/:id/toggle - Enable/disable scheduled sync
+router.post('/schedules/:id/toggle', requireAuth, async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        const syncs = loadScheduledSyncs();
+        const sync = syncs.find(s => s.id === id);
+        
+        if (!sync) {
+            return res.status(404).json({ error: 'Schedule not found' });
+        }
+        
+        sync.enabled = !sync.enabled;
+        saveScheduledSyncs(syncs);
+        
+        // Update system crontab
+        await writeCloudBackupCrontab();
+        
+        res.json({ success: true, enabled: sync.enabled });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

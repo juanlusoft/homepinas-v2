@@ -10877,10 +10877,151 @@ async function loadCloudBackupStatus() {
             `;
         }
         
-        contentDiv.innerHTML = remotesHtml;
+        // Load scheduled syncs
+        const schedulesRes = await authFetch(`${API_BASE}/cloud-backup/schedules`);
+        const schedulesData = await schedulesRes.json();
+        
+        // Load transfer history
+        const historyRes = await authFetch(`${API_BASE}/cloud-backup/history`);
+        const historyData = await historyRes.json();
+        
+        // Build scheduled syncs section
+        let schedulesHtml = `
+            <div class="glass-card" style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin: 0;">⏰ Sincronizaciones Programadas</h4>
+                </div>
+                <div id="scheduled-syncs-list">
+        `;
+        
+        if (schedulesData.schedules && schedulesData.schedules.length > 0) {
+            schedulesHtml += schedulesData.schedules.map(s => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 8px; border: 1px solid ${s.enabled ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.05)'};">
+                    <div style="flex: 1; overflow: hidden;">
+                        <div style="font-weight: 500;">${escapeHtml(s.name)}</div>
+                        <div style="font-size: 0.8rem; color: #a0a0b0;">
+                            ${escapeHtml(s.source)} → ${escapeHtml(s.dest)}
+                        </div>
+                        <div style="font-size: 0.75rem; color: #6366f1; margin-top: 4px;">
+                            ${getScheduleLabel(s.schedule)} • ${s.mode}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="toggleScheduledSync('${s.id}')" class="btn-sm" style="background: ${s.enabled ? '#10b981' : '#4a4a6a'};" title="${s.enabled ? 'Pausar' : 'Activar'}">
+                            ${s.enabled ? '⏸️' : '▶️'}
+                        </button>
+                        <button onclick="deleteScheduledSync('${s.id}')" class="btn-sm" style="background: #ef4444;" title="Eliminar">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            schedulesHtml += `<div style="text-align: center; padding: 20px; color: #a0a0b0;">No hay sincronizaciones programadas</div>`;
+        }
+        schedulesHtml += '</div></div>';
+        
+        // Build history section
+        let historyHtml = `
+            <div class="glass-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin: 0;">📜 Historial de Transferencias</h4>
+                    ${historyData.history && historyData.history.length > 0 ? `
+                        <button onclick="clearTransferHistory()" class="btn-sm" style="background: #4a4a6a;">Limpiar</button>
+                    ` : ''}
+                </div>
+                <div id="transfer-history-list" style="max-height: 300px; overflow-y: auto;">
+        `;
+        
+        if (historyData.history && historyData.history.length > 0) {
+            historyHtml += historyData.history.slice(0, 20).map(t => {
+                const statusIcon = t.status === 'completed' ? '✅' : t.status === 'running' ? '🔄' : '❌';
+                const statusColor = t.status === 'completed' ? '#10b981' : t.status === 'running' ? '#f59e0b' : '#ef4444';
+                return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 6px; margin-bottom: 6px; border-left: 3px solid ${statusColor};">
+                    <div style="flex: 1; overflow: hidden;">
+                        <div style="font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ${escapeHtml(t.source)} → ${escapeHtml(t.dest)}
+                        </div>
+                        <div style="font-size: 0.75rem; color: #a0a0b0;">
+                            ${new Date(t.timestamp).toLocaleString()} • ${t.mode}
+                        </div>
+                    </div>
+                    <span style="font-size: 1.2rem;" title="${t.status}">${statusIcon}</span>
+                </div>
+            `}).join('');
+        } else {
+            historyHtml += `<div style="text-align: center; padding: 20px; color: #a0a0b0;">Sin transferencias recientes</div>`;
+        }
+        historyHtml += '</div></div>';
+        
+        contentDiv.innerHTML = remotesHtml + schedulesHtml + historyHtml;
         
     } catch (e) {
         contentDiv.innerHTML = `<div class="glass-card" style="color: #ef4444; padding: 20px;">Error: ${e.message}</div>`;
+    }
+}
+
+// Helper: Get human-readable schedule label
+function getScheduleLabel(schedule) {
+    switch (schedule) {
+        case 'hourly': return '⏱️ Cada hora';
+        case 'daily': return '📅 Diario (3:00)';
+        case 'weekly': return '📆 Semanal (Dom 3:00)';
+        case 'monthly': return '🗓️ Mensual (día 1)';
+        default: return `🕐 ${schedule}`;
+    }
+}
+
+// Toggle scheduled sync enabled/disabled
+async function toggleScheduledSync(id) {
+    try {
+        const res = await authFetch(`${API_BASE}/cloud-backup/schedules/${id}/toggle`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.enabled ? 'Sincronización activada' : 'Sincronización pausada', 'success');
+            await loadCloudBackupStatus();
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+// Delete scheduled sync
+async function deleteScheduledSync(id) {
+    if (!confirm('¿Eliminar esta sincronización programada?')) return;
+    
+    try {
+        const res = await authFetch(`${API_BASE}/cloud-backup/schedules/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Sincronización eliminada', 'success');
+            await loadCloudBackupStatus();
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+// Clear transfer history
+async function clearTransferHistory() {
+    if (!confirm('¿Limpiar todo el historial de transferencias?')) return;
+    
+    try {
+        const res = await authFetch(`${API_BASE}/cloud-backup/history`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Historial limpiado', 'success');
+            await loadCloudBackupStatus();
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
     }
 }
 
@@ -11360,9 +11501,25 @@ async function startSync() {
             showToast('Error: ' + e.message, 'error');
         }
     } else {
-        // Schedule for later - would need cron integration
-        showToast(`Sincronización programada: ${schedule}`, 'success');
-        // TODO: Save to scheduler
+        // Schedule for later - save to cron
+        try {
+            const name = `${source.split(':')[0]} → ${dest.split('/').pop()}`;
+            const res = await authFetch(`${API_BASE}/cloud-backup/schedules`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, source, dest, mode, schedule })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                showToast('Sincronización programada correctamente', 'success');
+                await loadCloudBackupStatus();
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            showToast('Error programando: ' + e.message, 'error');
+        }
     }
 }
 
@@ -11462,6 +11619,9 @@ window.syncFromCurrentPath = syncFromCurrentPath;
 window.showSyncWizard = showSyncWizard;
 window.startSync = startSync;
 window.browseLocalForSync = browseLocalForSync;
+window.toggleScheduledSync = toggleScheduledSync;
+window.deleteScheduledSync = deleteScheduledSync;
+window.clearTransferHistory = clearTransferHistory;
 
 init();
 console.log("HomePiNAS Core v2.6.0 Loaded - Cloud Backup");
