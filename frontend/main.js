@@ -11028,13 +11028,13 @@ async function toggleScheduledSync(id) {
         const res = await authFetch(`${API_BASE}/cloud-backup/schedules/${id}/toggle`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            showToast(data.enabled ? 'Sincronización activada' : 'Sincronización pausada', 'success');
+            showNotification(data.enabled ? 'Sincronización activada' : 'Sincronización pausada', 'success');
             await loadCloudBackupStatus();
         } else {
             throw new Error(data.error);
         }
     } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showNotification('Error: ' + e.message, 'error');
     }
 }
 
@@ -11046,13 +11046,13 @@ async function deleteScheduledSync(id) {
         const res = await authFetch(`${API_BASE}/cloud-backup/schedules/${id}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
-            showToast('Sincronización eliminada', 'success');
+            showNotification('Sincronización eliminada', 'success');
             await loadCloudBackupStatus();
         } else {
             throw new Error(data.error);
         }
     } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showNotification('Error: ' + e.message, 'error');
     }
 }
 
@@ -11064,13 +11064,13 @@ async function clearTransferHistory() {
         const res = await authFetch(`${API_BASE}/cloud-backup/history`, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
-            showToast('Historial limpiado', 'success');
+            showNotification('Historial limpiado', 'success');
             await loadCloudBackupStatus();
         } else {
             throw new Error(data.error);
         }
     } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showNotification('Error: ' + e.message, 'error');
     }
 }
 
@@ -11129,7 +11129,7 @@ async function installRclone() {
         if (data.success) {
             updateProgress(3, 100, '¡Completado!');
             await new Promise(r => setTimeout(r, 1500));
-            showToast(`rclone v${data.version} instalado correctamente`, 'success');
+            showNotification(`rclone v${data.version} instalado correctamente`, 'success');
             // Force full view re-render
             await renderCloudBackupView();
         } else {
@@ -11137,7 +11137,7 @@ async function installRclone() {
         }
     } catch (e) {
         clearInterval(progressInterval);
-        showToast('Error instalando rclone: ' + e.message, 'error');
+        showNotification('Error instalando rclone: ' + e.message, 'error');
         await loadCloudBackupStatus();
     }
 }
@@ -11202,7 +11202,7 @@ async function showAddCloudModal() {
         
     } catch (e) {
         console.error('[Cloud Backup] Error in showAddCloudModal:', e);
-        showToast('Error: ' + e.message, 'error');
+        showNotification('Error: ' + e.message, 'error');
     }
 }
 
@@ -11285,7 +11285,7 @@ async function saveOAuthConfig(provider) {
         
         if (data.success) {
             document.getElementById('oauth-modal').remove();
-            showToast('Nube configurada correctamente', 'success');
+            showNotification('Nube configurada correctamente', 'success');
             await loadCloudBackupStatus();
         } else {
             throw new Error(data.error);
@@ -11369,7 +11369,7 @@ async function saveSimpleConfig(provider, fieldNames) {
         
         if (data.success) {
             document.getElementById('config-form-modal').remove();
-            showToast('Nube configurada correctamente', 'success');
+            showNotification('Nube configurada correctamente', 'success');
             await loadCloudBackupStatus();
         } else {
             throw new Error(data.error);
@@ -11391,16 +11391,16 @@ async function browseRemote(remoteName, path = '') {
                     <h3 style="margin: 0; color: #10b981;">📂 ${escapeHtml(remoteName)}</h3>
                     <div id="remote-path-display" style="font-size: 0.85rem; color: #a0a0b0; margin-top: 4px;">/${escapeHtml(path)}</div>
                 </div>
-                <button onclick="document.getElementById('remote-browser-modal').remove()" style="background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">×</button>
+                <button data-action="close" style="background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">×</button>
             </div>
             <div style="padding: 10px 20px; border-bottom: 1px solid #3d3d5c; display: flex; gap: 10px;">
-                <button id="remote-back-btn" onclick="remoteBrowserBack()" style="padding: 8px 16px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff; cursor: pointer;" ${!path ? 'disabled style="opacity:0.5;padding: 8px 16px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff;"' : ''}>
+                <button id="remote-back-btn" data-action="back" style="padding: 8px 16px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff; cursor: pointer;" ${!path ? 'disabled style="opacity:0.5;padding: 8px 16px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff;"' : ''}>
                     ⬅️ Atrás
                 </button>
-                <button onclick="remoteBrowserRefresh()" style="padding: 8px 16px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff; cursor: pointer;">
+                <button data-action="refresh" style="padding: 8px 16px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff; cursor: pointer;">
                     🔄 Actualizar
                 </button>
-                <button onclick="syncFromCurrentPath()" style="padding: 8px 16px; background: #10b981; border: none; border-radius: 6px; color: #fff; cursor: pointer;">
+                <button data-action="sync-folder" style="padding: 8px 16px; background: #10b981; border: none; border-radius: 6px; color: #fff; cursor: pointer;">
                     📥 Sincronizar esta carpeta
                 </button>
             </div>
@@ -11414,6 +11414,19 @@ async function browseRemote(remoteName, path = '') {
     
     // Store current state
     window.remoteBrowserState = { remoteName, path };
+    
+    // Add event delegation for modal buttons
+    modal.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        
+        switch (btn.dataset.action) {
+            case 'close': modal.remove(); break;
+            case 'back': remoteBrowserBack(); break;
+            case 'refresh': remoteBrowserRefresh(); break;
+            case 'sync-folder': syncFromCurrentPath(); break;
+        }
+    });
     
     await loadRemoteFiles(remoteName, path);
 }
@@ -11443,7 +11456,7 @@ async function loadRemoteFiles(remoteName, path) {
         
         listDiv.innerHTML = sorted.map(item => `
             <div class="remote-file-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 8px; cursor: ${item.isDir ? 'pointer' : 'default'}; border: 1px solid rgba(255,255,255,0.05);"
-                ${item.isDir ? `onclick="navigateRemoteFolder('${escapeHtml(item.path)}')"` : ''}>
+                ${item.isDir ? `data-action="navigate" data-path="${escapeHtml(item.path)}"` : ''}>
                 <div style="display: flex; align-items: center; gap: 12px; overflow: hidden;">
                     <span style="font-size: 1.4rem;">${item.isDir ? '📁' : getFileIcon(item.name)}</span>
                     <div style="overflow: hidden;">
@@ -11455,13 +11468,27 @@ async function loadRemoteFiles(remoteName, path) {
                     </div>
                 </div>
                 ${!item.isDir ? `
-                    <button onclick="event.stopPropagation(); downloadRemoteFile('${escapeHtml(window.remoteBrowserState.remoteName)}', '${escapeHtml(item.path)}')" 
+                    <button data-action="download" data-path="${escapeHtml(item.path)}"
                         style="padding: 6px 12px; background: #6366f1; border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.85rem;">
                         📥
                     </button>
                 ` : ''}
             </div>
         `).join('');
+        
+        // Add event delegation for file list
+        listDiv.addEventListener('click', (e) => {
+            const item = e.target.closest('[data-action="navigate"]');
+            if (item) {
+                navigateRemoteFolder(item.dataset.path);
+                return;
+            }
+            const downloadBtn = e.target.closest('[data-action="download"]');
+            if (downloadBtn) {
+                e.stopPropagation();
+                downloadRemoteFile(window.remoteBrowserState.remoteName, downloadBtn.dataset.path);
+            }
+        });
         
     } catch (e) {
         listDiv.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">Error: ${e.message}</div>`;
@@ -11507,7 +11534,7 @@ function remoteBrowserRefresh() {
 }
 
 async function downloadRemoteFile(remoteName, filePath) {
-    showToast('Descarga iniciada...', 'info');
+    showNotification('Descarga iniciada...', 'info');
     // This would need a backend endpoint to handle the actual download
     alert(`Para descargar: rclone copy "${remoteName}:${filePath}" /mnt/storage/downloads/`);
 }
@@ -11536,7 +11563,7 @@ function showSyncWizard(remoteName, remotePath = '') {
                 <div style="display: flex; gap: 10px;">
                     <input type="text" id="sync-source" value="${remoteName}:${remotePath}" readonly 
                         style="flex: 1; padding: 10px; background: #2d2d44; border: 1px solid #3d3d5c; border-radius: 6px; color: #fff;">
-                    <button onclick="browseForSync('source')" style="padding: 10px 15px; background: #6366f1; border: none; border-radius: 6px; color: #fff; cursor: pointer;">📂</button>
+                    <button data-action="browse-source" style="padding: 10px 15px; background: #6366f1; border: none; border-radius: 6px; color: #fff; cursor: pointer;">📂</button>
                 </div>
             </div>
             
@@ -11545,7 +11572,7 @@ function showSyncWizard(remoteName, remotePath = '') {
                 <div style="display: flex; gap: 10px;">
                     <input type="text" id="sync-dest" value="/mnt/storage/cloud-backup/${remoteName}" 
                         style="flex: 1; padding: 10px; background: #2d2d44; border: 1px solid #3d3d5c; border-radius: 6px; color: #fff;">
-                    <button onclick="browseLocalForSync()" style="padding: 10px 15px; background: #6366f1; border: none; border-radius: 6px; color: #fff; cursor: pointer;">📂</button>
+                    <button data-action="browse-dest" style="padding: 10px 15px; background: #6366f1; border: none; border-radius: 6px; color: #fff; cursor: pointer;">📂</button>
                 </div>
             </div>
             
@@ -11569,11 +11596,24 @@ function showSyncWizard(remoteName, remotePath = '') {
             </div>
             
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="document.getElementById('sync-wizard-modal').remove()" style="padding: 12px 24px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff; cursor: pointer;">Cancelar</button>
-                <button onclick="startSync()" style="padding: 12px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; cursor: pointer; font-weight: 600;">🚀 Iniciar</button>
+                <button data-action="cancel" style="padding: 12px 24px; background: #4a4a6a; border: none; border-radius: 6px; color: #fff; cursor: pointer;">Cancelar</button>
+                <button data-action="start-sync" style="padding: 12px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; cursor: pointer; font-weight: 600;">🚀 Iniciar</button>
             </div>
         </div>
     `;
+    
+    // Add event listeners
+    modal.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        
+        switch (btn.dataset.action) {
+            case 'cancel': modal.remove(); break;
+            case 'browse-source': browseForSync('source'); break;
+            case 'browse-dest': browseLocalForSync(); break;
+            case 'start-sync': await startSync(); break;
+        }
+    });
     
     document.body.appendChild(modal);
 }
@@ -11593,7 +11633,7 @@ async function startSync() {
     
     if (schedule === 'now') {
         // Execute immediately
-        showToast('Iniciando sincronización...', 'info');
+        showNotification('Iniciando sincronización...', 'info');
         
         try {
             const res = await authFetch(`${API_BASE}/cloud-backup/sync`, {
@@ -11604,13 +11644,13 @@ async function startSync() {
             const data = await res.json();
             
             if (data.success) {
-                showToast('Sincronización iniciada en segundo plano', 'success');
+                showNotification('Sincronización iniciada en segundo plano', 'success');
                 showSyncProgress(data.jobId);
             } else {
                 throw new Error(data.error);
             }
         } catch (e) {
-            showToast('Error: ' + e.message, 'error');
+            showNotification('Error: ' + e.message, 'error');
         }
     } else {
         // Schedule for later - save to cron
@@ -11624,13 +11664,13 @@ async function startSync() {
             const data = await res.json();
             
             if (data.success) {
-                showToast('Sincronización programada correctamente', 'success');
+                showNotification('Sincronización programada correctamente', 'success');
                 await loadCloudBackupStatus();
             } else {
                 throw new Error(data.error);
             }
         } catch (e) {
-            showToast('Error programando: ' + e.message, 'error');
+            showNotification('Error programando: ' + e.message, 'error');
         }
     }
 }
@@ -11642,7 +11682,7 @@ function showSyncProgress(jobId) {
     toast.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <span style="color: #10b981; font-weight: 600;">🔄 Sincronizando...</span>
-            <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: #fff; cursor: pointer;">×</button>
+            <button data-action="close" style="background: none; border: none; color: #fff; cursor: pointer;">×</button>
         </div>
         <div id="sync-progress-text-${jobId}" style="color: #a0a0b0; font-size: 0.85rem;">Iniciando...</div>
         <div style="margin-top: 10px; height: 4px; background: #2d2d44; border-radius: 2px; overflow: hidden;">
@@ -11650,6 +11690,9 @@ function showSyncProgress(jobId) {
         </div>
     `;
     document.body.appendChild(toast);
+    
+    // Close button
+    toast.querySelector('[data-action="close"]').addEventListener('click', () => toast.remove());
     
     // Poll for progress
     const pollProgress = async () => {
@@ -11703,7 +11746,7 @@ async function deleteRemote(remoteName) {
         const data = await res.json();
         
         if (data.success) {
-            showToast('Nube eliminada', 'success');
+            showNotification('Nube eliminada', 'success');
             await loadCloudBackupStatus();
         } else {
             throw new Error(data.error);
