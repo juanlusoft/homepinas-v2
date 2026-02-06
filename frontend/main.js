@@ -11143,11 +11143,13 @@ async function installRclone() {
 }
 
 async function showAddCloudModal() {
-    console.log('[Cloud Backup] showAddCloudModal called');
     try {
-    // Get available providers
-    const res = await authFetch(`${API_BASE}/cloud-backup/providers`);
-    const data = await res.json();
+        // Get available providers
+        const res = await authFetch(`${API_BASE}/cloud-backup/providers`);
+        if (!res.ok) {
+            throw new Error('Error cargando proveedores');
+        }
+        const data = await res.json();
     
     const modal = document.createElement('div');
     modal.id = 'add-cloud-modal';
