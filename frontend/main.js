@@ -10876,11 +10876,6 @@ async function loadCloudBackupStatus() {
                     </button>
                 </div>
             `;
-            // Attach event listener after DOM update
-            setTimeout(() => {
-                const btn = document.getElementById('btn-add-first-cloud');
-                if (btn) btn.addEventListener('click', showAddCloudModal);
-            }, 0);
         }
         
         // Load scheduled syncs
@@ -10963,8 +10958,27 @@ async function loadCloudBackupStatus() {
         
         contentDiv.innerHTML = remotesHtml + schedulesHtml + historyHtml;
         
+        // Bind event listeners after DOM is updated
+        bindCloudBackupEventListeners();
+        
     } catch (e) {
         contentDiv.innerHTML = `<div class="glass-card" style="color: #ef4444; padding: 20px;">Error: ${e.message}</div>`;
+    }
+}
+
+// Bind all event listeners for Cloud Backup view
+function bindCloudBackupEventListeners() {
+    // Add cloud button (when no clouds configured)
+    const addFirstBtn = document.getElementById('btn-add-first-cloud');
+    if (addFirstBtn) {
+        addFirstBtn.addEventListener('click', showAddCloudModal);
+    }
+    
+    // Clear history button
+    const clearHistoryBtn = document.querySelector('[onclick*="clearTransferHistory"]');
+    if (clearHistoryBtn) {
+        clearHistoryBtn.removeAttribute('onclick');
+        clearHistoryBtn.addEventListener('click', clearTransferHistory);
     }
 }
 
@@ -11100,6 +11114,8 @@ async function installRclone() {
 }
 
 async function showAddCloudModal() {
+    console.log('[Cloud Backup] showAddCloudModal called');
+    try {
     // Get available providers
     const res = await authFetch(`${API_BASE}/cloud-backup/providers`);
     const data = await res.json();
@@ -11137,6 +11153,11 @@ async function showAddCloudModal() {
     `;
     
     document.body.appendChild(modal);
+    console.log('[Cloud Backup] Modal appended to body');
+    } catch (e) {
+        console.error('[Cloud Backup] Error in showAddCloudModal:', e);
+        showToast('Error: ' + e.message, 'error');
+    }
 }
 
 async function startCloudConfig(provider) {
