@@ -662,15 +662,27 @@ function getProviderFields(provider) {
 // POST /install - Install rclone
 router.post('/install', requireAuth, async (req, res) => {
     try {
-        // Install rclone using official script
-        execSync('curl https://rclone.org/install.sh | sudo bash', { 
+        // Download and install rclone using official script
+        // Use -fsSL for silent curl, pipe to sudo bash
+        const result = execSync('curl -fsSL https://rclone.org/install.sh | sudo bash 2>&1', { 
             encoding: 'utf8',
-            timeout: 120000 
+            timeout: 180000,
+            stdio: ['pipe', 'pipe', 'pipe']
         });
         
+        console.log('rclone install output:', result);
+        
+        // Wait a moment for installation to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const version = getRcloneVersion();
-        res.json({ success: true, version });
+        if (version) {
+            res.json({ success: true, version });
+        } else {
+            throw new Error('Installation completed but rclone not found');
+        }
     } catch (e) {
+        console.error('rclone install error:', e.message);
         res.status(500).json({ error: 'Failed to install rclone: ' + e.message });
     }
 });
