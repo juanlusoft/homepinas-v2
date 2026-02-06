@@ -188,21 +188,6 @@
       "docs": "https://github.com/dani-garcia/vaultwarden/wiki"
     },
     {
-      "id": "syncthing",
-      "name": "Syncthing",
-      "description": "Sincronización P2P entre dispositivos. Alternativa a Dropbox.",
-      "category": "sync",
-      "icon": "🔄",
-      "image": "syncthing/syncthing:latest",
-      "ports": { "8384": "8384", "22000": "22000" },
-      "volumes": {
-        "/var/syncthing": "/opt/homepinas/apps/syncthing/data"
-      },
-      "env": {},
-      "webUI": 8384,
-      "docs": "https://docs.syncthing.net/"
-    },
-    {
       "id": "filebrowser",
       "name": "File Browser",
       "description": "Explorador de archivos web alternativo.",
@@ -355,11 +340,10 @@
     "security": { "name": "Seguridad", "icon": "🔐", "order": 5 },
     "surveillance": { "name": "Vigilancia", "icon": "📹", "order": 6 },
     "automation": { "name": "Automatización", "icon": "🏠", "order": 7 },
-    "sync": { "name": "Sincronización", "icon": "🔄", "order": 8 },
-    "backup": { "name": "Backup", "icon": "💾", "order": 9 },
-    "development": { "name": "Desarrollo", "icon": "💻", "order": 10 },
-    "monitoring": { "name": "Monitorización", "icon": "📊", "order": 11 },
-    "system": { "name": "Sistema", "icon": "⚙️", "order": 12 },
-    "files": { "name": "Archivos", "icon": "📁", "order": 13 }
+    "backup": { "name": "Backup", "icon": "💾", "order": 8 },
+    "development": { "name": "Desarrollo", "icon": "💻", "order": 9 },
+    "monitoring": { "name": "Monitorización", "icon": "📊", "order": 10 },
+    "system": { "name": "Sistema", "icon": "⚙️", "order": 11 },
+    "files": { "name": "Archivos", "icon": "📁", "order": 12 }
   }
 }
