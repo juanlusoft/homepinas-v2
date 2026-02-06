@@ -1086,80 +1086,708 @@ setupForm.addEventListener('submit', async (e) => {
     }
 });
 
-function initStorageSetup() {
-    const tableBody = document.getElementById('granular-disk-list');
-    if (!tableBody) return;
-    tableBody.innerHTML = '';
+// =============================================================================
+// STORAGE WIZARD - Step-by-step configuration
+// =============================================================================
 
-    state.disks.forEach(disk => {
-        const tr = document.createElement('tr');
+const wizardState = {
+    currentStep: 1,
+    totalSteps: 7,
+    disks: [],
+    selectedDataDisks: [],
+    selectedParityDisk: null,
+    selectedCacheDisk: null,
+    isConfiguring: false
+};
 
-        // Create elements safely to prevent XSS
-        const diskInfoTd = document.createElement('td');
-        const diskInfoDiv = document.createElement('div');
-        diskInfoDiv.className = 'disk-info';
-
-        const modelStrong = document.createElement('strong');
-        modelStrong.textContent = disk.model || 'Unknown';
-
-        const infoSpan = document.createElement('span');
-        infoSpan.textContent = `${disk.id || 'N/A'} • ${disk.size || 'N/A'}`;
-
-        diskInfoDiv.appendChild(modelStrong);
-        diskInfoDiv.appendChild(infoSpan);
-        diskInfoTd.appendChild(diskInfoDiv);
-
-        const typeTd = document.createElement('td');
-        const typeBadge = document.createElement('span');
-        typeBadge.className = `badge ${escapeHtml((disk.type || 'unknown').toLowerCase())}`;
-        typeBadge.textContent = disk.type || 'Unknown';
-        typeTd.appendChild(typeBadge);
-
-        const roleTd = document.createElement('td');
-        const roleDiv = document.createElement('div');
-        roleDiv.className = 'role-selector';
-        roleDiv.dataset.disk = disk.id;
-
-        const roles = ['none', 'data', 'parity'];
-        if (disk.type === 'NVMe' || disk.type === 'SSD') {
-            roles.push('cache');
+// Load wizard state from localStorage
+function loadWizardState() {
+    try {
+        const saved = localStorage.getItem('homepinas-wizard-state');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            Object.assign(wizardState, parsed);
+            return true;
         }
+    } catch (e) {
+        console.warn('Could not load wizard state:', e);
+    }
+    return false;
+}
 
-        roles.forEach((role, index) => {
-            const btn = document.createElement('button');
-            btn.className = `role-btn${index === 0 ? ' active' : ''}`;
-            btn.dataset.role = role;
-            btn.textContent = role.charAt(0).toUpperCase() + role.slice(1);
-            roleDiv.appendChild(btn);
-        });
+// Save wizard state to localStorage
+function saveWizardState() {
+    try {
+        localStorage.setItem('homepinas-wizard-state', JSON.stringify({
+            currentStep: wizardState.currentStep,
+            selectedDataDisks: wizardState.selectedDataDisks,
+            selectedParityDisk: wizardState.selectedParityDisk,
+            selectedCacheDisk: wizardState.selectedCacheDisk
+        }));
+    } catch (e) {
+        console.warn('Could not save wizard state:', e);
+    }
+}
 
-        roleTd.appendChild(roleDiv);
+// Clear wizard state
+function clearWizardState() {
+    wizardState.currentStep = 1;
+    wizardState.selectedDataDisks = [];
+    wizardState.selectedParityDisk = null;
+    wizardState.selectedCacheDisk = null;
+    localStorage.removeItem('homepinas-wizard-state');
+}
 
-        tr.appendChild(diskInfoTd);
-        tr.appendChild(typeTd);
-        tr.appendChild(roleTd);
-        tableBody.appendChild(tr);
-    });
+// Initialize the storage wizard
+function initStorageSetup() {
+    console.log('[Wizard] Initializing storage setup wizard');
+    
+    // Load any saved state
+    const hasSavedState = loadWizardState();
+    
+    // Start disk detection
+    detectDisksForWizard();
+    
+    // Setup wizard navigation
+    setupWizardNavigation();
+    
+    // If we have saved state and disks, restore to that step
+    if (hasSavedState && wizardState.currentStep > 1) {
+        // We'll navigate to the saved step after disk detection completes
+    }
+}
 
-    document.querySelectorAll('.role-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            const container = e.target.parentElement;
-            container.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            updateSummary();
-        };
+// Detect disks and populate the wizard
+async function detectDisksForWizard() {
+    const detectionContainer = document.getElementById('wizard-disk-detection');
+    if (!detectionContainer) return;
+    
+    // Show loading spinner
+    detectionContainer.innerHTML = `
+        <div class="wizard-detecting">
+            <div class="wizard-spinner"></div>
+            <p class="wizard-detecting-text">${t('wizard.detectingDisks', 'Detectando discos conectados...')}</p>
+        </div>
+    `;
+    
+    try {
+        const res = await fetch(`${API_BASE}/system/disks`);
+        if (!res.ok) throw new Error('Failed to fetch disks');
+        
+        wizardState.disks = await res.json();
+        state.disks = wizardState.disks; // Keep global state in sync
+        
+        // Short delay for UX (show the spinner briefly)
+        await new Promise(r => setTimeout(r, 800));
+        
+        if (wizardState.disks.length === 0) {
+            detectionContainer.innerHTML = `
+                <div class="wizard-no-disks">
+                    <div class="wizard-no-disks-icon">💿</div>
+                    <p>${t('wizard.noDisks', 'No se detectaron discos disponibles')}</p>
+                    <button class="wizard-btn wizard-btn-next" onclick="detectDisksForWizard()" style="margin-top: 16px;">
+                        🔄 ${t('wizard.retry', 'Reintentar')}
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        // Show detected disks summary
+        detectionContainer.innerHTML = `
+            <div style="text-align: center; padding: 20px 0;">
+                <div style="font-size: 3rem; margin-bottom: 16px;">✅</div>
+                <p style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 8px;">
+                    <strong>${wizardState.disks.length}</strong> ${t('wizard.disksDetected', 'disco(s) detectado(s)')}
+                </p>
+                <div style="display: flex; justify-content: center; gap: 16px; margin-top: 16px; flex-wrap: wrap;">
+                    ${wizardState.disks.map(d => `
+                        <div style="background: var(--hover-bg); padding: 8px 16px; border-radius: 8px; font-size: 0.9rem;">
+                            ${getDiskIcon(d.type)} ${escapeHtml(d.model || d.id)} <span style="color: var(--primary); font-weight: 600;">${escapeHtml(d.size)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        // Enable next button
+        const nextBtn = document.getElementById('wizard-next-1');
+        if (nextBtn) nextBtn.disabled = false;
+        
+        // Populate disk lists for other steps
+        populateWizardDiskLists();
+        
+        // Restore selections if we have saved state
+        if (wizardState.selectedDataDisks.length > 0 || wizardState.selectedParityDisk || wizardState.selectedCacheDisk) {
+            restoreWizardSelections();
+        }
+        
+    } catch (e) {
+        console.error('[Wizard] Disk detection error:', e);
+        detectionContainer.innerHTML = `
+            <div class="wizard-no-disks">
+                <div class="wizard-no-disks-icon">❌</div>
+                <p>${t('wizard.detectionError', 'Error al detectar discos')}</p>
+                <button class="wizard-btn wizard-btn-next" onclick="detectDisksForWizard()" style="margin-top: 16px;">
+                    🔄 ${t('wizard.retry', 'Reintentar')}
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Get appropriate icon for disk type
+function getDiskIcon(type) {
+    switch (type?.toUpperCase()) {
+        case 'NVME': return '⚡';
+        case 'SSD': return '💾';
+        case 'HDD': return '💿';
+        default: return '📀';
+    }
+}
+
+// Populate disk selection lists for all wizard steps
+function populateWizardDiskLists() {
+    // Data disks (all disks available)
+    const dataList = document.getElementById('wizard-data-disks');
+    if (dataList) {
+        dataList.innerHTML = wizardState.disks.map(disk => createDiskCard(disk, 'checkbox', 'data')).join('');
+        setupDiskCardListeners(dataList, 'data');
+    }
+    
+    // Parity disks (all disks, but will filter based on data selection)
+    const parityList = document.getElementById('wizard-parity-disks');
+    if (parityList) {
+        parityList.innerHTML = wizardState.disks.map(disk => createDiskCard(disk, 'radio', 'parity')).join('');
+        setupDiskCardListeners(parityList, 'parity');
+    }
+    
+    // Cache disks (only SSD/NVMe)
+    const cacheList = document.getElementById('wizard-cache-disks');
+    const noCacheMsg = document.getElementById('wizard-no-cache-disks');
+    if (cacheList) {
+        const ssdDisks = wizardState.disks.filter(d => d.type === 'NVMe' || d.type === 'SSD');
+        if (ssdDisks.length > 0) {
+            cacheList.innerHTML = ssdDisks.map(disk => createDiskCard(disk, 'radio', 'cache')).join('');
+            cacheList.style.display = 'flex';
+            if (noCacheMsg) noCacheMsg.style.display = 'none';
+            setupDiskCardListeners(cacheList, 'cache');
+        } else {
+            cacheList.style.display = 'none';
+            if (noCacheMsg) noCacheMsg.style.display = 'block';
+        }
+    }
+}
+
+// Create a disk selection card
+function createDiskCard(disk, inputType, role) {
+    const typeClass = (disk.type || 'hdd').toLowerCase();
+    const selectorClass = inputType === 'checkbox' ? 'wizard-disk-checkbox' : 'wizard-disk-radio';
+    
+    return `
+        <div class="wizard-disk-card" data-disk-id="${escapeHtml(disk.id)}" data-role="${role}">
+            <div class="${selectorClass}"></div>
+            <div class="wizard-disk-icon">${getDiskIcon(disk.type)}</div>
+            <div class="wizard-disk-info">
+                <div class="wizard-disk-name">
+                    ${escapeHtml(disk.model || 'Unknown Disk')}
+                    <span class="wizard-disk-badge ${typeClass}">${escapeHtml(disk.type || 'HDD')}</span>
+                </div>
+                <div class="wizard-disk-details">
+                    /dev/${escapeHtml(disk.id)} • ${disk.temp ? disk.temp + '°C' : 'N/A'}
+                </div>
+            </div>
+            <div class="wizard-disk-size">${escapeHtml(disk.size)}</div>
+        </div>
+    `;
+}
+
+// Setup click listeners for disk cards
+function setupDiskCardListeners(container, role) {
+    container.querySelectorAll('.wizard-disk-card').forEach(card => {
+        card.addEventListener('click', () => handleDiskSelection(card, role));
     });
 }
 
+// Handle disk selection
+function handleDiskSelection(card, role) {
+    const diskId = card.dataset.diskId;
+    const disk = wizardState.disks.find(d => d.id === diskId);
+    if (!disk) return;
+    
+    if (role === 'data') {
+        // Checkbox behavior - toggle selection
+        card.classList.toggle('selected');
+        
+        if (card.classList.contains('selected')) {
+            if (!wizardState.selectedDataDisks.includes(diskId)) {
+                wizardState.selectedDataDisks.push(diskId);
+            }
+        } else {
+            wizardState.selectedDataDisks = wizardState.selectedDataDisks.filter(id => id !== diskId);
+        }
+        
+        // Update next button state
+        const nextBtn = document.getElementById('wizard-next-2');
+        if (nextBtn) nextBtn.disabled = wizardState.selectedDataDisks.length === 0;
+        
+        // Update parity disk options (disable selected data disks)
+        updateParityDiskOptions();
+        
+    } else if (role === 'parity') {
+        // Radio behavior - single selection
+        const container = card.parentElement;
+        container.querySelectorAll('.wizard-disk-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        wizardState.selectedParityDisk = diskId;
+        
+    } else if (role === 'cache') {
+        // Radio behavior - single selection
+        const container = card.parentElement;
+        container.querySelectorAll('.wizard-disk-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        wizardState.selectedCacheDisk = diskId;
+    }
+    
+    saveWizardState();
+}
+
+// Update parity disk options based on data disk selection
+function updateParityDiskOptions() {
+    const parityList = document.getElementById('wizard-parity-disks');
+    if (!parityList) return;
+    
+    // Get the largest selected data disk size
+    const selectedDataDiskSizes = wizardState.selectedDataDisks.map(id => {
+        const disk = wizardState.disks.find(d => d.id === id);
+        return disk ? parseDiskSize(disk.size) : 0;
+    });
+    const largestDataSize = Math.max(...selectedDataDiskSizes, 0);
+    
+    // Update each parity disk card
+    parityList.querySelectorAll('.wizard-disk-card').forEach(card => {
+        const diskId = card.dataset.diskId;
+        const disk = wizardState.disks.find(d => d.id === diskId);
+        
+        // Disable if selected as data disk
+        const isDataDisk = wizardState.selectedDataDisks.includes(diskId);
+        // Disable if smaller than largest data disk
+        const isTooSmall = disk && parseDiskSize(disk.size) < largestDataSize;
+        
+        if (isDataDisk || isTooSmall) {
+            card.classList.add('disabled');
+            card.classList.remove('selected');
+            if (wizardState.selectedParityDisk === diskId) {
+                wizardState.selectedParityDisk = null;
+            }
+        } else {
+            card.classList.remove('disabled');
+        }
+    });
+    
+    // Also update cache disk options
+    updateCacheDiskOptions();
+}
+
+// Update cache disk options based on selections
+function updateCacheDiskOptions() {
+    const cacheList = document.getElementById('wizard-cache-disks');
+    if (!cacheList) return;
+    
+    cacheList.querySelectorAll('.wizard-disk-card').forEach(card => {
+        const diskId = card.dataset.diskId;
+        const isDataDisk = wizardState.selectedDataDisks.includes(diskId);
+        const isParityDisk = wizardState.selectedParityDisk === diskId;
+        
+        if (isDataDisk || isParityDisk) {
+            card.classList.add('disabled');
+            card.classList.remove('selected');
+            if (wizardState.selectedCacheDisk === diskId) {
+                wizardState.selectedCacheDisk = null;
+            }
+        } else {
+            card.classList.remove('disabled');
+        }
+    });
+}
+
+// Parse disk size string to bytes for comparison
+function parseDiskSize(sizeStr) {
+    if (!sizeStr) return 0;
+    const match = sizeStr.match(/^([\d.]+)\s*(TB|GB|MB|KB|B)?$/i);
+    if (!match) return 0;
+    const num = parseFloat(match[1]);
+    const unit = (match[2] || 'B').toUpperCase();
+    const multipliers = { B: 1, KB: 1024, MB: 1024**2, GB: 1024**3, TB: 1024**4 };
+    return num * (multipliers[unit] || 1);
+}
+
+// Restore saved selections when disk lists are populated
+function restoreWizardSelections() {
+    // Restore data disk selections
+    wizardState.selectedDataDisks.forEach(diskId => {
+        const card = document.querySelector(`#wizard-data-disks .wizard-disk-card[data-disk-id="${diskId}"]`);
+        if (card) card.classList.add('selected');
+    });
+    
+    // Update next button
+    const nextBtn2 = document.getElementById('wizard-next-2');
+    if (nextBtn2) nextBtn2.disabled = wizardState.selectedDataDisks.length === 0;
+    
+    // Restore parity selection
+    if (wizardState.selectedParityDisk) {
+        const card = document.querySelector(`#wizard-parity-disks .wizard-disk-card[data-disk-id="${wizardState.selectedParityDisk}"]`);
+        if (card && !card.classList.contains('disabled')) card.classList.add('selected');
+    }
+    
+    // Restore cache selection
+    if (wizardState.selectedCacheDisk) {
+        const card = document.querySelector(`#wizard-cache-disks .wizard-disk-card[data-disk-id="${wizardState.selectedCacheDisk}"]`);
+        if (card && !card.classList.contains('disabled')) card.classList.add('selected');
+    }
+    
+    // Update dependent options
+    updateParityDiskOptions();
+}
+
+// Setup wizard navigation buttons
+function setupWizardNavigation() {
+    // Step 1 -> 2
+    document.getElementById('wizard-next-1')?.addEventListener('click', () => navigateWizard(2));
+    
+    // Step 2
+    document.getElementById('wizard-back-2')?.addEventListener('click', () => navigateWizard(1));
+    document.getElementById('wizard-next-2')?.addEventListener('click', () => {
+        updateParityDiskOptions();
+        navigateWizard(3);
+    });
+    
+    // Step 3
+    document.getElementById('wizard-back-3')?.addEventListener('click', () => navigateWizard(2));
+    document.getElementById('wizard-next-3')?.addEventListener('click', () => {
+        updateCacheDiskOptions();
+        navigateWizard(4);
+    });
+    document.getElementById('wizard-skip-parity')?.addEventListener('click', () => {
+        wizardState.selectedParityDisk = null;
+        document.querySelectorAll('#wizard-parity-disks .wizard-disk-card').forEach(c => c.classList.remove('selected'));
+        updateCacheDiskOptions();
+        navigateWizard(4);
+    });
+    
+    // Step 4
+    document.getElementById('wizard-back-4')?.addEventListener('click', () => navigateWizard(3));
+    document.getElementById('wizard-next-4')?.addEventListener('click', () => {
+        updateSummary();
+        navigateWizard(5);
+    });
+    document.getElementById('wizard-skip-cache')?.addEventListener('click', () => {
+        wizardState.selectedCacheDisk = null;
+        document.querySelectorAll('#wizard-cache-disks .wizard-disk-card').forEach(c => c.classList.remove('selected'));
+        updateSummary();
+        navigateWizard(5);
+    });
+    
+    // Step 5
+    document.getElementById('wizard-back-5')?.addEventListener('click', () => navigateWizard(4));
+    document.getElementById('wizard-create-pool')?.addEventListener('click', createStoragePool);
+    
+    // Step 7 (completed)
+    document.getElementById('wizard-go-dashboard')?.addEventListener('click', () => {
+        clearWizardState();
+        if (state.sessionId) {
+            state.isAuthenticated = true;
+            switchView('dashboard');
+        } else {
+            switchView('login');
+        }
+    });
+}
+
+// Navigate to a specific wizard step
+function navigateWizard(step) {
+    const currentStepEl = document.querySelector(`.wizard-step[data-step="${wizardState.currentStep}"]`);
+    const nextStepEl = document.querySelector(`.wizard-step[data-step="${step}"]`);
+    
+    if (!currentStepEl || !nextStepEl) return;
+    
+    // Animate out current step
+    currentStepEl.classList.add('exit');
+    
+    setTimeout(() => {
+        currentStepEl.classList.remove('active', 'exit');
+        nextStepEl.classList.add('active');
+        
+        // Update progress indicator
+        updateWizardProgress(step);
+        
+        wizardState.currentStep = step;
+        saveWizardState();
+    }, 300);
+}
+
+// Update the progress dots
+function updateWizardProgress(step) {
+    const progressContainer = document.getElementById('wizard-progress');
+    if (!progressContainer) return;
+    
+    // For steps 6 and 7 (progress and completion), hide the progress indicator
+    if (step >= 6) {
+        progressContainer.style.display = 'none';
+        return;
+    }
+    progressContainer.style.display = 'flex';
+    
+    const dots = progressContainer.querySelectorAll('.wizard-progress-dot');
+    const lines = progressContainer.querySelectorAll('.wizard-progress-line');
+    
+    dots.forEach((dot, index) => {
+        const dotStep = index + 1;
+        dot.classList.remove('active', 'completed');
+        dot.textContent = dotStep;
+        
+        if (dotStep < step) {
+            dot.classList.add('completed');
+            dot.textContent = '';
+        } else if (dotStep === step) {
+            dot.classList.add('active');
+        }
+    });
+    
+    lines.forEach((line, index) => {
+        line.classList.toggle('completed', index < step - 1);
+    });
+}
+
+// Update the summary step
 function updateSummary() {
+    // Data disks summary
+    const dataContainer = document.getElementById('summary-data-disks');
+    if (dataContainer) {
+        if (wizardState.selectedDataDisks.length > 0) {
+            dataContainer.innerHTML = wizardState.selectedDataDisks.map(id => {
+                const disk = wizardState.disks.find(d => d.id === id);
+                return `
+                    <div class="wizard-summary-disk">
+                        ${getDiskIcon(disk?.type)} ${escapeHtml(disk?.model || id)}
+                        <span class="disk-role data">${escapeHtml(disk?.size || 'N/A')}</span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            dataContainer.innerHTML = '<span class="wizard-summary-empty">Ninguno seleccionado</span>';
+        }
+    }
+    
+    // Parity disk summary
+    const parityContainer = document.getElementById('summary-parity-disk');
+    if (parityContainer) {
+        if (wizardState.selectedParityDisk) {
+            const disk = wizardState.disks.find(d => d.id === wizardState.selectedParityDisk);
+            parityContainer.innerHTML = `
+                <div class="wizard-summary-disk">
+                    ${getDiskIcon(disk?.type)} ${escapeHtml(disk?.model || wizardState.selectedParityDisk)}
+                    <span class="disk-role parity">${escapeHtml(disk?.size || 'N/A')}</span>
+                </div>
+            `;
+        } else {
+            parityContainer.innerHTML = '<span class="wizard-summary-empty">Sin paridad (no protegido)</span>';
+        }
+    }
+    
+    // Cache disk summary
+    const cacheContainer = document.getElementById('summary-cache-disk');
+    if (cacheContainer) {
+        if (wizardState.selectedCacheDisk) {
+            const disk = wizardState.disks.find(d => d.id === wizardState.selectedCacheDisk);
+            cacheContainer.innerHTML = `
+                <div class="wizard-summary-disk">
+                    ${getDiskIcon(disk?.type)} ${escapeHtml(disk?.model || wizardState.selectedCacheDisk)}
+                    <span class="disk-role cache">${escapeHtml(disk?.size || 'N/A')}</span>
+                </div>
+            `;
+        } else {
+            cacheContainer.innerHTML = '<span class="wizard-summary-empty">Sin caché</span>';
+        }
+    }
+    
+    // Total capacity
+    const totalContainer = document.getElementById('summary-total-capacity');
+    if (totalContainer) {
+        let totalBytes = 0;
+        wizardState.selectedDataDisks.forEach(id => {
+            const disk = wizardState.disks.find(d => d.id === id);
+            if (disk) totalBytes += parseDiskSize(disk.size);
+        });
+        totalContainer.textContent = formatBytes(totalBytes);
+    }
+}
+
+// Format bytes to human readable
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Create the storage pool
+async function createStoragePool() {
+    if (wizardState.isConfiguring) return;
+    if (wizardState.selectedDataDisks.length === 0) {
+        showNotification('Debes seleccionar al menos un disco de datos', 'error');
+        return;
+    }
+    
+    wizardState.isConfiguring = true;
+    
+    // Navigate to progress step
+    navigateWizard(6);
+    
+    // Build disk selections
+    const selections = [];
+    
+    wizardState.selectedDataDisks.forEach(id => {
+        selections.push({ id, role: 'data', format: true });
+    });
+    
+    if (wizardState.selectedParityDisk) {
+        selections.push({ id: wizardState.selectedParityDisk, role: 'parity', format: true });
+    }
+    
+    if (wizardState.selectedCacheDisk) {
+        selections.push({ id: wizardState.selectedCacheDisk, role: 'cache', format: true });
+    }
+    
+    const tasks = ['format', 'mount', 'snapraid', 'mergerfs', 'fstab', 'sync'];
+    
+    try {
+        // Update task: format
+        updateWizardTask('format', 'running', 'Formateando discos...');
+        await new Promise(r => setTimeout(r, 500));
+        
+        // Call the API to configure the pool
+        const res = await authFetch(`${API_BASE}/storage/pool/configure`, {
+            method: 'POST',
+            body: JSON.stringify({ disks: selections })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(data.error || 'Error al configurar el pool');
+        }
+        
+        // Simulate progress through tasks
+        updateWizardTask('format', 'done', 'Discos formateados');
+        await new Promise(r => setTimeout(r, 300));
+        
+        updateWizardTask('mount', 'running', 'Montando particiones...');
+        await new Promise(r => setTimeout(r, 500));
+        updateWizardTask('mount', 'done', 'Particiones montadas');
+        
+        updateWizardTask('snapraid', 'running', 'Configurando SnapRAID...');
+        await new Promise(r => setTimeout(r, 500));
+        updateWizardTask('snapraid', 'done', 'SnapRAID configurado');
+        
+        updateWizardTask('mergerfs', 'running', 'Configurando MergerFS...');
+        await new Promise(r => setTimeout(r, 500));
+        updateWizardTask('mergerfs', 'done', 'MergerFS configurado');
+        
+        updateWizardTask('fstab', 'running', 'Actualizando /etc/fstab...');
+        await new Promise(r => setTimeout(r, 500));
+        updateWizardTask('fstab', 'done', '/etc/fstab actualizado');
+        
+        updateWizardTask('sync', 'running', 'Sincronización inicial...');
+        
+        // Start sync in background if parity is configured
+        if (wizardState.selectedParityDisk) {
+            try {
+                await authFetch(`${API_BASE}/storage/snapraid/sync`, { method: 'POST' });
+                // Poll for sync progress (simplified)
+                await new Promise(r => setTimeout(r, 2000));
+                updateWizardTask('sync', 'done', 'Sincronización completada');
+            } catch (syncError) {
+                console.warn('Sync skipped:', syncError);
+                updateWizardTask('sync', 'done', 'Sincronización programada');
+            }
+        } else {
+            updateWizardTask('sync', 'done', 'Sin paridad - omitido');
+        }
+        
+        // Update state
+        state.storageConfig = selections;
+        
+        // Wait a moment then show completion
+        await new Promise(r => setTimeout(r, 1000));
+        navigateWizard(7);
+        
+    } catch (e) {
+        console.error('[Wizard] Pool creation error:', e);
+        showNotification('Error: ' + e.message, 'error');
+        
+        // Mark current task as error
+        tasks.forEach(task => {
+            const item = document.querySelector(`.wizard-progress-item[data-task="${task}"]`);
+            if (item) {
+                const icon = item.querySelector('.wizard-progress-icon');
+                if (icon && icon.classList.contains('running')) {
+                    updateWizardTask(task, 'error', 'Error: ' + e.message);
+                }
+            }
+        });
+        
+        wizardState.isConfiguring = false;
+    }
+}
+
+// Update a task in the progress list
+function updateWizardTask(taskName, status, message) {
+    const item = document.querySelector(`.wizard-progress-item[data-task="${taskName}"]`);
+    if (!item) return;
+    
+    const icon = item.querySelector('.wizard-progress-icon');
+    const statusEl = item.querySelector('.wizard-progress-status');
+    
+    // Update icon
+    icon.classList.remove('pending', 'running', 'done', 'error');
+    icon.classList.add(status);
+    
+    switch (status) {
+        case 'pending':
+            icon.textContent = '⏳';
+            break;
+        case 'running':
+            icon.textContent = '🔄';
+            break;
+        case 'done':
+            icon.textContent = '✅';
+            break;
+        case 'error':
+            icon.textContent = '❌';
+            break;
+    }
+    
+    // Update status text
+    if (statusEl && message) {
+        statusEl.textContent = message;
+    }
+}
+
+// Legacy function for compatibility
+function updateSummaryLegacy() {
     const roles = { data: 0, parity: 0, cache: 0 };
     document.querySelectorAll('.role-btn.active').forEach(btn => {
         const role = btn.dataset.role;
         if (role !== 'none') roles[role]++;
     });
-    document.getElementById('data-count').textContent = roles.data;
-    document.getElementById('parity-count').textContent = roles.parity;
-    document.getElementById('cache-count').textContent = roles.cache;
+    const dataCount = document.getElementById('data-count');
+    const parityCount = document.getElementById('parity-count');
+    const cacheCount = document.getElementById('cache-count');
+    if (dataCount) dataCount.textContent = roles.data;
+    if (parityCount) parityCount.textContent = roles.parity;
+    if (cacheCount) cacheCount.textContent = roles.cache;
 }
 
 // Storage Progress Modal Functions

@@ -91,58 +91,280 @@
             </div>
         </div>
 
-        <!-- Storage Setup View (SnapRAID + MergerFS) -->
+        <!-- Storage Setup View (Wizard) -->
         <div id="storage-view" class="view">
-            <div class="glass-card storage-card">
-                <div class="brand">
+            <div class="glass-card storage-card storage-wizard">
+                <div class="brand" style="margin-bottom: 24px;">
                     <div class="logo-orb"></div>
-                    <h1 data-i18n="storage.poolSetup">Configuración del Pool de Almacenamiento</h1>
-                    <p data-i18n="storage.configureSnapraid">Configurar SnapRAID + MergerFS para tu NAS</p>
+                    <h1 data-i18n="wizard.title">Configuración de Almacenamiento</h1>
                 </div>
 
-                <div class="storage-info-banner">
-                    <div class="info-item">
-                        <strong data-i18n="storage.data">Datos</strong>
-                        <span data-i18n="storage.dataDesc">Almacena tus archivos (agrupados con MergerFS)</span>
+                <!-- Wizard Progress Indicator -->
+                <div class="wizard-progress" id="wizard-progress">
+                    <div class="wizard-progress-step">
+                        <div class="wizard-progress-dot active" data-step="1">1</div>
                     </div>
-                    <div class="info-item">
-                        <strong data-i18n="storage.parity">Paridad</strong>
-                        <span data-i18n="storage.parityDesc">Protege contra fallos de disco (SnapRAID)</span>
+                    <div class="wizard-progress-line"></div>
+                    <div class="wizard-progress-step">
+                        <div class="wizard-progress-dot" data-step="2">2</div>
                     </div>
-                    <div class="info-item">
-                        <strong data-i18n="storage.cache">Caché</strong>
-                        <span data-i18n="storage.cacheDesc">NVMe/SSD rápido para datos frecuentes</span>
+                    <div class="wizard-progress-line"></div>
+                    <div class="wizard-progress-step">
+                        <div class="wizard-progress-dot" data-step="3">3</div>
+                    </div>
+                    <div class="wizard-progress-line"></div>
+                    <div class="wizard-progress-step">
+                        <div class="wizard-progress-dot" data-step="4">4</div>
+                    </div>
+                    <div class="wizard-progress-line"></div>
+                    <div class="wizard-progress-step">
+                        <div class="wizard-progress-dot" data-step="5">5</div>
                     </div>
                 </div>
 
-                <div class="disk-management-area">
-                    <table class="disk-table">
-                        <thead>
-                            <tr>
-                                <th data-i18n="storage.diskInfo">Info del Disco</th>
-                                <th data-i18n="storage.type">Tipo</th>
-                                <th data-i18n="storage.roleSelection">Selección de Rol</th>
-                            </tr>
-                        </thead>
-                        <tbody id="granular-disk-list">
-                            <!-- Disks with granular options will be injected here -->
-                        </tbody>
-                    </table>
-                </div>
+                <div class="wizard-container" id="wizard-container">
+                    <!-- Step 1: Welcome + Disk Detection -->
+                    <div class="wizard-step active" data-step="1">
+                        <div class="wizard-step-header">
+                            <span class="wizard-step-icon">👋</span>
+                            <h2 class="wizard-step-title" data-i18n="wizard.welcomeTitle">¡Bienvenido a HomePiNAS!</h2>
+                            <p class="wizard-step-subtitle" data-i18n="wizard.welcomeSubtitle">Vamos a configurar tu almacenamiento en unos simples pasos</p>
+                        </div>
+                        
+                        <div class="wizard-info-box">
+                            <span class="wizard-info-box-icon">💡</span>
+                            <div class="wizard-info-box-text" data-i18n="wizard.infoSnapraid">
+                                HomePiNAS usa <strong>SnapRAID + MergerFS</strong> para combinar múltiples discos en un único pool de almacenamiento con protección opcional contra fallos.
+                            </div>
+                        </div>
+                        
+                        <div id="wizard-disk-detection">
+                            <div class="wizard-detecting">
+                                <div class="wizard-spinner"></div>
+                                <p class="wizard-detecting-text" data-i18n="wizard.detectingDisks">Detectando discos conectados...</p>
+                            </div>
+                        </div>
 
-                <div class="config-summary">
-                    <h3 data-i18n="storage.poolConfiguration">Configuración del Pool</h3>
-                    <div id="selection-summary" class="summary-stats">
-                        <div class="stat data"><span data-i18n="storage.data">Datos:</span> <span id="data-count">0</span></div>
-                        <div class="stat parity"><span data-i18n="storage.parity">Paridad:</span> <span id="parity-count">0</span></div>
-                        <div class="stat cache"><span data-i18n="storage.cache">Caché:</span> <span id="cache-count">0</span></div>
+                        <div class="wizard-nav">
+                            <div></div>
+                            <button class="wizard-btn wizard-btn-next" id="wizard-next-1" disabled data-i18n="wizard.next">
+                                Siguiente →
+                            </button>
+                        </div>
                     </div>
-                    <p class="pool-note"><span data-i18n="storage.requiresDataDisk">Requiere al menos 1 disco de datos. Paridad opcional. Pool en</span> <code>/mnt/storage</code></p>
-                </div>
 
-                <div class="storage-footer">
-                    <button id="save-storage-btn" class="btn-primary" data-i18n="storage.createStoragePool">Crear Pool de Almacenamiento</button>
-                    <p class="hint">⚠️ <span data-i18n="storage.formatWarning">Los discos seleccionados serán FORMATEADOS. Si usas paridad, debe ser >= al disco de datos más grande.</span></p>
+                    <!-- Step 2: Data Disk Selection -->
+                    <div class="wizard-step" data-step="2">
+                        <div class="wizard-step-header">
+                            <span class="wizard-step-icon">💾</span>
+                            <h2 class="wizard-step-title" data-i18n="wizard.dataDisksTitle">Selecciona Discos de Datos</h2>
+                            <p class="wizard-step-subtitle" data-i18n="wizard.dataDisksSubtitle">Estos discos almacenarán tus archivos (selecciona al menos uno)</p>
+                        </div>
+                        
+                        <div class="wizard-disk-list" id="wizard-data-disks">
+                            <!-- Data disk cards will be injected here -->
+                        </div>
+
+                        <div class="wizard-info-box warning">
+                            <span class="wizard-info-box-icon">⚠️</span>
+                            <div class="wizard-info-box-text" data-i18n="wizard.formatWarning">
+                                Los discos seleccionados serán <strong>formateados</strong>. Asegúrate de hacer backup de cualquier dato importante.
+                            </div>
+                        </div>
+
+                        <div class="wizard-nav">
+                            <button class="wizard-btn wizard-btn-back" id="wizard-back-2" data-i18n="wizard.back">
+                                ← Atrás
+                            </button>
+                            <button class="wizard-btn wizard-btn-next" id="wizard-next-2" disabled data-i18n="wizard.next">
+                                Siguiente →
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Parity Disk Selection -->
+                    <div class="wizard-step" data-step="3">
+                        <div class="wizard-step-header">
+                            <span class="wizard-step-icon">🛡️</span>
+                            <h2 class="wizard-step-title" data-i18n="wizard.parityDiskTitle">Disco de Paridad (Opcional)</h2>
+                            <p class="wizard-step-subtitle" data-i18n="wizard.parityDiskSubtitle">Protege tus datos contra fallos de disco con SnapRAID</p>
+                        </div>
+                        
+                        <div class="wizard-info-box">
+                            <span class="wizard-info-box-icon">💡</span>
+                            <div class="wizard-info-box-text" data-i18n="wizard.parityInfo">
+                                El disco de paridad debe ser <strong>igual o mayor</strong> que el disco de datos más grande. Permite recuperar datos si falla un disco.
+                            </div>
+                        </div>
+                        
+                        <div class="wizard-disk-list" id="wizard-parity-disks">
+                            <!-- Parity disk cards will be injected here -->
+                        </div>
+
+                        <button class="wizard-skip-btn" id="wizard-skip-parity" data-i18n="wizard.skipParity">
+                            Omitir - No necesito protección de paridad
+                        </button>
+
+                        <div class="wizard-nav">
+                            <button class="wizard-btn wizard-btn-back" id="wizard-back-3" data-i18n="wizard.back">
+                                ← Atrás
+                            </button>
+                            <button class="wizard-btn wizard-btn-next" id="wizard-next-3" data-i18n="wizard.next">
+                                Siguiente →
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Cache Disk Selection -->
+                    <div class="wizard-step" data-step="4">
+                        <div class="wizard-step-header">
+                            <span class="wizard-step-icon">⚡</span>
+                            <h2 class="wizard-step-title" data-i18n="wizard.cacheDiskTitle">Disco de Caché (Opcional)</h2>
+                            <p class="wizard-step-subtitle" data-i18n="wizard.cacheDiskSubtitle">Un SSD/NVMe acelera el acceso a archivos frecuentes</p>
+                        </div>
+                        
+                        <div class="wizard-disk-list" id="wizard-cache-disks">
+                            <!-- Cache disk cards will be injected here -->
+                        </div>
+
+                        <div id="wizard-no-cache-disks" class="wizard-no-disks" style="display: none;">
+                            <div class="wizard-no-disks-icon">💿</div>
+                            <p data-i18n="wizard.noCacheDisks">No hay discos SSD/NVMe disponibles para caché</p>
+                        </div>
+
+                        <button class="wizard-skip-btn" id="wizard-skip-cache" data-i18n="wizard.skipCache">
+                            Omitir - No necesito caché
+                        </button>
+
+                        <div class="wizard-nav">
+                            <button class="wizard-btn wizard-btn-back" id="wizard-back-4" data-i18n="wizard.back">
+                                ← Atrás
+                            </button>
+                            <button class="wizard-btn wizard-btn-next" id="wizard-next-4" data-i18n="wizard.next">
+                                Siguiente →
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Summary + Create -->
+                    <div class="wizard-step" data-step="5">
+                        <div class="wizard-step-header">
+                            <span class="wizard-step-icon">📋</span>
+                            <h2 class="wizard-step-title" data-i18n="wizard.summaryTitle">Resumen de Configuración</h2>
+                            <p class="wizard-step-subtitle" data-i18n="wizard.summarySubtitle">Revisa tu configuración antes de crear el pool</p>
+                        </div>
+                        
+                        <div class="wizard-summary" id="wizard-summary">
+                            <div class="wizard-summary-section">
+                                <div class="wizard-summary-label" data-i18n="wizard.dataDisks">Discos de Datos</div>
+                                <div class="wizard-summary-value" id="summary-data-disks">
+                                    <!-- Data disk badges will be injected here -->
+                                </div>
+                            </div>
+                            <div class="wizard-summary-section">
+                                <div class="wizard-summary-label" data-i18n="wizard.parityDisk">Disco de Paridad</div>
+                                <div class="wizard-summary-value" id="summary-parity-disk">
+                                    <!-- Parity disk badge will be injected here -->
+                                </div>
+                            </div>
+                            <div class="wizard-summary-section">
+                                <div class="wizard-summary-label" data-i18n="wizard.cacheDisk">Disco de Caché</div>
+                                <div class="wizard-summary-value" id="summary-cache-disk">
+                                    <!-- Cache disk badge will be injected here -->
+                                </div>
+                            </div>
+                            <div class="wizard-summary-total">
+                                <span class="wizard-summary-total-label" data-i18n="wizard.totalCapacity">Capacidad Total:</span>
+                                <span class="wizard-summary-total-value" id="summary-total-capacity">0 TB</span>
+                            </div>
+                        </div>
+
+                        <div class="wizard-info-box warning">
+                            <span class="wizard-info-box-icon">⚠️</span>
+                            <div class="wizard-info-box-text" data-i18n="wizard.createWarning">
+                                Al hacer clic en "Crear Pool", los discos seleccionados serán formateados. Este proceso puede tardar varios minutos.
+                            </div>
+                        </div>
+
+                        <div class="wizard-nav">
+                            <button class="wizard-btn wizard-btn-back" id="wizard-back-5" data-i18n="wizard.back">
+                                ← Atrás
+                            </button>
+                            <button class="wizard-btn wizard-btn-create" id="wizard-create-pool" data-i18n="wizard.createPool">
+                                🚀 Crear Pool de Almacenamiento
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 6: Progress -->
+                    <div class="wizard-step" data-step="6">
+                        <div class="wizard-step-header">
+                            <span class="wizard-step-icon">⚙️</span>
+                            <h2 class="wizard-step-title" data-i18n="wizard.progressTitle">Configurando Pool...</h2>
+                            <p class="wizard-step-subtitle" data-i18n="wizard.progressSubtitle">Por favor, no cierres esta ventana</p>
+                        </div>
+                        
+                        <div class="wizard-progress-list" id="wizard-progress-list">
+                            <div class="wizard-progress-item" data-task="format">
+                                <div class="wizard-progress-icon pending">⏳</div>
+                                <div class="wizard-progress-text">
+                                    <div class="wizard-progress-title" data-i18n="wizard.taskFormat">Formateando discos</div>
+                                    <div class="wizard-progress-status" data-i18n="wizard.pending">Pendiente</div>
+                                </div>
+                            </div>
+                            <div class="wizard-progress-item" data-task="mount">
+                                <div class="wizard-progress-icon pending">⏳</div>
+                                <div class="wizard-progress-text">
+                                    <div class="wizard-progress-title" data-i18n="wizard.taskMount">Montando particiones</div>
+                                    <div class="wizard-progress-status" data-i18n="wizard.pending">Pendiente</div>
+                                </div>
+                            </div>
+                            <div class="wizard-progress-item" data-task="snapraid">
+                                <div class="wizard-progress-icon pending">⏳</div>
+                                <div class="wizard-progress-text">
+                                    <div class="wizard-progress-title" data-i18n="wizard.taskSnapraid">Configurando SnapRAID</div>
+                                    <div class="wizard-progress-status" data-i18n="wizard.pending">Pendiente</div>
+                                </div>
+                            </div>
+                            <div class="wizard-progress-item" data-task="mergerfs">
+                                <div class="wizard-progress-icon pending">⏳</div>
+                                <div class="wizard-progress-text">
+                                    <div class="wizard-progress-title" data-i18n="wizard.taskMergerfs">Configurando MergerFS</div>
+                                    <div class="wizard-progress-status" data-i18n="wizard.pending">Pendiente</div>
+                                </div>
+                            </div>
+                            <div class="wizard-progress-item" data-task="fstab">
+                                <div class="wizard-progress-icon pending">⏳</div>
+                                <div class="wizard-progress-text">
+                                    <div class="wizard-progress-title" data-i18n="wizard.taskFstab">Actualizando /etc/fstab</div>
+                                    <div class="wizard-progress-status" data-i18n="wizard.pending">Pendiente</div>
+                                </div>
+                            </div>
+                            <div class="wizard-progress-item" data-task="sync">
+                                <div class="wizard-progress-icon pending">⏳</div>
+                                <div class="wizard-progress-text">
+                                    <div class="wizard-progress-title" data-i18n="wizard.taskSync">Sincronización inicial</div>
+                                    <div class="wizard-progress-status" data-i18n="wizard.pending">Pendiente</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 7: Completed -->
+                    <div class="wizard-step" data-step="7">
+                        <div class="wizard-completed">
+                            <div class="wizard-completed-icon">🎉</div>
+                            <h2 class="wizard-completed-title" data-i18n="wizard.completedTitle">¡Pool Creado Exitosamente!</h2>
+                            <p class="wizard-completed-subtitle" data-i18n="wizard.completedSubtitle">Tu almacenamiento está listo para usar</p>
+                            <div class="wizard-completed-path">/mnt/storage</div>
+                        </div>
+
+                        <div class="wizard-nav" style="justify-content: center;">
+                            <button class="wizard-btn wizard-btn-next" id="wizard-go-dashboard" data-i18n="wizard.goToDashboard">
+                                Ir al Dashboard →
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
