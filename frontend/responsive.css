@@ -115,12 +115,46 @@
         width: 100%;
     }
     
+    /* Top header bar - mobile optimized */
     header {
-        margin-bottom: 20px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 10px;
     }
     
     header h2 {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
+        flex: 1;
+        min-width: 150px;
+    }
+    
+    /* Header icons row */
+    .header-controls,
+    .header-icons,
+    .settings-controls {
+        gap: 4px;
+    }
+    
+    .settings-btn,
+    .header-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+        padding: 6px;
+    }
+    
+    /* User avatar smaller on mobile */
+    .user-avatar,
+    .avatar-circle {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    
+    /* Hide username text on mobile, show only avatar */
+    .user-info-header .username-text,
+    .header-username {
+        display: none;
     }
     
     /* Grid layouts for mobile */
@@ -290,20 +324,74 @@
         width: 100%;
     }
     
-    /* Fan mode selector */
+    /* Fan mode selector - horizontal on mobile */
     .fan-mode-selector {
+        display: flex;
         flex-direction: row;
-        flex-wrap: wrap;
+        gap: 8px;
     }
     
     .fan-mode-btn {
-        flex: 1 1 30%;
-        min-width: 80px;
+        flex: 1;
+        padding: 10px 8px;
+        min-width: 0;
+    }
+    
+    .fan-mode-btn .mode-icon {
+        font-size: 1.2rem;
+    }
+    
+    .fan-mode-btn .mode-name {
+        font-size: 0.65rem;
     }
     
     /* Network form */
     .net-form {
         grid-template-columns: 1fr;
+    }
+    
+    /* Network card compact */
+    .network-widget {
+        padding: 15px;
+    }
+    
+    .network-widget h4 {
+        font-size: 0.9rem;
+    }
+    
+    /* Disk cards compact */
+    .disk-card,
+    .connected-disks-card {
+        padding: 15px;
+    }
+    
+    .disk-card h4,
+    .disk-info-title {
+        font-size: 0.85rem;
+    }
+    
+    .disk-model-name {
+        font-size: 0.75rem;
+        word-break: break-all;
+    }
+    
+    /* Dashboard shortcuts - 2 columns on mobile */
+    .shortcuts-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .shortcut-card {
+        padding: 15px;
+        min-height: 100px;
+    }
+    
+    .shortcut-card .shortcut-icon {
+        font-size: 1.5rem;
+    }
+    
+    .shortcut-card .shortcut-label {
+        font-size: 0.8rem;
     }
     
     /* Terms modal */
