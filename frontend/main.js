@@ -2427,7 +2427,12 @@ function updateUserAvatar() {
 }
 
 async function renderContent(view) {
+    console.log('[NAV] renderContent called with:', view);
     state.currentView = view;
+    if (!dashboardContent) {
+        console.error('[NAV] dashboardContent is null!');
+        return;
+    }
     dashboardContent.innerHTML = '';
     if (view === 'dashboard') await renderDashboard();
     else if (view === 'docker') await renderDockerManager();
@@ -9940,14 +9945,11 @@ async function showHomeStoreConfigModal(appId) {
     
     document.body.appendChild(modal);
     
-    // Close handlers - also remove any picker modals and restore focus
+    // Close handlers - also remove any picker modals
     const closeModal = () => {
         const pickerModal = document.getElementById('folder-picker-modal');
         if (pickerModal) pickerModal.remove();
         modal.remove();
-        // Restore focus to body to ensure sidebar clicks work
-        document.body.focus();
-        document.body.click();
     };
     document.getElementById('homestore-config-close').addEventListener('click', closeModal);
     document.getElementById('homestore-config-cancel').addEventListener('click', closeModal);
