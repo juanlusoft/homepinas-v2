@@ -11739,6 +11739,9 @@ function showSyncProgress(jobId) {
     
     // Poll for progress
     const pollProgress = async () => {
+        // Check if toast still exists
+        if (!document.getElementById(`sync-progress-${jobId}`)) return;
+        
         try {
             const res = await authFetch(`${API_BASE}/cloud-backup/jobs/${jobId}`);
             const data = await res.json();
@@ -11780,7 +11783,7 @@ function showSyncProgress(jobId) {
             }
             
             if (data.running) {
-                setTimeout(pollProgress, 2000);
+                setTimeout(pollProgress, 1500);
             } else {
                 if (textEl) textEl.textContent = '✅ Completado';
                 if (barEl) barEl.style.width = '100%';
@@ -11791,10 +11794,13 @@ function showSyncProgress(jobId) {
             }
         } catch (e) {
             console.error('Progress poll error:', e);
+            // Continue polling even on error
+            setTimeout(pollProgress, 3000);
         }
     };
     
-    setTimeout(pollProgress, 2000);
+    // Start polling immediately
+    pollProgress();
 }
 
 function browseLocalForSync() {
