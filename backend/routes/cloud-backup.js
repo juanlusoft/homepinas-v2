@@ -30,7 +30,6 @@ const PROVIDERS = {
     'webdav': { name: 'WebDAV', icon: '🌐', color: '#607d8b' },
     'ftp': { name: 'FTP', icon: '📂', color: '#795548' },
     'nextcloud': { name: 'Nextcloud', icon: '☁️', color: '#0082c9' },
-    'gdrive': { name: 'Google Drive', icon: '📁', color: '#4285f4' },  // alias
 };
 
 // Helper: Check if rclone is installed

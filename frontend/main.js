@@ -11151,40 +11151,55 @@ async function showAddCloudModal() {
         }
         const data = await res.json();
     
-    const modal = document.createElement('div');
-    modal.id = 'add-cloud-modal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 100000;';
-    
-    modal.innerHTML = `
-        <div style="background: #1a1a2e; border: 1px solid #3d3d5c; border-radius: 16px; width: 95%; max-width: 600px; max-height: 80vh; overflow: hidden;">
-            <div style="padding: 20px; border-bottom: 1px solid #3d3d5c; display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; color: #10b981;">☁️ Añadir Nube</h3>
-                <button onclick="document.getElementById('add-cloud-modal').remove()" style="background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">×</button>
-            </div>
-            <div style="padding: 20px; overflow-y: auto; max-height: 60vh;">
-                <p style="color: #a0a0b0; margin-bottom: 20px;">Selecciona el servicio de nube que quieres configurar:</p>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
-                    ${data.providers.map(p => `
-                        <button onclick="startCloudConfig('${p.id}')" style="
-                            background: rgba(255,255,255,0.05);
-                            border: 2px solid rgba(255,255,255,0.1);
-                            border-radius: 12px;
-                            padding: 20px 15px;
-                            cursor: pointer;
-                            text-align: center;
-                            transition: all 0.2s;
-                        " onmouseover="this.style.borderColor='${p.color}'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
-                            <div style="font-size: 2rem; margin-bottom: 8px;">${p.icon}</div>
-                            <div style="color: #fff; font-size: 0.9rem;">${p.name}</div>
-                        </button>
-                    `).join('')}
+        const modal = document.createElement('div');
+        modal.id = 'add-cloud-modal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 100000;';
+        
+        modal.innerHTML = `
+            <div style="background: #1a1a2e; border: 1px solid #3d3d5c; border-radius: 16px; width: 95%; max-width: 600px; max-height: 80vh; overflow: hidden;">
+                <div style="padding: 20px; border-bottom: 1px solid #3d3d5c; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; color: #10b981;">☁️ Añadir Nube</h3>
+                    <button data-action="close-modal" style="background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">×</button>
+                </div>
+                <div style="padding: 20px; overflow-y: auto; max-height: 60vh;">
+                    <p style="color: #a0a0b0; margin-bottom: 20px;">Selecciona el servicio de nube que quieres configurar:</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
+                        ${data.providers.map(p => `
+                            <button data-action="select-provider" data-provider="${p.id}" style="
+                                background: rgba(255,255,255,0.05);
+                                border: 2px solid rgba(255,255,255,0.1);
+                                border-radius: 12px;
+                                padding: 20px 15px;
+                                cursor: pointer;
+                                text-align: center;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.borderColor='${p.color}'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+                                <div style="font-size: 2rem; margin-bottom: 8px;">${p.icon}</div>
+                                <div style="color: #fff; font-size: 0.9rem;">${p.name}</div>
+                            </button>
+                        `).join('')}
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    console.log('[Cloud Backup] Modal appended to body');
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add event listeners to modal
+        modal.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            
+            const action = btn.dataset.action;
+            if (action === 'close-modal') {
+                modal.remove();
+            } else if (action === 'select-provider') {
+                const provider = btn.dataset.provider;
+                modal.remove();
+                startCloudConfig(provider);
+            }
+        });
+        
     } catch (e) {
         console.error('[Cloud Backup] Error in showAddCloudModal:', e);
         showToast('Error: ' + e.message, 'error');
