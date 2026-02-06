@@ -8,8 +8,13 @@
       "category": "media",
       "icon": "🎬",
       "image": "jellyfin/jellyfin:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8096": "8096" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8096": "8096"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/jellyfin/config",
         "/media": "/mnt/storage/media"
@@ -25,8 +30,13 @@
       "category": "media",
       "icon": "📺",
       "image": "plexinc/pms-docker:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "32400": "32400" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "32400": "32400"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/plex/config",
         "/media": "/mnt/storage/media"
@@ -42,8 +52,15 @@
       "category": "downloads",
       "icon": "⬇️",
       "image": "linuxserver/transmission:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "9091": "9091", "51413": "51413" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "9091": "9091",
+        "51413": "51413"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/transmission/config",
         "/downloads": "/mnt/storage/downloads"
@@ -62,8 +79,15 @@
       "category": "downloads",
       "icon": "🔽",
       "image": "linuxserver/qbittorrent:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8080": "8080", "6881": "6881" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8080": "8080",
+        "6881": "6881"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/qbittorrent/config",
         "/downloads": "/mnt/storage/downloads"
@@ -83,8 +107,13 @@
       "category": "media",
       "icon": "📷",
       "image": "photoprism/photoprism:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "2342": "2342" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "2342": "2342"
+      },
       "volumes": {
         "/photoprism/storage": "/opt/homepinas/apps/photoprism/storage",
         "/photoprism/originals": "/mnt/storage/photos"
@@ -103,8 +132,14 @@
       "category": "productivity",
       "icon": "☁️",
       "image": "nextcloud:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8888": "80" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8888": "80"
+      },
       "volumes": {
         "/var/www/html": "/opt/homepinas/apps/nextcloud/data"
       },
@@ -119,8 +154,15 @@
       "category": "network",
       "icon": "🛡️",
       "image": "pihole/pihole:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8053": "80", "53": "53/udp" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8053": "80",
+        "53": "53/udp"
+      },
       "volumes": {
         "/etc/pihole": "/opt/homepinas/apps/pihole/etc",
         "/etc/dnsmasq.d": "/opt/homepinas/apps/pihole/dnsmasq"
@@ -138,8 +180,14 @@
       "category": "automation",
       "icon": "🏠",
       "image": "homeassistant/home-assistant:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8123": "8123" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8123": "8123"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/homeassistant/config"
       },
@@ -155,9 +203,15 @@
       "category": "surveillance",
       "icon": "📹",
       "image": "ghcr.io/blakeblackshear/frigate:stable",
-      "arch": ["amd64"],
+      "arch": [
+        "amd64"
+      ],
       "archNote": "ARM requiere imagen específica con Coral TPU",
-      "ports": { "5000": "5000", "8554": "8554", "8555": "8555" },
+      "ports": {
+        "5000": "5000",
+        "8554": "8554",
+        "8555": "8555"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/frigate/config",
         "/media/frigate": "/mnt/storage/surveillance"
@@ -174,8 +228,14 @@
       "category": "development",
       "icon": "🐙",
       "image": "gitea/gitea:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "3333": "3000", "2222": "22" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "3333": "3000",
+        "2222": "22"
+      },
       "volumes": {
         "/data": "/opt/homepinas/apps/gitea/data"
       },
@@ -190,8 +250,14 @@
       "category": "security",
       "icon": "🔐",
       "image": "vaultwarden/server:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8880": "80" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8880": "80"
+      },
       "volumes": {
         "/data": "/opt/homepinas/apps/vaultwarden/data"
       },
@@ -206,8 +272,14 @@
       "category": "files",
       "icon": "📁",
       "image": "filebrowser/filebrowser:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8085": "80" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8085": "80"
+      },
       "volumes": {
         "/srv": "/mnt/storage",
         "/database.db": "/opt/homepinas/apps/filebrowser/database.db"
@@ -217,31 +289,20 @@
       "docs": "https://filebrowser.org/"
     },
     {
-      "id": "portainer",
-      "name": "Portainer",
-      "description": "Gestión avanzada de contenedores Docker con UI.",
-      "category": "system",
-      "icon": "🐳",
-      "image": "portainer/portainer-ce:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "9000": "9000" },
-      "volumes": {
-        "/data": "/opt/homepinas/apps/portainer/data",
-        "/var/run/docker.sock": "/var/run/docker.sock"
-      },
-      "env": {},
-      "webUI": 9000,
-      "docs": "https://docs.portainer.io/"
-    },
-    {
       "id": "uptime-kuma",
       "name": "Uptime Kuma",
       "description": "Monitor de servicios con alertas. Alternativa a UptimeRobot.",
       "category": "monitoring",
       "icon": "📊",
       "image": "louislam/uptime-kuma:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "3002": "3001" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "3002": "3001"
+      },
       "volumes": {
         "/app/data": "/opt/homepinas/apps/uptime-kuma/data"
       },
@@ -256,8 +317,14 @@
       "category": "network",
       "icon": "🔒",
       "image": "linuxserver/wireguard:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "51820": "51820/udp" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "51820": "51820/udp"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/wireguard/config"
       },
@@ -267,7 +334,10 @@
         "SERVERURL": "auto",
         "PEERS": "3"
       },
-      "capabilities": ["NET_ADMIN", "SYS_MODULE"],
+      "capabilities": [
+        "NET_ADMIN",
+        "SYS_MODULE"
+      ],
       "sysctls": {
         "net.ipv4.conf.all.src_valid_mark": "1"
       },
@@ -280,8 +350,16 @@
       "category": "network",
       "icon": "🚫",
       "image": "adguard/adguardhome:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "3003": "3000", "53": "53/udp", "853": "853" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "3003": "3000",
+        "53": "53/udp",
+        "853": "853"
+      },
       "volumes": {
         "/opt/adguardhome/work": "/opt/homepinas/apps/adguard/work",
         "/opt/adguardhome/conf": "/opt/homepinas/apps/adguard/conf"
@@ -297,8 +375,14 @@
       "category": "backup",
       "icon": "💾",
       "image": "linuxserver/duplicati:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8200": "8200" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8200": "8200"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/duplicati/config",
         "/source": "/mnt/storage"
@@ -317,8 +401,13 @@
       "category": "productivity",
       "icon": "📄",
       "image": "ghcr.io/paperless-ngx/paperless-ngx:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8000": "8000" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8000": "8000"
+      },
       "volumes": {
         "/usr/src/paperless/data": "/opt/homepinas/apps/paperless/data",
         "/usr/src/paperless/media": "/opt/homepinas/apps/paperless/media",
@@ -338,8 +427,13 @@
       "category": "media",
       "icon": "🖼️",
       "image": "ghcr.io/immich-app/immich-server:release",
-      "arch": ["amd64", "arm64"],
-      "ports": { "2283": "2283" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "2283": "2283"
+      },
       "volumes": {
         "/usr/src/app/upload": "/mnt/storage/photos/immich"
       },
@@ -353,17 +447,65 @@
     }
   ],
   "categories": {
-    "media": { "name": "Multimedia", "icon": "🎬", "order": 1 },
-    "downloads": { "name": "Descargas", "icon": "⬇️", "order": 2 },
-    "productivity": { "name": "Productividad", "icon": "📋", "order": 3 },
-    "network": { "name": "Red", "icon": "🌐", "order": 4 },
-    "security": { "name": "Seguridad", "icon": "🔐", "order": 5 },
-    "surveillance": { "name": "Vigilancia", "icon": "📹", "order": 6 },
-    "automation": { "name": "Automatización", "icon": "🏠", "order": 7 },
-    "backup": { "name": "Backup", "icon": "💾", "order": 8 },
-    "development": { "name": "Desarrollo", "icon": "💻", "order": 9 },
-    "monitoring": { "name": "Monitorización", "icon": "📊", "order": 10 },
-    "system": { "name": "Sistema", "icon": "⚙️", "order": 11 },
-    "files": { "name": "Archivos", "icon": "📁", "order": 12 }
+    "media": {
+      "name": "Multimedia",
+      "icon": "🎬",
+      "order": 1
+    },
+    "downloads": {
+      "name": "Descargas",
+      "icon": "⬇️",
+      "order": 2
+    },
+    "productivity": {
+      "name": "Productividad",
+      "icon": "📋",
+      "order": 3
+    },
+    "network": {
+      "name": "Red",
+      "icon": "🌐",
+      "order": 4
+    },
+    "security": {
+      "name": "Seguridad",
+      "icon": "🔐",
+      "order": 5
+    },
+    "surveillance": {
+      "name": "Vigilancia",
+      "icon": "📹",
+      "order": 6
+    },
+    "automation": {
+      "name": "Automatización",
+      "icon": "🏠",
+      "order": 7
+    },
+    "backup": {
+      "name": "Backup",
+      "icon": "💾",
+      "order": 8
+    },
+    "development": {
+      "name": "Desarrollo",
+      "icon": "💻",
+      "order": 9
+    },
+    "monitoring": {
+      "name": "Monitorización",
+      "icon": "📊",
+      "order": 10
+    },
+    "system": {
+      "name": "Sistema",
+      "icon": "⚙️",
+      "order": 11
+    },
+    "files": {
+      "name": "Archivos",
+      "icon": "📁",
+      "order": 12
+    }
   }
 }
