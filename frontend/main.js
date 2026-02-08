@@ -4475,7 +4475,7 @@ if (resetBtn) {
         resetBtn.disabled = true;
 
         try {
-            const res = await authFetch(`${API_BASE}/system/reset`, { method: 'POST' });
+            const res = await authFetch(`${API_BASE}/power/reset`, { method: 'POST' });
             const data = await res.json();
 
             if (res.ok && data.success) {
