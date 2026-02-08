@@ -546,7 +546,14 @@ exclude .fseventsd
 
     } catch (e) {
         console.error('Storage configuration error:', e);
-        res.status(500).json({ error: `Failed to configure storage: ${e.message}` });
+        // Provide clearer error message for common sudo issues
+        let userMessage = 'Failed to configure storage';
+        if (e.message && e.message.includes('unable to change to root gid')) {
+            userMessage = 'Error de permisos: sudo no puede ejecutarse correctamente. Verifica que el servicio HomePiNAS se ejecuta con el usuario correcto y que /etc/sudoers está configurado. Ejecuta: sudo visudo';
+        } else if (e.message && e.message.includes('not allowed')) {
+            userMessage = 'Error de permisos: el usuario actual no tiene permisos sudo. Ejecuta: sudo usermod -aG sudo homepinas';
+        }
+        res.status(500).json({ error: userMessage });
     }
 });
 
