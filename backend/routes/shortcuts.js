@@ -27,10 +27,10 @@ const ALLOWED_COMMANDS = [
 
 // Default shortcuts
 const DEFAULT_SHORTCUTS = [
-    { id: 'default-terminal', name: 'Terminal', command: 'bash', icon: '💻', description: 'Shell interactivo', isDefault: true },
-    { id: 'default-htop', name: 'Monitor del Sistema', command: 'htop', icon: '📊', description: 'Visor de procesos (htop)', isDefault: true },
-    { id: 'default-mc', name: 'Gestor de Archivos', command: 'mc', icon: '📁', description: 'Midnight Commander', isDefault: true },
-    { id: 'default-docker-logs', name: 'Estadísticas Docker', command: 'docker stats', icon: '🐳', description: 'Estadísticas de contenedores', isDefault: true }
+    { id: 'default-terminal', name: 'Terminal', command: 'bash', icon: '💻', description: 'Interactive shell', isDefault: true },
+    { id: 'default-htop', name: 'System Monitor', command: 'htop', icon: '📊', description: 'Process viewer (htop)', isDefault: true },
+    { id: 'default-mc', name: 'File Manager', command: 'mc', icon: '📁', description: 'Midnight Commander', isDefault: true },
+    { id: 'default-docker-logs', name: 'Docker Stats', command: 'docker stats', icon: '🐳', description: 'Container statistics', isDefault: true }
 ];
 
 // Available icons for shortcuts

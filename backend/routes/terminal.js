@@ -108,14 +108,14 @@ router.get('/commands', requireAuth, (req, res) => {
     res.json({
         allowed: ALLOWED_COMMANDS,
         presets: [
-            { name: 'Terminal', command: 'bash', icon: '💻', description: 'Shell interactivo' },
-            { name: 'Monitor del Sistema', command: 'htop', icon: '📊', description: 'Visor de procesos' },
-            { name: 'Gestor de Archivos', command: 'mc', icon: '📁', description: 'Midnight Commander' },
-            { name: 'Editor de Texto', command: 'nano', icon: '📝', description: 'Editor Nano' },
-            { name: 'Estadísticas Docker', command: 'docker stats', icon: '🐳', description: 'Estadísticas de contenedores' },
-            { name: 'Logs del Sistema', command: 'journalctl -f', icon: '📜', description: 'Seguir logs del sistema' },
-            { name: 'Uso de Disco', command: 'df -h', icon: '💾', description: 'Espacio en disco' },
-            { name: 'Info de Memoria', command: 'free -h', icon: '🧠', description: 'Uso de memoria' }
+            { name: 'Terminal', command: 'bash', icon: '💻', description: 'Interactive shell' },
+            { name: 'System Monitor', command: 'htop', icon: '📊', description: 'Process viewer' },
+            { name: 'File Manager', command: 'mc', icon: '📁', description: 'Midnight Commander' },
+            { name: 'Text Editor', command: 'nano', icon: '📝', description: 'Nano editor' },
+            { name: 'Docker Stats', command: 'docker stats', icon: '🐳', description: 'Container stats' },
+            { name: 'System Logs', command: 'journalctl -f', icon: '📜', description: 'Follow system logs' },
+            { name: 'Disk Usage', command: 'df -h', icon: '💾', description: 'Disk space' },
+            { name: 'Memory Info', command: 'free -h', icon: '🧠', description: 'Memory usage' }
         ]
     });
 });
