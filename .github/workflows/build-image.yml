@@ -1,0 +1,88 @@
+name: Build HomePiNAS Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v2.5.0)'
+        required: true
+        default: 'latest'
+  release:
+    types: [published]
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xz-utils fdisk parted qemu-user-static wget jq
+      
+      - name: Download latest Raspberry Pi OS
+        run: |
+          # Get latest image URL from Raspberry Pi downloads
+          echo "Fetching latest Raspberry Pi OS Lite (64-bit)..."
+          
+          # Method 1: Parse the downloads page for latest
+          DOWNLOAD_PAGE="https://downloads.raspberrypi.com/raspios_lite_arm64/images/"
+          LATEST_DIR=$(curl -s "$DOWNLOAD_PAGE" | grep -oP 'raspios_lite_arm64-\d{4}-\d{2}-\d{2}' | sort -r | head -1)
+          
+          if [ -z "$LATEST_DIR" ]; then
+            echo "Could not find latest image, using known good version"
+            LATEST_DIR="raspios_lite_arm64-2024-11-19"
+          fi
+          
+          echo "Latest directory: $LATEST_DIR"
+          
+          # Get the actual image filename
+          IMAGE_PAGE="https://downloads.raspberrypi.com/raspios_lite_arm64/images/${LATEST_DIR}/"
+          IMAGE_FILE=$(curl -s "$IMAGE_PAGE" | grep -oP '\d{4}-\d{2}-\d{2}-raspios-bookworm-arm64-lite\.img\.xz' | head -1)
+          
+          if [ -z "$IMAGE_FILE" ]; then
+            # Fallback: try trixie or other naming
+            IMAGE_FILE=$(curl -s "$IMAGE_PAGE" | grep -oP '\d{4}-\d{2}-\d{2}-raspios-[a-z]+-arm64-lite\.img\.xz' | head -1)
+          fi
+          
+          DOWNLOAD_URL="https://downloads.raspberrypi.com/raspios_lite_arm64/images/${LATEST_DIR}/${IMAGE_FILE}"
+          
+          echo "Downloading: $DOWNLOAD_URL"
+          wget -q --show-progress "$DOWNLOAD_URL" -O raspios.img.xz
+          
+          echo "Decompressing..."
+          xz -d raspios.img.xz
+          mv raspios.img base.img
+          
+          echo "Image ready: base.img"
+      
+      - name: Customize image
+        run: |
+          sudo ./image-builder/customize-image.sh base.img
+      
+      - name: Compress image
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          mv base-homepinas.img "HomePiNAS-${VERSION}-arm64.img"
+          xz -9 -T0 "HomePiNAS-${VERSION}-arm64.img"
+          sha256sum "HomePiNAS-${VERSION}-arm64.img.xz" > "HomePiNAS-${VERSION}-arm64.img.xz.sha256"
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: homepinas-image
+          path: |
+            HomePiNAS-*.img.xz
+            HomePiNAS-*.sha256
+          retention-days: 30
+      
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            HomePiNAS-*.img.xz
+            HomePiNAS-*.sha256
