@@ -53,6 +53,12 @@ fi
 
 echo -e "${BLUE}Working with image: $IMAGE_FILE${NC}"
 
+# Cleanup any existing loop devices
+echo -e "${BLUE}Cleaning up any existing loop devices...${NC}"
+umount "$MOUNT_BOOT" 2>/dev/null || true
+umount "$MOUNT_ROOT" 2>/dev/null || true
+losetup -D 2>/dev/null || true
+
 # Create mount points
 MOUNT_BOOT="/mnt/rpi-boot"
 MOUNT_ROOT="/mnt/rpi-root"
