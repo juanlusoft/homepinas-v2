@@ -4811,3 +4811,18 @@ body.fm-dragging .fm-tree-item {
         opacity: 0;
     }
 }
+
+/* Fix: Ensure setup/login views are above everything and block sidebar interaction */
+#setup-view.active,
+#login-view.active,
+#storage-view.active {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    background: var(--bg);
+    justify-content: center;
+    align-items: center;
+}
