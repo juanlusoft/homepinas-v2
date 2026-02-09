@@ -62,6 +62,8 @@ cleanup() {
     echo -e "${BLUE}Cleaning up...${NC}"
     umount "$MOUNT_BOOT" 2>/dev/null || true
     umount "$MOUNT_ROOT" 2>/dev/null || true
+    # Remove kpartx mappings if any
+    kpartx -d "$IMAGE_FILE" 2>/dev/null || true
     # Detach any loop devices for this image
     for loop in $(losetup -j "$IMAGE_FILE" 2>/dev/null | cut -d: -f1); do
         losetup -d "$loop" 2>/dev/null || true
@@ -78,21 +80,35 @@ cleanup
 
 mkdir -p "$MOUNT_BOOT" "$MOUNT_ROOT"
 
-# Get partition offsets
-echo -e "${BLUE}Analyzing image partitions...${NC}"
-BOOT_START=$(fdisk -l "$IMAGE_FILE" | grep "img1" | awk '{print $2}')
-ROOT_START=$(fdisk -l "$IMAGE_FILE" | grep "img2" | awk '{print $2}')
+# Setup loop device with partitions using losetup
+echo -e "${BLUE}Setting up loop device...${NC}"
+LOOP_DEV=$(losetup -f --show -P "$IMAGE_FILE")
+echo -e "${GREEN}Loop device: $LOOP_DEV${NC}"
 
-BOOT_OFFSET=$((BOOT_START * 512))
-ROOT_OFFSET=$((ROOT_START * 512))
+# Wait for partition devices to appear
+sleep 1
 
-echo -e "${GREEN}Boot partition offset: $BOOT_OFFSET${NC}"
-echo -e "${GREEN}Root partition offset: $ROOT_OFFSET${NC}"
+# Find partition devices
+BOOT_PART="${LOOP_DEV}p1"
+ROOT_PART="${LOOP_DEV}p2"
+
+if [ ! -b "$BOOT_PART" ] || [ ! -b "$ROOT_PART" ]; then
+    echo -e "${RED}Partition devices not found. Trying kpartx...${NC}"
+    kpartx -av "$IMAGE_FILE"
+    sleep 1
+    # kpartx creates /dev/mapper/loopXp1, /dev/mapper/loopXp2
+    LOOP_NAME=$(basename "$LOOP_DEV")
+    BOOT_PART="/dev/mapper/${LOOP_NAME}p1"
+    ROOT_PART="/dev/mapper/${LOOP_NAME}p2"
+fi
+
+echo -e "${GREEN}Boot partition: $BOOT_PART${NC}"
+echo -e "${GREEN}Root partition: $ROOT_PART${NC}"
 
 # Mount partitions
 echo -e "${BLUE}Mounting partitions...${NC}"
-mount -o loop,offset=$BOOT_OFFSET "$IMAGE_FILE" "$MOUNT_BOOT"
-mount -o loop,offset=$ROOT_OFFSET "$IMAGE_FILE" "$MOUNT_ROOT"
+mount "$BOOT_PART" "$MOUNT_BOOT"
+mount "$ROOT_PART" "$MOUNT_ROOT"
 
 echo -e "${GREEN}Partitions mounted${NC}"
 
@@ -195,7 +211,14 @@ sync
 umount "$MOUNT_BOOT"
 umount "$MOUNT_ROOT"
 
-rmdir "$MOUNT_BOOT" "$MOUNT_ROOT"
+# Detach loop device
+echo -e "${BLUE}Detaching loop device...${NC}"
+kpartx -d "$IMAGE_FILE" 2>/dev/null || true
+if [ -n "$LOOP_DEV" ]; then
+    losetup -d "$LOOP_DEV" 2>/dev/null || true
+fi
+
+rmdir "$MOUNT_BOOT" "$MOUNT_ROOT" 2>/dev/null || true
 
 # Rename output image
 OUTPUT_IMAGE="${IMAGE_FILE%.img}-homepinas.img"
