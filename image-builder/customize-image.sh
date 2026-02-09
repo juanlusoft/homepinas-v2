@@ -53,15 +53,28 @@ fi
 
 echo -e "${BLUE}Working with image: $IMAGE_FILE${NC}"
 
-# Cleanup any existing loop devices
-echo -e "${BLUE}Cleaning up any existing loop devices...${NC}"
-umount "$MOUNT_BOOT" 2>/dev/null || true
-umount "$MOUNT_ROOT" 2>/dev/null || true
-losetup -D 2>/dev/null || true
-
 # Create mount points
 MOUNT_BOOT="/mnt/rpi-boot"
 MOUNT_ROOT="/mnt/rpi-root"
+
+# Cleanup function
+cleanup() {
+    echo -e "${BLUE}Cleaning up...${NC}"
+    umount "$MOUNT_BOOT" 2>/dev/null || true
+    umount "$MOUNT_ROOT" 2>/dev/null || true
+    # Detach any loop devices for this image
+    for loop in $(losetup -j "$IMAGE_FILE" 2>/dev/null | cut -d: -f1); do
+        losetup -d "$loop" 2>/dev/null || true
+    done
+    losetup -D 2>/dev/null || true
+}
+
+# Cleanup on error only (not on success, we handle that manually)
+trap 'cleanup; exit 1' ERR
+
+# Cleanup any existing loop devices before starting
+echo -e "${BLUE}Cleaning up any existing loop devices...${NC}"
+cleanup
 
 mkdir -p "$MOUNT_BOOT" "$MOUNT_ROOT"
 
