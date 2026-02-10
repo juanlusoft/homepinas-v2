@@ -161,6 +161,15 @@ body {
     opacity: 1;
 }
 
+/* Hide sidebar when setup/login views are active */
+#setup-view.active ~ #dashboard-view .sidebar,
+#login-view.active ~ #dashboard-view .sidebar,
+body:has(#setup-view.active) .sidebar,
+body:has(#login-view.active) .sidebar {
+    display: none !important;
+    pointer-events: none !important;
+}
+
 /* Storage view needs scroll for many disks */
 #storage-view {
     justify-content: center;
