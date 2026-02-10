@@ -10594,9 +10594,9 @@ services:
                     height: 300px;
                     padding: 12px;
                     border-radius: 8px;
-                    border: 1px solid var(--border);
-                    background: var(--bg-hover);
-                    color: var(--text);
+                    border: 1px solid #4a4a6a;
+                    background: #1a1a2e;
+                    color: #e0e0e0;
                     font-family: monospace;
                     font-size: 13px;
                     resize: vertical;
@@ -10755,9 +10755,9 @@ async function openStackEditor(stackId) {
                         height: 400px;
                         padding: 12px;
                         border-radius: 8px;
-                        border: 1px solid var(--border);
-                        background: var(--bg-hover);
-                        color: var(--text);
+                        border: 1px solid #4a4a6a;
+                        background: #1a1a2e;
+                        color: #e0e0e0;
                         font-family: monospace;
                         font-size: 13px;
                     ">${escapeHtml(data.stack.compose)}</textarea>
