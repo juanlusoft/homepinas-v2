@@ -10581,9 +10581,9 @@ async function openNewStackModal() {
                     width: 100%;
                     padding: 10px;
                     border-radius: 8px;
-                    border: 1px solid var(--border);
-                    background: var(--bg-hover);
-                    color: var(--text);
+                    border: 1px solid #4a4a6a;
+                    background: #1a1a2e;
+                    color: #e0e0e0;
                     font-size: 14px;
                 ">
             </div>
@@ -10593,9 +10593,9 @@ async function openNewStackModal() {
                     width: 100%;
                     padding: 10px;
                     border-radius: 8px;
-                    border: 1px solid var(--border);
-                    background: var(--bg-hover);
-                    color: var(--text);
+                    border: 1px solid #4a4a6a;
+                    background: #1a1a2e;
+                    color: #e0e0e0;
                     font-size: 14px;
                 ">
             </div>
