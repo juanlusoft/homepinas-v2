@@ -1342,16 +1342,27 @@ function initStorageSetup() {
     // Load any saved state
     const hasSavedState = loadWizardState();
     
+    // IMPORTANT: Reset all wizard steps to ensure only one is active
+    document.querySelectorAll('.wizard-step').forEach(step => {
+        step.classList.remove('active', 'exit');
+    });
+    
+    // Set only step 1 as active initially (or saved step)
+    const targetStep = (hasSavedState && wizardState.currentStep >= 1 && wizardState.currentStep <= 5) 
+        ? wizardState.currentStep 
+        : 1;
+    const targetStepEl = document.querySelector(`.wizard-step[data-step="${targetStep}"]`);
+    if (targetStepEl) {
+        targetStepEl.classList.add('active');
+    }
+    wizardState.currentStep = targetStep;
+    updateWizardProgress(targetStep);
+    
     // Start disk detection
     detectDisksForWizard();
     
     // Setup wizard navigation
     setupWizardNavigation();
-    
-    // If we have saved state and disks, restore to that step
-    if (hasSavedState && wizardState.currentStep > 1) {
-        // We'll navigate to the saved step after disk detection completes
-    }
 }
 
 // Detect disks and populate the wizard
@@ -2774,8 +2785,8 @@ async function renderStorageDashboard() {
     try {
         // Fetch disks and pool status
         const [disksRes, poolRes] = await Promise.all([
-            fetch(`${API_BASE}/system/disks`),
-            fetch(`${API_BASE}/storage/pool/status`)
+            authFetch(`${API_BASE}/system/disks`),
+            authFetch(`${API_BASE}/storage/pool/status`)
         ]);
         
         if (disksRes.ok) state.disks = await disksRes.json();
