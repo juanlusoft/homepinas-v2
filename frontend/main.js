@@ -3232,27 +3232,26 @@ async function renderDockerManager() {
             header.appendChild(info);
             header.appendChild(statusSpan);
 
-            // Stats row (only if running and has real data)
+            // Stats row (always show for running containers)
             card.appendChild(header);
             if (isRunning) {
-                const hasCpuData = container.cpu && container.cpu !== '---' && container.cpu !== '0.0%';
-                const hasRamData = container.ram && container.ram !== '---' && container.ram !== '0MB';
+                const cpuVal = container.cpu || '0%';
+                const ramVal = container.ram && container.ram !== '---' ? container.ram : '< 1MB';
+                const cpuNum = parseFloat(cpuVal) || 0;
                 
-                if (hasCpuData || hasRamData) {
-                    const statsRow = document.createElement('div');
-                    statsRow.style.cssText = 'display: flex; gap: 20px; margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;';
-                    statsRow.innerHTML = `
-                        <div style="flex: 1; text-align: center;">
-                            <div style="font-size: 0.7rem; color: var(--text-dim);">CPU</div>
-                            <div style="font-size: 1rem; font-weight: 600; color: ${parseFloat(container.cpu) > 50 ? '#f59e0b' : '#10b981'}">${escapeHtml(container.cpu || '---')}</div>
-                        </div>
-                        <div style="flex: 1; text-align: center;">
-                            <div style="font-size: 0.7rem; color: var(--text-dim);">RAM</div>
-                            <div style="font-size: 1rem; font-weight: 600; color: #6366f1;">${escapeHtml(container.ram || '---')}</div>
-                        </div>
-                    `;
-                    card.appendChild(statsRow);
-                }
+                const statsRow = document.createElement('div');
+                statsRow.style.cssText = 'display: flex; gap: 20px; margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;';
+                statsRow.innerHTML = `
+                    <div style="flex: 1; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-dim);">CPU</div>
+                        <div style="font-size: 1rem; font-weight: 600; color: ${cpuNum > 50 ? '#f59e0b' : '#10b981'}">${escapeHtml(cpuVal)}</div>
+                    </div>
+                    <div style="flex: 1; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-dim);">RAM</div>
+                        <div style="font-size: 1rem; font-weight: 600; color: #6366f1;">${escapeHtml(ramVal)}</div>
+                    </div>
+                `;
+                card.appendChild(statsRow);
             }
 
             // Ports section
