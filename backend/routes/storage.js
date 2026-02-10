@@ -503,29 +503,22 @@ exclude .fseventsd
             addFstabEntry(c.partition, c.mountPoint);
         }
 
-        // NOTE: MergerFS is now handled via systemd mount unit, NOT fstab
-        // This ensures proper ordering: disks mount first, then MergerFS
+        // Add MergerFS entry to fstab for persistence
+        // Using fstab with nofail ensures it mounts at boot even if there are timing issues
+        fstabEntries += `# MergerFS Pool\n`;
+        fstabEntries += `${mergerfsSource} ${POOL_MOUNT} fuse.mergerfs ${mergerfsOpts},nofail 0 0\n`;
 
         // SECURITY: Write to temp file, then use sudo to append
         const tempFstabFile = '/tmp/homepinas-fstab-temp';
         fs.writeFileSync(tempFstabFile, fstabEntries, 'utf8');
         
-        // Remove ALL old HomePiNAS entries (comment + UUID/mergerfs lines until next non-HomePiNAS line)
-        execSync(`sudo sed -i '/# HomePiNAS Storage/d; /\\/mnt\\/disks\\//d; /\\/mnt\\/parity/d; /\\/mnt\\/storage.*mergerfs/d' /etc/fstab`, { encoding: 'utf8', timeout: 10000 });
+        // Remove ALL old HomePiNAS entries (comment + UUID/mergerfs lines)
+        execSync(`sudo sed -i '/# HomePiNAS Storage/d; /# MergerFS Pool/d; /\\/mnt\\/disks\\//d; /\\/mnt\\/parity/d; /\\/mnt\\/storage.*mergerfs/d; /\\/mnt\\/storage.*fuse\\.mergerfs/d' /etc/fstab`, { encoding: 'utf8', timeout: 10000 });
         // Remove trailing blank lines
         execSync(`sudo sed -i -e :a -e '/^\\n*$/{$d;N;ba' -e '}' /etc/fstab`, { encoding: 'utf8', timeout: 10000 });
         execFileSync('sudo', ['sh', '-c', `cat ${tempFstabFile} >> /etc/fstab`], { encoding: 'utf8', timeout: 10000 });
         fs.unlinkSync(tempFstabFile);
-        results.push('Updated /etc/fstab for persistence');
-
-        // 6. Create systemd mount unit for MergerFS (ensures proper boot order)
-        try {
-            createMergerFSSystemdUnit(mergerfsSource, mergerfsOpts, dataMounts.map(d => d.mountPoint));
-            results.push('Created systemd mount unit for MergerFS (boot persistence)');
-        } catch (e) {
-            console.error('Failed to create systemd unit:', e);
-            results.push('Warning: Could not create systemd mount unit, using fstab fallback');
-        }
+        results.push('Updated /etc/fstab for persistence (including MergerFS)');
 
         results.push('Starting initial SnapRAID sync (this may take a while)...');
 
