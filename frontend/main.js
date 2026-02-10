@@ -10525,22 +10525,39 @@ async function loadStacksList() {
                         color: ${stack.status === 'running' ? '#10b981' : stack.status === 'partial' ? '#f59e0b' : '#6b7280'};
                     ">${stack.status === 'running' ? '● En Ejecución' : stack.status === 'partial' ? '◐ Parcial' : '○ Detenido'}</span>
 
-                    <button onclick="stackAction('${stack.id}', '${stack.status === 'running' ? 'down' : 'up'}', event)"
-                        class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: ${stack.status === 'running' ? '#ef4444' : '#10b981'};">
+                    <button data-action="toggle" data-stack="${stack.id}" data-cmd="${stack.status === 'running' ? 'down' : 'up'}"
+                        class="btn-primary stack-btn" style="padding: 6px 12px; font-size: 12px; background: ${stack.status === 'running' ? '#ef4444' : '#10b981'};">
                         ${stack.status === 'running' ? '⏹ Detener' : '▶ Iniciar'}
                     </button>
-                    <button onclick="openStackEditor('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: #6366f1;">
-                        ✏️ ${t('docker.editCompose', 'Editar')}
+                    <button data-action="edit" data-stack="${stack.id}" class="btn-primary stack-btn" style="padding: 6px 12px; font-size: 12px; background: #6366f1;">
+                        ✏️ Editar
                     </button>
-                    <button onclick="showStackLogs('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: var(--bg-hover);">
+                    <button data-action="logs" data-stack="${stack.id}" class="btn-primary stack-btn" style="padding: 6px 12px; font-size: 12px; background: var(--bg-hover);">
                         📜 Logs
                     </button>
-                    <button onclick="deleteStack('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: #ef4444;">
+                    <button data-action="delete" data-stack="${stack.id}" class="btn-primary stack-btn" style="padding: 6px 12px; font-size: 12px; background: #ef4444;">
                         🗑️
                     </button>
                 </div>
             </div>
         `).join('');
+        
+        // Bind event listeners for stack buttons
+        listDiv.querySelectorAll('.stack-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const action = btn.dataset.action;
+                const stackId = btn.dataset.stack;
+                if (action === 'toggle') {
+                    await stackAction(stackId, btn.dataset.cmd, e);
+                } else if (action === 'edit') {
+                    await openStackEditor(stackId);
+                } else if (action === 'logs') {
+                    await showStackLogs(stackId);
+                } else if (action === 'delete') {
+                    await deleteStack(stackId);
+                }
+            });
+        });
         
     } catch (e) {
         listDiv.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">Error: ${escapeHtml(e.message)}</div>`;
