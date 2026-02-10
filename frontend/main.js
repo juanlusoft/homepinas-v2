@@ -10468,11 +10468,11 @@ async function loadStacksList() {
                         font-weight: 600;
                         background: ${stack.status === 'running' ? 'rgba(16,185,129,0.2)' : stack.status === 'partial' ? 'rgba(245,158,11,0.2)' : 'rgba(107,114,128,0.2)'};
                         color: ${stack.status === 'running' ? '#10b981' : stack.status === 'partial' ? '#f59e0b' : '#6b7280'};
-                    ">${stack.status === 'running' ? '● ${t('docker.running', 'En Ejecución')}' : stack.status === 'partial' ? '◐ Parcial' : '○ ${t('docker.stopped', 'Detenido')}'}</span>
+                    ">${stack.status === 'running' ? '● En Ejecución' : stack.status === 'partial' ? '◐ Parcial' : '○ Detenido'}</span>
 
                     <button onclick="stackAction('${stack.id}', '${stack.status === 'running' ? 'down' : 'up'}', event)"
                         class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: ${stack.status === 'running' ? '#ef4444' : '#10b981'};">
-                        ${stack.status === 'running' ? '⏹ ${t('docker.stop', 'Detener')}' : '▶ ${t('docker.start', 'Iniciar')}'}
+                        ${stack.status === 'running' ? '⏹ Detener' : '▶ Iniciar'}
                     </button>
                     <button onclick="openStackEditor('${stack.id}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px; background: #6366f1;">
                         ✏️ ${t('docker.editCompose', 'Editar')}
