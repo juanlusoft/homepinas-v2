@@ -75,6 +75,70 @@ const HTTP_PORT = process.env.HTTP_PORT || 80;
 const SSL_CERT_PATH = path.join(__dirname, 'certs', 'server.crt');
 const SSL_KEY_PATH = path.join(__dirname, 'certs', 'server.key');
 
+// Auto-generate SSL certificates if they don't exist
+function ensureSSLCerts() {
+    const certsDir = path.join(__dirname, 'certs');
+    if (!fs.existsSync(certsDir)) {
+        fs.mkdirSync(certsDir, { recursive: true });
+    }
+    
+    if (!fs.existsSync(SSL_CERT_PATH) || !fs.existsSync(SSL_KEY_PATH)) {
+        console.log('[SSL] Certificates not found, generating self-signed certificates...');
+        try {
+            const { execSync } = require('child_process');
+            const os = require('os');
+            const hostname = os.hostname();
+            const interfaces = os.networkInterfaces();
+            let localIP = '127.0.0.1';
+            for (const iface of Object.values(interfaces)) {
+                for (const addr of iface) {
+                    if (addr.family === 'IPv4' && !addr.internal) {
+                        localIP = addr.address;
+                        break;
+                    }
+                }
+            }
+            
+            const sslConfig = `[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = ES
+ST = Local
+L = HomeLab
+O = HomePiNAS
+OU = NAS
+CN = ${hostname}
+
+[v3_req]
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = ${hostname}
+DNS.2 = homepinas.local
+DNS.3 = localhost
+IP.1 = ${localIP}
+IP.2 = 127.0.0.1
+`;
+            const configPath = '/tmp/homepinas-ssl.cnf';
+            fs.writeFileSync(configPath, sslConfig);
+            
+            execSync(`openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout "${SSL_KEY_PATH}" -out "${SSL_CERT_PATH}" -config "${configPath}"`, { stdio: 'pipe' });
+            fs.chmodSync(SSL_KEY_PATH, 0o600);
+            fs.unlinkSync(configPath);
+            
+            console.log('[SSL] Self-signed certificates generated successfully');
+        } catch (e) {
+            console.error('[SSL] Failed to generate certificates:', e.message);
+        }
+    }
+}
+ensureSSLCerts();
+
 // Initialize Express app
 const app = express();
 
