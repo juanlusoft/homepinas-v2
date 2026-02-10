@@ -4486,7 +4486,8 @@ if (resetBtn) {
         resetBtn.disabled = true;
 
         try {
-            const res = await authFetch(`${API_BASE}/system/reset`, { method: 'POST' });
+            // Use public factory-reset endpoint (no auth required - for login page)
+            const res = await fetch(`${API_BASE}/system/factory-reset`, { method: 'POST' });
             const data = await res.json();
 
             if (res.ok && data.success) {
