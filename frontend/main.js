@@ -19,7 +19,7 @@ const state = {
     dockers: [],
     shortcuts: { defaults: [], custom: [] },
     terminalSession: null,
-    pollingIntervals: { stats: null, publicIP: null }
+    pollingIntervals: { stats: null, publicIP: null, storage: null }
 };
 
 const API_BASE = window.location.origin + '/api';
@@ -2442,6 +2442,13 @@ function updateUserAvatar() {
 async function renderContent(view) {
     state.currentView = view;
     dashboardContent.innerHTML = '';
+    
+    // Clear storage polling when leaving storage view
+    if (state.pollingIntervals.storage) {
+        clearInterval(state.pollingIntervals.storage);
+        state.pollingIntervals.storage = null;
+    }
+    
     if (view === 'dashboard') await renderDashboard();
     else if (view === 'docker') await renderDockerManager();
     else if (view === 'storage') await renderStorageDashboard();
@@ -3061,6 +3068,15 @@ async function renderStorageDashboard() {
         });
 
         dashboardContent.appendChild(grid);
+        
+        // Start auto-refresh polling (every 30 seconds)
+        if (!state.pollingIntervals.storage) {
+            state.pollingIntervals.storage = setInterval(async () => {
+                if (state.currentView === 'storage') {
+                    await renderStorageDashboard();
+                }
+            }, 30000);
+        }
     } catch (e) {
         console.error('Storage dashboard error:', e);
         dashboardContent.innerHTML = '<div class="glass-card"><h3>Error loading storage data</h3></div>';
