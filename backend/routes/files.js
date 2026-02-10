@@ -192,8 +192,8 @@ router.get('/list', requirePermission('read'), (req, res) => {
     const items = [];
 
     for (const entry of entries) {
-      // Hide dotfiles/dotfolders unless explicitly requested
-      if (!showHidden && entry.startsWith('.')) continue;
+      // Hide dotfiles/dotfolders and system folders unless explicitly requested
+      if (!showHidden && (entry.startsWith('.') || entry === 'lost+found')) continue;
       try {
         const fullPath = path.join(dirPath, entry);
         const stat = fs.statSync(fullPath);
