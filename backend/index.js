@@ -124,7 +124,7 @@ DNS.3 = localhost
 IP.1 = ${localIP}
 IP.2 = 127.0.0.1
 `;
-            const configPath = '/tmp/homepinas-ssl.cnf';
+            const configPath = '/mnt/storage/.tmp/homepinas-ssl.cnf';
             fs.writeFileSync(configPath, sslConfig);
             
             execSync(`openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout "${SSL_KEY_PATH}" -out "${SSL_CERT_PATH}" -config "${configPath}"`, { stdio: 'pipe' });
@@ -150,6 +150,18 @@ startSessionCleanup();
 const configDir = path.join(__dirname, 'config');
 if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
+}
+
+// Ensure temp directories exist on storage (not eMMC)
+const storageTmpDirs = ['/mnt/storage/.tmp', '/mnt/storage/.uploads-tmp'];
+for (const dir of storageTmpDirs) {
+    try {
+        if (fs.existsSync('/mnt/storage') && !fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+    } catch (e) {
+        console.warn(`[WARN] Could not create ${dir}:`, e.message);
+    }
 }
 
 // =============================================================================

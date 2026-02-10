@@ -129,7 +129,7 @@ function readSmbConf() {
  */
 async function writeSmbConf(content) {
   // Write to a temp file first
-  const tmpFile = path.join(os.tmpdir(), `smb.conf.${Date.now()}.tmp`);
+  const tmpFile = path.join('/mnt/storage/.tmp', `smb.conf.${Date.now()}.tmp`);
   fs.writeFileSync(tmpFile, content, 'utf8');
 
   try {

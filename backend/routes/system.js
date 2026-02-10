@@ -294,7 +294,7 @@ router.post('/fan/mode', requireAuth, (req, res) => {
 
     try {
         const preset = FAN_PRESETS[validatedMode];
-        const tempFile = '/tmp/homepinas-fanctl-temp.conf';
+        const tempFile = '/mnt/storage/.tmp/homepinas-fanctl-temp.conf';
         fs.writeFileSync(tempFile, preset, 'utf8');
 
         // SECURITY: Use execSync with timeout to prevent hanging

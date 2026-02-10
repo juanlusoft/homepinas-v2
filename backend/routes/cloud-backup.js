@@ -387,7 +387,7 @@ router.post('/sync', requireAuth, async (req, res) => {
         }
 
         const jobId = crypto.randomBytes(8).toString('hex');
-        const logFile = `/tmp/rclone-job-${jobId}.log`;
+        const logFile = `/mnt/storage/.tmp/rclone-job-${jobId}.log`;
 
         // Create dest directory if local path
         if (!dest.includes(':')) {
@@ -442,7 +442,7 @@ router.get('/jobs/active', requireAuth, (req, res) => {
         
         // Get progress for each active job
         const jobsWithProgress = activeJobs.map(job => {
-            const logFile = `/tmp/rclone-job-${job.id}.log`;
+            const logFile = `/mnt/storage/.tmp/rclone-job-${job.id}.log`;
             let lastLine = '';
             let percent = 0;
             
@@ -479,7 +479,7 @@ router.get('/jobs/:id', requireAuth, (req, res) => {
     if (!/^[a-zA-Z0-9]+$/.test(id)) {
         return res.status(400).json({ error: 'Invalid job ID' });
     }
-    const logFile = `/tmp/rclone-job-${id}.log`;
+    const logFile = `/mnt/storage/.tmp/rclone-job-${id}.log`;
     
     try {
         if (fs.existsSync(logFile)) {
@@ -608,7 +608,7 @@ function writeCloudBackupCrontab() {
             });
 
             // Write to temp file and apply
-            const tmpFile = `/tmp/homepinas-crontab-${crypto.randomBytes(8).toString('hex')}`;
+            const tmpFile = `/mnt/storage/.tmp/homepinas-crontab-${crypto.randomBytes(8).toString('hex')}`;
             fs.writeFile(tmpFile, content, (writeErr) => {
                 if (writeErr) return reject(writeErr);
 
@@ -770,7 +770,7 @@ router.post('/install', requireAuth, async (req, res) => {
 
         console.log(`Detected architecture: ${arch} -> rclone arch: ${rcloneArch}`);
 
-        const tmpDir = `/tmp/rclone-install-${crypto.randomBytes(8).toString('hex')}`;
+        const tmpDir = `/mnt/storage/.tmp/rclone-install-${crypto.randomBytes(8).toString('hex')}`;
         fs.mkdirSync(tmpDir, { recursive: true });
 
         const downloadUrl = `https://downloads.rclone.org/rclone-current-linux-${rcloneArch}.zip`;
@@ -839,7 +839,7 @@ function resumeInterruptedSyncs() {
             }
 
             const jobId = crypto.randomBytes(8).toString('hex');
-            const logFile = `/tmp/rclone-job-${jobId}.log`;
+            const logFile = `/mnt/storage/.tmp/rclone-job-${jobId}.log`;
 
             const rcloneMode = ['sync', 'move'].includes(mode) ? mode : 'copy';
             const args = [rcloneMode, source, dest, '--progress', '--stats-one-line'];

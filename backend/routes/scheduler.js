@@ -93,7 +93,7 @@ function writeCrontab() {
     });
 
     // Write to temp file
-    const tmpFile = path.join(os.tmpdir(), `homepinas-crontab-${Date.now()}`);
+    const tmpFile = path.join('/mnt/storage/.tmp', `homepinas-crontab-${Date.now()}`);
     fs.writeFile(tmpFile, content, (writeErr) => {
       if (writeErr) {
         return reject(new Error(`Failed to write temp crontab: ${writeErr.message}`));

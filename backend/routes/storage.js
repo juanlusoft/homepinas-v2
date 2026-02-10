@@ -434,7 +434,7 @@ exclude .fseventsd
 `;
 
             // SECURITY: Write config to temp file first, then use sudo to copy
-            const tempConfFile = '/tmp/homepinas-snapraid-temp.conf';
+            const tempConfFile = '/mnt/storage/.tmp/homepinas-snapraid-temp.conf';
             fs.writeFileSync(tempConfFile, snapraidConf, 'utf8');
             execFileSync('sudo', ['cp', tempConfFile, SNAPRAID_CONF], { encoding: 'utf8', timeout: 10000 });
             fs.unlinkSync(tempConfFile);
@@ -509,7 +509,7 @@ exclude .fseventsd
         fstabEntries += `${mergerfsSource} ${POOL_MOUNT} fuse.mergerfs ${mergerfsOpts},nofail 0 0\n`;
 
         // SECURITY: Write to temp file, then use sudo to append
-        const tempFstabFile = '/tmp/homepinas-fstab-temp';
+        const tempFstabFile = '/mnt/storage/.tmp/homepinas-fstab-temp';
         fs.writeFileSync(tempFstabFile, fstabEntries, 'utf8');
         
         // Remove ALL old HomePiNAS entries (comment + UUID/mergerfs lines)
@@ -988,7 +988,7 @@ router.post('/disks/add-to-pool', requireAuth, async (req, res) => {
         }
 
         // Step 4: Verify partition is mountable (test mount)
-        const testMountPoint = `/tmp/homepinas-test-mount-${Date.now()}`;
+        const testMountPoint = `/mnt/storage/.tmp/homepinas-test-mount-${Date.now()}`;
         try {
             execSync(`sudo mkdir -p ${testMountPoint}`, { encoding: 'utf8' });
             execSync(`sudo mount ${escapeShellArg(partitionPath)} ${testMountPoint}`, { encoding: 'utf8', timeout: 30000 });
@@ -1042,7 +1042,7 @@ router.post('/disks/add-to-pool', requireAuth, async (req, res) => {
             // Check if entry already exists
             const fstab = execSync('cat /etc/fstab', { encoding: 'utf8' });
             if (!fstab.includes(uuid)) {
-                const tempFile = `/tmp/fstab-add-${Date.now()}`;
+                const tempFile = `/mnt/storage/.tmp/fstab-add-${Date.now()}`;
                 fs.writeFileSync(tempFile, `\n# HomePiNAS: ${safeDiskId} (${role})\n${fstabEntry}\n`);
                 execSync(`sudo sh -c 'cat ${escapeShellArg(tempFile)} >> /etc/fstab'`, { encoding: 'utf8' });
                 fs.unlinkSync(tempFile);
@@ -1249,7 +1249,7 @@ router.post('/disks/mount-standalone', requireAuth, async (req, res) => {
         try {
             const fstab = execSync('cat /etc/fstab', { encoding: 'utf8' });
             if (!fstab.includes(uuid)) {
-                const tempFile = `/tmp/fstab-standalone-${Date.now()}`;
+                const tempFile = `/mnt/storage/.tmp/fstab-standalone-${Date.now()}`;
                 fs.writeFileSync(tempFile, `\n# HomePiNAS: Standalone volume ${safeName}\n${fstabEntry}\n`);
                 execSync(`sudo sh -c 'cat ${escapeShellArg(tempFile)} >> /etc/fstab'`, { encoding: 'utf8' });
                 fs.unlinkSync(tempFile);
@@ -1551,7 +1551,7 @@ WantedBy=multi-user.target
 `;
 
     // Write unit file via temp file + sudo
-    const tempFile = `/tmp/homepinas-mergerfs-mount-${Date.now()}`;
+    const tempFile = `/mnt/storage/.tmp/homepinas-mergerfs-mount-${Date.now()}`;
     fs.writeFileSync(tempFile, mountUnit, 'utf8');
     
     try {
