@@ -3166,6 +3166,9 @@ async function renderDockerManager() {
     headerRight.appendChild(stacksBtn);
     headerCard.appendChild(headerLeft);
     headerCard.appendChild(headerRight);
+    
+    // Clear loading message before adding content
+    dashboardContent.innerHTML = '';
     dashboardContent.appendChild(headerCard);
 
     // Containers section
