@@ -655,20 +655,22 @@ SERVICE
 ln -sf /etc/systemd/system/homepinas-firstboot.service "$MOUNT_ROOT/etc/systemd/system/multi-user.target.wants/"
 ln -sf /etc/systemd/system/homepinas-install.service "$MOUNT_ROOT/etc/systemd/system/multi-user.target.wants/"
 
-# Auto-reboot after first login (before firstboot runs)
-cat > "$MOUNT_ROOT/etc/profile.d/homepinas-autoreboot.sh" << 'AUTOREBOOT'
+# Run installer on first login (instead of relying on systemd service)
+cat > "$MOUNT_ROOT/etc/profile.d/homepinas-installer.sh" << 'INSTALLER_PROFILE'
 #!/bin/bash
-# Auto-reboot after first user creation to trigger firstboot service
-if [[ ! -f /etc/homepinas/.firstboot-done ]] && [[ ! -f /tmp/.homepinas-rebooting ]]; then
-    echo ""
-    echo "  🏠 HomePiNAS - Reiniciando para comenzar setup..."
-    echo ""
-    sleep 2
-    touch /tmp/.homepinas-rebooting
-    sudo reboot
+# Run HomePiNAS installer on first login if not done yet
+if [[ ! -f /etc/homepinas/.firstboot-done ]] && [[ -x /usr/local/bin/homepinas-firstboot.sh ]]; then
+    # Only run on TTY (not SSH)
+    if [[ $(tty) == /dev/tty* ]]; then
+        echo ""
+        echo "  🏠 Iniciando instalador de HomePiNAS..."
+        echo ""
+        sleep 1
+        sudo /usr/local/bin/homepinas-firstboot.sh
+    fi
 fi
-AUTOREBOOT
-chmod +x "$MOUNT_ROOT/etc/profile.d/homepinas-autoreboot.sh"
+INSTALLER_PROFILE
+chmod +x "$MOUNT_ROOT/etc/profile.d/homepinas-installer.sh"
 
 echo -e "${GREEN}✓ Systemd services configured${NC}"
 
