@@ -431,7 +431,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR/backend
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
@@ -548,7 +548,7 @@ Description=HomePiNAS Dashboard Auto-Install
 After=network-online.target homepinas-firstboot.service
 Wants=network-online.target
 ConditionPathExists=/etc/homepinas/.firstboot-done
-ConditionPathExists=!/opt/homepinas/backend/server.js
+ConditionPathExists=!/opt/homepinas/backend/index.js
 
 [Service]
 Type=oneshot
@@ -572,7 +572,7 @@ echo -e "${BLUE}Adding MOTD...${NC}"
 mkdir -p "$MOUNT_ROOT/etc/update-motd.d"
 cat > "$MOUNT_ROOT/etc/update-motd.d/99-homepinas" << 'MOTD'
 #!/bin/bash
-if [[ -f /opt/homepinas/backend/server.js ]]; then
+if [[ -f /opt/homepinas/backend/index.js ]]; then
     VERSION=$(grep '"version"' /opt/homepinas/package.json 2>/dev/null | head -1 | sed 's/.*: "\(.*\)".*/\1/')
     IP=$(hostname -I | awk '{print $1}')
     echo ""
