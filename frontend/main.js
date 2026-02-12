@@ -328,6 +328,7 @@ const viewsMap = {
     'network': 'Gestión de Red',
     'backup': 'Backup y Tareas',
     'active-backup': 'Active Backup',
+    'active-directory': 'Active Directory',
     'cloud-sync': 'Cloud Sync',
     'cloud-backup': 'Cloud Backup',
     'homestore': 'HomeStore',
@@ -2471,6 +2472,7 @@ async function renderContent(view) {
     }
     else if (view === 'backup') await renderBackupView();
     else if (view === 'active-backup') await renderActiveBackupView();
+    else if (view === 'active-directory') await renderActiveDirectoryView();
     else if (view === 'cloud-sync') await renderCloudSyncView();
     else if (view === 'cloud-backup') await renderCloudBackupView();
     else if (view === 'homestore') await renderHomeStoreView();
@@ -8749,6 +8751,621 @@ async function buildRecoveryISO() {
     } catch (e) {
         alert('Error: ' + e.message);
     }
+}
+
+// =============================================================================
+// ACTIVE DIRECTORY (Samba AD DC)
+// =============================================================================
+
+let adRefreshInterval = null;
+
+async function renderActiveDirectoryView() {
+    const dashboardContent = document.getElementById('dashboard-content');
+    if (!dashboardContent) return;
+    
+    // Clear any existing refresh interval
+    if (adRefreshInterval) {
+        clearInterval(adRefreshInterval);
+        adRefreshInterval = null;
+    }
+    
+    dashboardContent.innerHTML = `
+        <div class="section-header">
+            <h2>🏢 Active Directory Domain Controller</h2>
+            <p class="section-subtitle">Gestiona tu dominio AD desde HomePiNAS</p>
+        </div>
+        <div id="ad-content">
+            <div class="loading-spinner">Cargando...</div>
+        </div>
+    `;
+    
+    await renderADContent();
+}
+
+async function renderADContent() {
+    const container = document.getElementById('ad-content');
+    if (!container) return;
+    
+    try {
+        const res = await authFetch(`${API_BASE}/ad/status`);
+        const status = await res.json();
+        
+        if (!status.installed) {
+            // Not installed - show install button
+            container.innerHTML = `
+                <div class="card" style="text-align: center; padding: 40px;">
+                    <h3 style="color: var(--warning);">⚠️ Samba AD DC no instalado</h3>
+                    <p style="margin: 20px 0; color: var(--text-secondary);">
+                        Active Directory Domain Controller permite que equipos Windows se unan a tu NAS como controlador de dominio.
+                    </p>
+                    <button class="btn btn-primary" id="ad-install-btn">
+                        📦 Instalar Samba AD DC
+                    </button>
+                    <p style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted);">
+                        Esto instalará ~500MB de paquetes y tardará unos minutos.
+                    </p>
+                </div>
+            `;
+            
+            document.getElementById('ad-install-btn')?.addEventListener('click', async () => {
+                const btn = document.getElementById('ad-install-btn');
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Instalando...';
+                
+                try {
+                    const res = await authFetch(`${API_BASE}/ad/install`, { method: 'POST' });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        showNotification('success', 'Samba AD DC instalado correctamente');
+                        await renderADContent();
+                    } else {
+                        showNotification('error', data.error || 'Error instalando');
+                        btn.disabled = false;
+                        btn.innerHTML = '📦 Instalar Samba AD DC';
+                    }
+                } catch (err) {
+                    showNotification('error', 'Error: ' + err.message);
+                    btn.disabled = false;
+                    btn.innerHTML = '📦 Instalar Samba AD DC';
+                }
+            });
+            return;
+        }
+        
+        if (!status.provisioned) {
+            // Installed but not provisioned - show provision form
+            container.innerHTML = `
+                <div class="card">
+                    <h3>🔧 Configurar Dominio</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        Samba AD DC está instalado. Configura tu dominio para empezar.
+                    </p>
+                    
+                    <form id="ad-provision-form" class="form-grid">
+                        <div class="form-group">
+                            <label>Nombre del dominio (NetBIOS)</label>
+                            <input type="text" id="ad-domain" placeholder="HOMELABS" 
+                                   pattern="[A-Za-z][A-Za-z0-9]{0,14}" required
+                                   style="text-transform: uppercase;">
+                            <small>Máx 15 caracteres, solo letras y números</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Realm (FQDN)</label>
+                            <input type="text" id="ad-realm" placeholder="homelabs.local" required>
+                            <small>Ejemplo: empresa.local, homelabs.lan</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Contraseña de Administrator</label>
+                            <input type="password" id="ad-password" minlength="8" required>
+                            <small>Mínimo 8 caracteres (será la contraseña del admin del dominio)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Confirmar contraseña</label>
+                            <input type="password" id="ad-password-confirm" minlength="8" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" style="grid-column: 1 / -1;">
+                            🚀 Crear Dominio
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="card" style="margin-top: 20px;">
+                    <h4>ℹ️ Información</h4>
+                    <ul style="color: var(--text-secondary); line-height: 1.8;">
+                        <li><strong>Nombre del dominio:</strong> Nombre corto tipo "EMPRESA" o "HOMELABS"</li>
+                        <li><strong>Realm:</strong> Nombre completo tipo "empresa.local" - usado para Kerberos</li>
+                        <li><strong>DNS:</strong> Samba incluye servidor DNS integrado</li>
+                        <li>Después de crear el dominio, podrás unir equipos Windows</li>
+                    </ul>
+                </div>
+            `;
+            
+            document.getElementById('ad-provision-form')?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const domain = document.getElementById('ad-domain').value.toUpperCase();
+                const realm = document.getElementById('ad-realm').value.toLowerCase();
+                const password = document.getElementById('ad-password').value;
+                const passwordConfirm = document.getElementById('ad-password-confirm').value;
+                
+                if (password !== passwordConfirm) {
+                    showNotification('error', 'Las contraseñas no coinciden');
+                    return;
+                }
+                
+                const btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Creando dominio...';
+                
+                try {
+                    const res = await authFetch(`${API_BASE}/ad/provision`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain, realm, adminPassword: password })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        showNotification('success', `Dominio ${data.domain} creado correctamente`);
+                        await renderADContent();
+                    } else {
+                        showNotification('error', data.error || 'Error creando dominio');
+                        btn.disabled = false;
+                        btn.innerHTML = '🚀 Crear Dominio';
+                    }
+                } catch (err) {
+                    showNotification('error', 'Error: ' + err.message);
+                    btn.disabled = false;
+                    btn.innerHTML = '🚀 Crear Dominio';
+                }
+            });
+            return;
+        }
+        
+        // Provisioned - show full dashboard
+        const [usersRes, computersRes, groupsRes] = await Promise.all([
+            authFetch(`${API_BASE}/ad/users`),
+            authFetch(`${API_BASE}/ad/computers`),
+            authFetch(`${API_BASE}/ad/groups`)
+        ]);
+        
+        const users = await usersRes.json();
+        const computers = await computersRes.json();
+        const groups = await groupsRes.json();
+        
+        container.innerHTML = `
+            <!-- Status Card -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div>
+                        <h3 style="margin: 0;">
+                            ${status.running ? '🟢' : '🔴'} Dominio: ${escapeHtml(status.domain)}
+                        </h3>
+                        <p style="color: var(--text-secondary); margin: 5px 0 0 0;">
+                            Realm: ${escapeHtml(status.realm)} | 
+                            ${status.running ? 'Activo' : 'Detenido'}
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-sm ${status.running ? 'btn-danger' : 'btn-success'}" id="ad-toggle-btn">
+                            ${status.running ? '⏹️ Detener' : '▶️ Iniciar'}
+                        </button>
+                        <button class="btn btn-sm btn-secondary" id="ad-restart-btn" ${!status.running ? 'disabled' : ''}>
+                            🔄 Reiniciar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stats -->
+            <div class="stats-grid" style="margin-top: 20px;">
+                <div class="stat-card">
+                    <div class="stat-value">${users.length || 0}</div>
+                    <div class="stat-label">Usuarios</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${computers.length || 0}</div>
+                    <div class="stat-label">Equipos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${groups.length || 0}</div>
+                    <div class="stat-label">Grupos</div>
+                </div>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="tabs" style="margin-top: 20px;">
+                <button class="tab-btn active" data-tab="ad-users">👤 Usuarios</button>
+                <button class="tab-btn" data-tab="ad-computers">💻 Equipos</button>
+                <button class="tab-btn" data-tab="ad-groups">👥 Grupos</button>
+                <button class="tab-btn" data-tab="ad-join">📋 Unir Equipo</button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div id="ad-tab-content" class="card" style="margin-top: 0; border-top-left-radius: 0;">
+                <!-- Content will be rendered here -->
+            </div>
+        `;
+        
+        // Tab switching
+        container.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderADTab(btn.dataset.tab, { users, computers, groups, status });
+            });
+        });
+        
+        // Service controls
+        document.getElementById('ad-toggle-btn')?.addEventListener('click', async () => {
+            const action = status.running ? 'stop' : 'start';
+            try {
+                await authFetch(`${API_BASE}/ad/service/${action}`, { method: 'POST' });
+                showNotification('success', `Servicio ${action === 'start' ? 'iniciado' : 'detenido'}`);
+                await renderADContent();
+            } catch (err) {
+                showNotification('error', 'Error: ' + err.message);
+            }
+        });
+        
+        document.getElementById('ad-restart-btn')?.addEventListener('click', async () => {
+            try {
+                await authFetch(`${API_BASE}/ad/service/restart`, { method: 'POST' });
+                showNotification('success', 'Servicio reiniciado');
+                await renderADContent();
+            } catch (err) {
+                showNotification('error', 'Error: ' + err.message);
+            }
+        });
+        
+        // Render initial tab
+        renderADTab('ad-users', { users, computers, groups, status });
+        
+    } catch (error) {
+        container.innerHTML = `
+            <div class="card" style="text-align: center; padding: 40px;">
+                <h3 style="color: var(--danger);">❌ Error</h3>
+                <p>${escapeHtml(error.message)}</p>
+                <button class="btn btn-primary" onclick="renderADContent()">🔄 Reintentar</button>
+            </div>
+        `;
+    }
+}
+
+function renderADTab(tab, data) {
+    const container = document.getElementById('ad-tab-content');
+    if (!container) return;
+    
+    const { users, computers, groups, status } = data;
+    
+    switch (tab) {
+        case 'ad-users':
+            container.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin: 0;">👤 Usuarios del Dominio</h4>
+                    <button class="btn btn-sm btn-primary" id="ad-add-user-btn">➕ Nuevo Usuario</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr>
+                                <td><strong>${escapeHtml(u.username)}</strong></td>
+                                <td>${escapeHtml(u.displayName || '-')}</td>
+                                <td>${u.enabled !== false ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Deshabilitado</span>'}</td>
+                                <td>
+                                    <button class="btn btn-xs btn-secondary ad-reset-pwd" data-user="${escapeHtml(u.username)}" ${u.username.toLowerCase() === 'administrator' ? '' : ''}>🔑</button>
+                                    <button class="btn btn-xs btn-danger ad-delete-user" data-user="${escapeHtml(u.username)}" ${u.username.toLowerCase() === 'administrator' ? 'disabled title="No se puede eliminar"' : ''}>🗑️</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            // Add user button
+            document.getElementById('ad-add-user-btn')?.addEventListener('click', () => showADUserModal());
+            
+            // Reset password buttons
+            container.querySelectorAll('.ad-reset-pwd').forEach(btn => {
+                btn.addEventListener('click', () => showADPasswordModal(btn.dataset.user));
+            });
+            
+            // Delete user buttons
+            container.querySelectorAll('.ad-delete-user').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const username = btn.dataset.user;
+                    if (!confirm(`¿Eliminar usuario ${username}?`)) return;
+                    
+                    try {
+                        await authFetch(`${API_BASE}/ad/users/${username}`, { method: 'DELETE' });
+                        showNotification('success', `Usuario ${username} eliminado`);
+                        await renderADContent();
+                    } catch (err) {
+                        showNotification('error', 'Error: ' + err.message);
+                    }
+                });
+            });
+            break;
+            
+        case 'ad-computers':
+            container.innerHTML = `
+                <h4 style="margin-bottom: 15px;">💻 Equipos Unidos al Dominio</h4>
+                ${computers.length === 0 ? `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 20px;">
+                        No hay equipos unidos al dominio todavía.
+                    </p>
+                ` : `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nombre del Equipo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${computers.map(c => `
+                                <tr>
+                                    <td>💻 ${escapeHtml(c.name)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `}
+            `;
+            break;
+            
+        case 'ad-groups':
+            container.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin: 0;">👥 Grupos del Dominio</h4>
+                    <button class="btn btn-sm btn-primary" id="ad-add-group-btn">➕ Nuevo Grupo</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre del Grupo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${groups.map(g => `
+                            <tr>
+                                <td>👥 ${escapeHtml(g.name)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('ad-add-group-btn')?.addEventListener('click', () => showADGroupModal());
+            break;
+            
+        case 'ad-join':
+            container.innerHTML = `
+                <h4 style="margin-bottom: 15px;">📋 Cómo Unir un Equipo Windows al Dominio</h4>
+                
+                <div class="info-box" style="background: var(--bg-tertiary); padding: 20px; border-radius: 8px; line-height: 1.8;">
+                    <p><strong>1. Configura el DNS del equipo Windows:</strong></p>
+                    <ul>
+                        <li>Ir a Configuración de Red → Cambiar opciones del adaptador</li>
+                        <li>Propiedades → IPv4 → Usar las siguientes direcciones de servidor DNS</li>
+                        <li>DNS preferido: <code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">${window.location.hostname}</code> (IP de este NAS)</li>
+                    </ul>
+                    
+                    <p style="margin-top: 15px;"><strong>2. Une el equipo al dominio:</strong></p>
+                    <ul>
+                        <li>Clic derecho en Este equipo → Propiedades → Cambiar configuración</li>
+                        <li>Clic en "Cambiar..." junto al nombre del equipo</li>
+                        <li>Seleccionar "Dominio" e introducir: <code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">${escapeHtml(status.realm)}</code></li>
+                        <li>Usar las credenciales: <code>Administrator</code> y la contraseña del dominio</li>
+                    </ul>
+                    
+                    <p style="margin-top: 15px;"><strong>3. Reinicia el equipo Windows</strong></p>
+                    <p>Después del reinicio, podrás iniciar sesión con usuarios del dominio.</p>
+                </div>
+                
+                <div class="card" style="margin-top: 20px; background: var(--bg-tertiary);">
+                    <h5>🔧 Datos del Dominio</h5>
+                    <table style="width: 100%;">
+                        <tr><td><strong>Dominio:</strong></td><td>${escapeHtml(status.domain)}</td></tr>
+                        <tr><td><strong>Realm:</strong></td><td>${escapeHtml(status.realm)}</td></tr>
+                        <tr><td><strong>Servidor DNS:</strong></td><td>${window.location.hostname}</td></tr>
+                    </table>
+                </div>
+            `;
+            break;
+    }
+}
+
+// Modal for adding AD user
+function showADUserModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>➕ Nuevo Usuario AD</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="ad-user-form" class="modal-body">
+                <div class="form-group">
+                    <label>Nombre de usuario</label>
+                    <input type="text" id="ad-new-username" required pattern="[a-zA-Z][a-zA-Z0-9._-]{0,19}">
+                </div>
+                <div class="form-group">
+                    <label>Nombre completo (opcional)</label>
+                    <input type="text" id="ad-new-displayname">
+                </div>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="ad-new-password" required minlength="8">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Usuario</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('.modal-close')?.addEventListener('click', () => modal.remove());
+    modal.querySelector('.modal-cancel')?.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    
+    modal.querySelector('#ad-user-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const username = document.getElementById('ad-new-username').value;
+        const displayName = document.getElementById('ad-new-displayname').value;
+        const password = document.getElementById('ad-new-password').value;
+        
+        try {
+            const res = await authFetch(`${API_BASE}/ad/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, displayName, password })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                showNotification('success', `Usuario ${username} creado`);
+                modal.remove();
+                await renderADContent();
+            } else {
+                showNotification('error', data.error || 'Error creando usuario');
+            }
+        } catch (err) {
+            showNotification('error', 'Error: ' + err.message);
+        }
+    });
+}
+
+// Modal for resetting password
+function showADPasswordModal(username) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>🔑 Cambiar Contraseña</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="ad-pwd-form" class="modal-body">
+                <p>Usuario: <strong>${escapeHtml(username)}</strong></p>
+                <div class="form-group">
+                    <label>Nueva contraseña</label>
+                    <input type="password" id="ad-pwd-new" required minlength="8">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Cambiar</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('.modal-close')?.addEventListener('click', () => modal.remove());
+    modal.querySelector('.modal-cancel')?.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    
+    modal.querySelector('#ad-pwd-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const newPassword = document.getElementById('ad-pwd-new').value;
+        
+        try {
+            const res = await authFetch(`${API_BASE}/ad/users/${username}/password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newPassword })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                showNotification('success', `Contraseña de ${username} cambiada`);
+                modal.remove();
+            } else {
+                showNotification('error', data.error || 'Error cambiando contraseña');
+            }
+        } catch (err) {
+            showNotification('error', 'Error: ' + err.message);
+        }
+    });
+}
+
+// Modal for adding group
+function showADGroupModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>➕ Nuevo Grupo AD</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="ad-group-form" class="modal-body">
+                <div class="form-group">
+                    <label>Nombre del grupo</label>
+                    <input type="text" id="ad-new-group" required>
+                </div>
+                <div class="form-group">
+                    <label>Descripción (opcional)</label>
+                    <input type="text" id="ad-new-group-desc">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Grupo</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('.modal-close')?.addEventListener('click', () => modal.remove());
+    modal.querySelector('.modal-cancel')?.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    
+    modal.querySelector('#ad-group-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('ad-new-group').value;
+        const description = document.getElementById('ad-new-group-desc').value;
+        
+        try {
+            const res = await authFetch(`${API_BASE}/ad/groups`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                showNotification('success', `Grupo ${name} creado`);
+                modal.remove();
+                await renderADContent();
+            } else {
+                showNotification('error', data.error || 'Error creando grupo');
+            }
+        } catch (err) {
+            showNotification('error', 'Error: ' + err.message);
+        }
+    });
 }
 
 // =============================================================================
