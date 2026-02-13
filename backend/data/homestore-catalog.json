@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -427,6 +427,67 @@
         "LANGUAGE": "ES"
       },
       "docs": "https://github.com/dgongut/dropbot"
+    },
+    {
+      "id": "icloudpd",
+      "name": "iCloud Photos Downloader",
+      "description": "Descarga automática de fotos de iCloud. Backup de iPhone/iPad al NAS con conversión HEIC→JPG.",
+      "category": "backup",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/icloud.png",
+      "image": "boredazfcuk/icloudpd:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": {},
+      "volumes": {
+        "/config": "/opt/homepinas/apps/icloudpd/config",
+        "/iCloud": "/mnt/storage/photos/icloud"
+      },
+      "env": {
+        "apple_id": "",
+        "TZ": "Europe/Madrid"
+      },
+      "docs": "https://github.com/boredazfcuk/docker-icloudpd/blob/master/CONFIGURATION.md"
+    },
+    {
+      "id": "nicotine-plus",
+      "name": "Nicotine+",
+      "description": "Cliente Soulseek P2P. Comparte y descarga música de la red Soulseek con interfaz web VNC.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nicotine-plus.png",
+      "image": "binhex/arch-nicotineplus:latest",
+      "arch": ["amd64"],
+      "ports": { "6080": "6080", "5900": "5900" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/nicotineplus/config",
+        "/data": "/mnt/storage/downloads"
+      },
+      "env": {
+        "VNC_PASSWORD": "homepinas",
+        "WEBPAGE_TITLE": "Nicotine+",
+        "PUID": "1000",
+        "PGID": "1000",
+        "UMASK": "022"
+      },
+      "webUI": 6080,
+      "privileged": true,
+      "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "fenrus",
+      "name": "Fenrus",
+      "description": "Dashboard personal con acceso rápido a todas tus apps. Homepage elegante y personalizable.",
+      "category": "system",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/fenrus.png",
+      "image": "revenz/fenrus:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "3000": "3000" },
+      "volumes": {
+        "/app/data": "/opt/homepinas/apps/fenrus/data"
+      },
+      "env": {
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 3000,
+      "docs": "https://github.com/revenz/Fenrus"
     }
   ],
   "categories": {
