@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "2.1.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -807,6 +807,116 @@
       },
       "webUI": 3000,
       "docs": "https://github.com/revenz/Fenrus"
+    },
+    {
+      "id": "onlyoffice",
+      "name": "OnlyOffice Document Server",
+      "description": "Suite ofimática para Nextcloud. Edita Word, Excel y PowerPoint directamente en el navegador.",
+      "category": "productivity",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/onlyoffice.png",
+      "image": "onlyoffice/documentserver:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8082": "80" },
+      "volumes": {
+        "/var/log/onlyoffice": "/opt/homepinas/apps/onlyoffice/logs",
+        "/var/lib/onlyoffice": "/opt/homepinas/apps/onlyoffice/data",
+        "/var/www/onlyoffice/Data": "/opt/homepinas/apps/onlyoffice/www"
+      },
+      "env": {
+        "JWT_ENABLED": "true",
+        "JWT_SECRET": "changeme"
+      },
+      "webUI": 8082,
+      "docs": "https://helpcenter.onlyoffice.com/installation/docs-community-install-docker.aspx"
+    },
+    {
+      "id": "swag",
+      "name": "SWAG",
+      "description": "Reverse proxy con Let's Encrypt, Nginx y fail2ban. Secure Web Application Gateway de LinuxServer.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/swag.png",
+      "image": "linuxserver/swag:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "443": "443", "80": "80" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/swag/config"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid",
+        "URL": "yourdomain.com",
+        "VALIDATION": "http",
+        "SUBDOMAINS": "wildcard",
+        "CERTPROVIDER": "",
+        "EMAIL": ""
+      },
+      "capabilities": ["NET_ADMIN"],
+      "docs": "https://docs.linuxserver.io/images/docker-swag/"
+    },
+    {
+      "id": "traefik",
+      "name": "Traefik",
+      "description": "Reverse proxy moderno con descubrimiento automático de servicios. Ideal para Docker y Kubernetes.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/traefik.png",
+      "image": "traefik:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "80": "80", "443": "443", "8081": "8080" },
+      "volumes": {
+        "/etc/traefik": "/opt/homepinas/apps/traefik/config",
+        "/var/run/docker.sock": "/var/run/docker.sock:ro"
+      },
+      "env": {},
+      "webUI": 8081,
+      "docs": "https://doc.traefik.io/traefik/"
+    },
+    {
+      "id": "code-server",
+      "name": "Code-server",
+      "description": "Visual Studio Code en el navegador. Desarrolla desde cualquier dispositivo.",
+      "category": "development",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/code-server.png",
+      "image": "linuxserver/code-server:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8443": "8443" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/code-server/config",
+        "/workspace": "/mnt/storage/projects"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid",
+        "PASSWORD": "changeme",
+        "SUDO_PASSWORD": "changeme",
+        "DEFAULT_WORKSPACE": "/workspace"
+      },
+      "webUI": 8443,
+      "docs": "https://coder.com/docs/code-server/latest"
+    },
+    {
+      "id": "flatnotes",
+      "name": "Flatnotes",
+      "description": "Notas en Markdown autoalojadas. Interfaz limpia, búsqueda potente, sin base de datos.",
+      "category": "notes",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/flatnotes.png",
+      "image": "dullage/flatnotes:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8687": "8080" },
+      "volumes": {
+        "/data": "/opt/homepinas/apps/flatnotes/data"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "FLATNOTES_AUTH_TYPE": "password",
+        "FLATNOTES_USERNAME": "admin",
+        "FLATNOTES_PASSWORD": "changeme",
+        "FLATNOTES_SECRET_KEY": "changeme"
+      },
+      "webUI": 8687,
+      "docs": "https://github.com/dullage/flatnotes"
     }
   ],
   "categories": {
@@ -821,6 +931,7 @@
     "development": { "name": "Desarrollo", "icon": "💻", "order": 9 },
     "monitoring": { "name": "Monitorización", "icon": "📊", "order": 10 },
     "system": { "name": "Sistema", "icon": "⚙️", "order": 11 },
-    "files": { "name": "Archivos", "icon": "📁", "order": 12 }
+    "files": { "name": "Archivos", "icon": "📁", "order": 12 },
+    "notes": { "name": "Notas", "icon": "📝", "order": 13 }
   }
 }
