@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -88,6 +88,144 @@
       "env": { "PUID": "1000", "PGID": "1000", "WEBUI_PORT": "8080" },
       "webUI": 8080,
       "docs": "https://www.qbittorrent.org/"
+    },
+    {
+      "id": "sonarr",
+      "name": "Sonarr",
+      "description": "Gestor de series de TV. Búsqueda, descarga y organización automática de episodios.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/sonarr.png",
+      "image": "linuxserver/sonarr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8989": "8989" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/sonarr/config",
+        "/tv": "/mnt/storage/media/tv",
+        "/downloads": "/mnt/storage/downloads"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 8989,
+      "docs": "https://wiki.servarr.com/sonarr"
+    },
+    {
+      "id": "radarr",
+      "name": "Radarr",
+      "description": "Gestor de películas. Búsqueda, descarga y organización automática de películas.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/radarr.png",
+      "image": "linuxserver/radarr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "7878": "7878" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/radarr/config",
+        "/movies": "/mnt/storage/media/movies",
+        "/downloads": "/mnt/storage/downloads"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 7878,
+      "docs": "https://wiki.servarr.com/radarr"
+    },
+    {
+      "id": "lidarr",
+      "name": "Lidarr",
+      "description": "Gestor de música. Búsqueda, descarga y organización automática de álbumes.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/lidarr.png",
+      "image": "linuxserver/lidarr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8686": "8686" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/lidarr/config",
+        "/music": "/mnt/storage/media/music",
+        "/downloads": "/mnt/storage/downloads"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 8686,
+      "docs": "https://wiki.servarr.com/lidarr"
+    },
+    {
+      "id": "readarr",
+      "name": "Readarr",
+      "description": "Gestor de ebooks y audiolibros. Búsqueda y organización automática.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/readarr.png",
+      "image": "linuxserver/readarr:develop",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8787": "8787" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/readarr/config",
+        "/books": "/mnt/storage/media/books",
+        "/downloads": "/mnt/storage/downloads"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 8787,
+      "docs": "https://wiki.servarr.com/readarr"
+    },
+    {
+      "id": "prowlarr",
+      "name": "Prowlarr",
+      "description": "Gestor de indexadores. Centraliza la configuración de trackers para toda la suite *arr.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/prowlarr.png",
+      "image": "linuxserver/prowlarr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "9696": "9696" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/prowlarr/config"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 9696,
+      "docs": "https://wiki.servarr.com/prowlarr"
+    },
+    {
+      "id": "bazarr",
+      "name": "Bazarr",
+      "description": "Gestor de subtítulos. Descarga automática de subtítulos para Sonarr y Radarr.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/bazarr.png",
+      "image": "linuxserver/bazarr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "6767": "6767" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/bazarr/config",
+        "/tv": "/mnt/storage/media/tv",
+        "/movies": "/mnt/storage/media/movies"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 6767,
+      "docs": "https://wiki.bazarr.media/"
+    },
+    {
+      "id": "overseerr",
+      "name": "Overseerr",
+      "description": "Gestor de solicitudes de contenido para Plex. Los usuarios piden, tú apruebas.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/overseerr.png",
+      "image": "linuxserver/overseerr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "5055": "5055" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/overseerr/config"
+      },
+      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "webUI": 5055,
+      "docs": "https://docs.overseerr.dev/"
+    },
+    {
+      "id": "jellyseerr",
+      "name": "Jellyseerr",
+      "description": "Gestor de solicitudes para Jellyfin/Emby. Fork de Overseerr compatible con Jellyfin.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyseerr.png",
+      "image": "fallenbagel/jellyseerr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "5056": "5055" },
+      "volumes": {
+        "/app/config": "/opt/homepinas/apps/jellyseerr/config"
+      },
+      "env": { "TZ": "Europe/Madrid" },
+      "webUI": 5056,
+      "docs": "https://github.com/Fallenbagel/jellyseerr"
     },
     {
       "id": "photoprism",
