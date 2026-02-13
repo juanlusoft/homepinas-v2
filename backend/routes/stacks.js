@@ -168,10 +168,23 @@ volumes:
     },
     'media': {
         name: 'Media Stack',
-        description: 'Sonarr + Radarr + Prowlarr',
+        description: 'Jellyfin + Sonarr + Radarr + Lidarr + Readarr + Bazarr + Prowlarr + Jellyseerr',
         icon: '🎬',
         compose: `version: '3.8'
 services:
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./jellyfin:/config
+      - /mnt/storage/media:/data/media
+    ports:
+      - "8096:8096"
+    restart: unless-stopped
+
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     environment:
@@ -200,6 +213,48 @@ services:
       - "7878:7878"
     restart: unless-stopped
 
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./lidarr:/config
+      - /mnt/storage/media/music:/music
+      - /mnt/storage/downloads:/downloads
+    ports:
+      - "8686:8686"
+    restart: unless-stopped
+
+  readarr:
+    image: lscr.io/linuxserver/readarr:develop
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./readarr:/config
+      - /mnt/storage/media/books:/books
+      - /mnt/storage/downloads:/downloads
+    ports:
+      - "8787:8787"
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./bazarr:/config
+      - /mnt/storage/media/tv:/tv
+      - /mnt/storage/media/movies:/movies
+    ports:
+      - "6767:6767"
+    restart: unless-stopped
+
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     environment:
@@ -210,6 +265,16 @@ services:
       - ./prowlarr:/config
     ports:
       - "9696:9696"
+    restart: unless-stopped
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./jellyseerr:/app/config
+    ports:
+      - "5055:5055"
     restart: unless-stopped
 `
     }
