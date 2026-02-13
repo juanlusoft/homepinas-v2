@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -608,6 +608,27 @@
       "webUI": 6080,
       "privileged": true,
       "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "stirling-pdf",
+      "name": "Stirling PDF",
+      "description": "Suite completa de herramientas PDF. Merge, split, convertir, OCR, comprimir y más. Todo local y privado.",
+      "category": "productivity",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/stirling-pdf.png",
+      "image": "stirlingtools/stirling-pdf:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8080": "8080" },
+      "volumes": {
+        "/usr/share/tessdata": "/opt/homepinas/apps/stirling-pdf/tessdata",
+        "/configs": "/opt/homepinas/apps/stirling-pdf/configs",
+        "/logs": "/opt/homepinas/apps/stirling-pdf/logs"
+      },
+      "env": {
+        "DOCKER_ENABLE_SECURITY": "false",
+        "LANGS": "es_ES"
+      },
+      "webUI": 8080,
+      "docs": "https://stirlingtools.com/"
     },
     {
       "id": "fenrus",
