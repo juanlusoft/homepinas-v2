@@ -610,28 +610,6 @@
       "docs": "https://nicotine-plus.org/"
     },
     {
-      "id": "whisparr",
-      "name": "Whisparr",
-      "description": "Gestor de contenido adulto. Parte del ecosistema *arr. Búsqueda, descarga y organización automática.",
-      "category": "downloads",
-      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/whisparr.png",
-      "image": "ghcr.io/thespad/whisparr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "6969": "6969" },
-      "volumes": {
-        "/config": "/opt/homepinas/apps/whisparr/config",
-        "/downloads": "/mnt/storage/downloads",
-        "/media": "/mnt/storage/media/adult"
-      },
-      "env": {
-        "PUID": "1000",
-        "PGID": "1000",
-        "TZ": "Europe/Madrid"
-      },
-      "webUI": 6969,
-      "docs": "https://wiki.servarr.com/whisparr"
-    },
-    {
       "id": "pulsarr",
       "name": "Pulsarr",
       "description": "Sincroniza watchlists de Plex con Sonarr/Radarr en tiempo real. Multi-usuario, cuotas y notificaciones Discord.",
