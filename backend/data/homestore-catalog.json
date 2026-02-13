@@ -1,5 +1,5 @@
 {
-  "version": "1.9.0",
+  "version": "2.0.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -608,6 +608,27 @@
       "webUI": 6080,
       "privileged": true,
       "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "tvheadend",
+      "name": "TVHeadend",
+      "description": "Servidor de TV y grabador DVR. Soporta DVB-S/S2/C/T, IPTV, SAT>IP. Streaming a Kodi, VLC, Jellyfin.",
+      "category": "media",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/tvheadend.png",
+      "image": "lscr.io/linuxserver/tvheadend:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "9981": "9981", "9982": "9982" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/tvheadend/config",
+        "/recordings": "/mnt/storage/media/recordings"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 9981,
+      "docs": "https://docs.linuxserver.io/images/docker-tvheadend/"
     },
     {
       "id": "komga",
