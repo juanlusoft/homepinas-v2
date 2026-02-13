@@ -9709,6 +9709,19 @@ function renderADTab(tab, data) {
                             </p>
                         </div>
                     </div>
+                    
+                    <!-- Important note about DNS -->
+                    <div style="display: flex; gap: 16px; padding: 20px; margin-top: 16px; background: #fef3c7; border-radius: 12px; border: 1px solid #fcd34d;">
+                        <div style="width: 40px; height: 40px; background: #fbbf24; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">💡</div>
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 1rem; color: #92400e;">¿Y si salgo de casa?</h4>
+                            <p style="margin: 0; color: #a16207; line-height: 1.6;">
+                                <strong>El DNS del NAS solo es necesario para unirse al dominio.</strong><br>
+                                Una vez unido, puedes volver a poner el DNS en <strong>automático (DHCP)</strong> y tendrás internet normal dentro y fuera de casa.<br>
+                                El equipo seguirá unido al dominio aunque cambies el DNS.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             `;
             break;
