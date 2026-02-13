@@ -617,7 +617,7 @@
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/stirling-pdf.png",
       "image": "stirlingtools/stirling-pdf:latest",
       "arch": ["amd64", "arm64"],
-      "ports": { "8080": "8080" },
+      "ports": { "8086": "8080" },
       "volumes": {
         "/usr/share/tessdata": "/opt/homepinas/apps/stirling-pdf/tessdata",
         "/configs": "/opt/homepinas/apps/stirling-pdf/configs",
@@ -627,7 +627,7 @@
         "DOCKER_ENABLE_SECURITY": "false",
         "LANGS": "es_ES"
       },
-      "webUI": 8080,
+      "webUI": 8086,
       "docs": "https://stirlingtools.com/"
     },
     {
