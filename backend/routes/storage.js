@@ -434,7 +434,7 @@ exclude .fseventsd
 `;
 
             // SECURITY: Write config to temp file first, then use sudo to copy
-            const tempConfFile = '/mnt/storage/.tmp/homepinas-snapraid-temp.conf';
+            const tempConfFile = '/tmp/homepinas-snapraid-temp.conf';
             fs.writeFileSync(tempConfFile, snapraidConf, 'utf8');
             execFileSync('sudo', ['cp', tempConfFile, SNAPRAID_CONF], { encoding: 'utf8', timeout: 10000 });
             fs.unlinkSync(tempConfFile);
@@ -509,7 +509,7 @@ exclude .fseventsd
         fstabEntries += `${mergerfsSource} ${POOL_MOUNT} fuse.mergerfs ${mergerfsOpts},nofail 0 0\n`;
 
         // SECURITY: Write to temp file, then use sudo to append
-        const tempFstabFile = '/mnt/storage/.tmp/homepinas-fstab-temp';
+        const tempFstabFile = '/tmp/homepinas-fstab-temp';
         fs.writeFileSync(tempFstabFile, fstabEntries, 'utf8');
         
         // Remove ALL old HomePiNAS entries (comment + UUID/mergerfs lines)
