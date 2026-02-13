@@ -29,8 +29,26 @@ router.get('/check', requireAuth, async (req, res) => {
         let latestVersion = currentVersion;
         let updateAvailable = false;
         let changelog = '';
+        let localChanges = false;
+        let localChangesFiles = [];
 
         try {
+            // Check for local modifications FIRST
+            try {
+                const statusOutput = execFileSync('git', ['status', '--porcelain'], {
+                    cwd: INSTALL_DIR,
+                    encoding: 'utf8',
+                    timeout: 10000
+                }).trim();
+                
+                if (statusOutput) {
+                    localChanges = true;
+                    localChangesFiles = statusOutput.split('\n').slice(0, 5).map(l => l.trim());
+                }
+            } catch (e) {
+                console.error('Git status check failed:', e.message);
+            }
+
             // SECURITY: Use execFileSync with explicit arguments
             execFileSync('git', ['fetch', 'origin', '--quiet'], {
                 cwd: INSTALL_DIR,
@@ -83,6 +101,8 @@ router.get('/check', requireAuth, async (req, res) => {
             latestVersion,
             updateAvailable,
             changelog,
+            localChanges,
+            localChangesFiles,
             installDir: INSTALL_DIR
         });
     } catch (e) {

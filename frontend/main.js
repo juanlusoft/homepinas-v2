@@ -4408,6 +4408,17 @@ async function checkForUpdates() {
             throw new Error(data.error || t('common.error', 'Error al buscar actualizaciones'));
         }
 
+        // Warning for local changes
+        const localChangesWarning = data.localChanges ? `
+            <div style="margin-top: 12px; padding: 10px; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; border-radius: 8px;">
+                <div style="color: #f59e0b; font-weight: 600;">⚠️ Cambios locales detectados</div>
+                <div style="margin-top: 4px; font-size: 0.85rem; color: var(--text-dim);">
+                    Hay archivos modificados localmente. La actualización hará <code>git reset --hard</code> y perderás estos cambios:
+                </div>
+                <code style="display: block; margin-top: 5px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 0.8rem;">${escapeHtml((data.localChangesFiles || []).join('\n'))}</code>
+            </div>
+        ` : '';
+
         if (data.updateAvailable) {
             statusEl.innerHTML = `
                 <div style="color: #10b981; font-weight: 600;">${t('system.updateAvailable', '¡Actualización Disponible!')}</div>
@@ -4419,6 +4430,7 @@ async function checkForUpdates() {
                     <strong>${t('system.changes', 'Cambios')}:</strong><br>
                     <code style="display: block; margin-top: 5px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; white-space: pre-wrap;">${escapeHtml(data.changelog || t('common.info', 'Ver GitHub para detalles'))}</code>
                 </div>
+                ${localChangesWarning}
             `;
             if (applyBtn) applyBtn.style.display = 'inline-block';
         } else {
@@ -4427,6 +4439,7 @@ async function checkForUpdates() {
                 <div style="margin-top: 8px; color: var(--text-dim);">
                     ${t('system.version', 'Versión')}: <strong>v${escapeHtml(data.currentVersion)}</strong>
                 </div>
+                ${localChangesWarning}
             `;
         }
     } catch (e) {
