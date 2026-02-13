@@ -246,7 +246,9 @@ router.get('/users', async (req, res) => {
         }
         
         const { stdout } = await execAsync('sudo samba-tool user list');
-        const users = stdout.trim().split('\n').filter(u => u);
+        // Filter out system accounts
+        const systemUsers = ['guest', 'krbtgt'];
+        const users = stdout.trim().split('\n').filter(u => u && !systemUsers.includes(u.toLowerCase()));
         
         // Get details for each user
         const userDetails = [];
@@ -403,7 +405,54 @@ router.get('/groups', async (req, res) => {
         }
         
         const { stdout } = await execAsync('sudo samba-tool group list');
-        const groups = stdout.trim().split('\n').filter(g => g);
+        // Filter out AD system groups (builtin and default)
+        const systemGroups = [
+            'allowed rodc password replication group',
+            'cert publishers',
+            'denied rodc password replication group',
+            'dnsadmins',
+            'dnsupdateproxy',
+            'domain admins',
+            'domain computers',
+            'domain controllers',
+            'domain guests',
+            'domain users',
+            'enterprise admins',
+            'enterprise read-only domain controllers',
+            'group policy creator owners',
+            'ras and ias servers',
+            'read-only domain controllers',
+            'schema admins',
+            'dnsadmins',
+            'enterprise key admins',
+            'key admins',
+            'protected users',
+            'cloneable domain controllers',
+            'account operators',
+            'administrators',
+            'backup operators',
+            'certificate service dcom access',
+            'cryptographic operators',
+            'distributed com users',
+            'event log readers',
+            'guests',
+            'iis_iusrs',
+            'incoming forest trust builders',
+            'network configuration operators',
+            'performance log users',
+            'performance monitor users',
+            'pre-windows 2000 compatible access',
+            'print operators',
+            'remote desktop users',
+            'remote management users',
+            'replicator',
+            'server operators',
+            'storage replica administrators',
+            'terminal server license servers',
+            'users',
+            'windows authorization access group'
+        ];
+        const groups = stdout.trim().split('\n').filter(g => g && !systemGroups.includes(g.toLowerCase()));
         
         res.json(groups.map(name => ({ name })));
     } catch (error) {
