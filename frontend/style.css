@@ -4835,3 +4835,48 @@ body.fm-dragging .fm-tree-item {
     justify-content: center;
     align-items: center;
 }
+
+/* Dockhand submenu integration */
+.nav-parent {
+    position: relative;
+}
+
+.nav-parent .nav-arrow {
+    margin-left: auto;
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.nav-parent.expanded .nav-arrow {
+    transform: rotate(180deg);
+}
+
+.nav-submenu {
+    display: none;
+    padding-left: 20px;
+    background: rgba(0,0,0,0.2);
+    margin: 0;
+}
+
+.nav-submenu.show {
+    display: block;
+}
+
+.nav-submenu li {
+    padding: 8px 15px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nav-submenu li:hover {
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.1);
+}
+
+.nav-submenu li.active {
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.15);
+}
+

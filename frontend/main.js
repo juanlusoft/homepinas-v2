@@ -3098,29 +3098,53 @@ async function renderStorageDashboard() {
     }
 }
 
-// Real Docker Logic - Now using Dockhand
-async function renderDockerManager() {
-    // Use Dockhand as the Docker manager
-    const dockhandUrl = `http://${window.location.hostname}:${DOCKHAND_PORT}`;
+// Dockhand route tracking
+let currentDockhandRoute = '/';
+
+// Real Docker Logic - Now using Dockhand with hidden sidebar
+async function renderDockerManager(route = null) {
+    // Use provided route or default
+    if (route) currentDockhandRoute = route;
+    
+    const dockhandUrl = `http://${window.location.hostname}:${DOCKHAND_PORT}${currentDockhandRoute}`;
+    
+    // CSS to inject into Dockhand iframe to hide its sidebar
+    const hideNavCSS = `
+        <style id="homepinas-dockhand-style">
+            /* Hide Dockhand sidebar - HomePiNAS handles navigation */
+            nav, aside, [class*="sidebar"], [class*="Sidebar"], .side-nav, #side-nav { 
+                display: none !important; 
+            }
+            /* Expand main content to full width */
+            main, [class*="main"], .content, #content, [class*="content"] {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+        </style>
+    `;
     
     dashboardContent.innerHTML = `
         <div class="glass-card" style="grid-column: 1 / -1; padding: 0; overflow: hidden; height: calc(100vh - 140px);">
-            <div style="padding: 12px 20px; background: var(--bg-card); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <h3 style="margin: 0;">🐳 Dockhand - Docker Manager</h3>
-                    <span style="font-size: 12px; color: var(--text-dim);">Gestión avanzada de contenedores</span>
-                </div>
-                <a href="${dockhandUrl}" target="_blank" class="btn-secondary" style="font-size: 13px; padding: 6px 12px;">
-                    ↗ Abrir en nueva pestaña
-                </a>
-            </div>
             <iframe 
+                id="dockhand-frame"
                 src="${dockhandUrl}" 
-                style="width: 100%; height: calc(100% - 50px); border: none;"
+                style="width: 100%; height: 100%; border: none;"
                 allow="clipboard-read; clipboard-write"
+                onload="injectDockhandStyle(this)"
             ></iframe>
         </div>
     `;
+    
+    // Update submenu active state
+    document.querySelectorAll('#docker-submenu li').forEach(li => {
+        li.classList.remove('active');
+        if (li.dataset.dockhand === currentDockhandRoute) {
+            li.classList.add('active');
+        }
+    });
+    
     return; // Skip legacy Docker UI
     
     // Legacy code below (kept for reference)
@@ -11597,6 +11621,85 @@ let stacksCache = [];
 // Dockhand integration - replaces old stacks manager
 const DOCKHAND_PORT = 3080;
 
+// Inject CSS into Dockhand iframe to hide its sidebar
+function injectDockhandStyle(iframe) {
+    try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        if (!doc.getElementById('homepinas-dockhand-style')) {
+            const style = doc.createElement('style');
+            style.id = 'homepinas-dockhand-style';
+            style.textContent = `
+                /* Hide Dockhand sidebar - HomePiNAS handles navigation */
+                nav:first-of-type, aside, [class*="sidebar"], [class*="Sidebar"], 
+                .side-nav, #side-nav, [data-sidebar], .nav-sidebar,
+                div[class*="w-64"], div[class*="w-56"], div[class*="w-52"] { 
+                    display: none !important; 
+                }
+                /* Expand main content to full width */
+                main, [class*="main-content"], .content-area {
+                    margin-left: 0 !important;
+                    padding-left: 1rem !important;
+                    width: 100% !important;
+                }
+            `;
+            doc.head.appendChild(style);
+        }
+    } catch (e) {
+        // Cross-origin - can't inject, that's OK
+        console.log('Dockhand iframe cross-origin, using URL navigation only');
+    }
+}
+
+// Navigate Dockhand to a specific route
+function navigateDockhand(route) {
+    currentDockhandRoute = route;
+    const iframe = document.getElementById('dockhand-frame');
+    if (iframe) {
+        iframe.src = `http://${window.location.hostname}:${DOCKHAND_PORT}${route}`;
+    }
+    // Update active state
+    document.querySelectorAll('#docker-submenu li').forEach(li => {
+        li.classList.remove('active');
+        if (li.dataset.dockhand === route) {
+            li.classList.add('active');
+        }
+    });
+}
+
+// Toggle Docker submenu
+function toggleDockerSubmenu() {
+    const parent = document.querySelector('.nav-parent[data-view="docker"]');
+    const submenu = document.getElementById('docker-submenu');
+    if (parent && submenu) {
+        parent.classList.toggle('expanded');
+        submenu.classList.toggle('show');
+    }
+}
+
+// Initialize Docker submenu
+document.addEventListener('DOMContentLoaded', () => {
+    const dockerNav = document.querySelector('.nav-parent[data-view="docker"]');
+    if (dockerNav) {
+        dockerNav.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDockerSubmenu();
+            // Also navigate to Docker view
+            renderContent('docker');
+        });
+    }
+    
+    // Handle submenu item clicks
+    document.querySelectorAll('#docker-submenu li').forEach(li => {
+        li.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const route = li.dataset.dockhand;
+            if (route) {
+                navigateDockhand(route);
+            }
+        });
+    });
+});
+
 async function openStacksManager() {
     // Remove existing modal
     const existing = document.getElementById('stacks-modal');
@@ -12128,6 +12231,8 @@ async function deleteStack(stackId) {
 
 // Expose stack functions globally
 window.openStacksManager = openStacksManager;
+window.injectDockhandStyle = injectDockhandStyle;
+window.navigateDockhand = navigateDockhand;
 window.stackAction = stackAction;
 window.openStackEditor = openStackEditor;
 window.showStackLogs = showStackLogs;

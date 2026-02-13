@@ -443,10 +443,21 @@
                     
                     <div class="sidebar-section">Servicios</div>
                     <ul class="nav-links">
-                        <li data-view="docker">
+                        <li class="nav-parent" data-view="docker">
                             <span class="nav-icon">🐳</span>
                             <span class="nav-text" data-i18n="nav.docker">Docker</span>
+                            <span class="nav-arrow">▾</span>
                         </li>
+                        <ul class="nav-submenu" id="docker-submenu">
+                            <li data-view="docker" data-dockhand="/"><span class="nav-text">Dashboard</span></li>
+                            <li data-view="docker" data-dockhand="/containers"><span class="nav-text">Contenedores</span></li>
+                            <li data-view="docker" data-dockhand="/stacks"><span class="nav-text">Stacks</span></li>
+                            <li data-view="docker" data-dockhand="/images"><span class="nav-text">Imágenes</span></li>
+                            <li data-view="docker" data-dockhand="/volumes"><span class="nav-text">Volúmenes</span></li>
+                            <li data-view="docker" data-dockhand="/networks"><span class="nav-text">Redes</span></li>
+                            <li data-view="docker" data-dockhand="/shell"><span class="nav-text">Shell</span></li>
+                            <li data-view="docker" data-dockhand="/logs"><span class="nav-text">Logs</span></li>
+                        </ul>
                         <li data-view="cloud-sync">
                             <span class="nav-icon">🔄</span>
                             <span class="nav-text" data-i18n="nav.cloudSync">Cloud Sync</span>
