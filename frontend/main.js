@@ -11619,7 +11619,8 @@ window.addDevice = addDevice;
 let stacksCache = [];
 
 // Dockhand integration - replaces old stacks manager
-const DOCKHAND_PORT = 3080;
+// Using nginx proxy (3081) to inject CSS and hide Dockhand sidebar
+const DOCKHAND_PORT = 3081;
 
 // Inject CSS into Dockhand iframe to hide its sidebar
 function injectDockhandStyle(iframe) {
