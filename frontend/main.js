@@ -3098,8 +3098,32 @@ async function renderStorageDashboard() {
     }
 }
 
-// Real Docker Logic
+// Real Docker Logic - Now using Dockhand
 async function renderDockerManager() {
+    // Use Dockhand as the Docker manager
+    const dockhandUrl = `http://${window.location.hostname}:${DOCKHAND_PORT}`;
+    
+    dashboardContent.innerHTML = `
+        <div class="glass-card" style="grid-column: 1 / -1; padding: 0; overflow: hidden; height: calc(100vh - 140px);">
+            <div style="padding: 12px 20px; background: var(--bg-card); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h3 style="margin: 0;">🐳 Dockhand - Docker Manager</h3>
+                    <span style="font-size: 12px; color: var(--text-dim);">Gestión avanzada de contenedores</span>
+                </div>
+                <a href="${dockhandUrl}" target="_blank" class="btn-secondary" style="font-size: 13px; padding: 6px 12px;">
+                    ↗ Abrir en nueva pestaña
+                </a>
+            </div>
+            <iframe 
+                src="${dockhandUrl}" 
+                style="width: 100%; height: calc(100% - 50px); border: none;"
+                allow="clipboard-read; clipboard-write"
+            ></iframe>
+        </div>
+    `;
+    return; // Skip legacy Docker UI
+    
+    // Legacy code below (kept for reference)
     // Show loading immediately
     dashboardContent.innerHTML = "<div class=\"glass-card\" style=\"grid-column: 1 / -1; text-align: center; padding: 40px;\"><h3>" + t("common.loading", "Cargando...") + "</h3></div>";
     // Fetch containers and update status
