@@ -1,5 +1,5 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -608,6 +608,29 @@
       "webUI": 6080,
       "privileged": true,
       "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "ubooquity",
+      "name": "Ubooquity",
+      "description": "Servidor de cómics y ebooks. Accede a tu biblioteca desde cualquier dispositivo.",
+      "category": "media",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/ubooquity.png",
+      "image": "lscr.io/linuxserver/ubooquity:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "2202": "2202", "2203": "2203" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/ubooquity/config",
+        "/books": "/mnt/storage/media/books",
+        "/comics": "/mnt/storage/media/comics"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid",
+        "MAXMEM": "512"
+      },
+      "webUI": 2202,
+      "docs": "https://docs.linuxserver.io/images/docker-ubooquity/"
     },
     {
       "id": "stirling-pdf",
