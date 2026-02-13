@@ -1418,8 +1418,8 @@ ExecStart=$(which node) $TARGET_DIR/backend/index.js
 Restart=always
 Environment=NODE_ENV=production
 # Allow binding to ports 80/443 without root
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# Also allow sudo for disk management (CAP_SETUID, CAP_SETGID, CAP_DAC_OVERRIDE)
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
 
 [Install]
 WantedBy=multi-user.target
