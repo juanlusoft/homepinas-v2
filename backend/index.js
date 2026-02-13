@@ -177,7 +177,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
+            imgSrc: ["'self'", "data:", "https://api.qrserver.com", "https://cdn.jsdelivr.net"],
             connectSrc: ["'self'", "ws:", "wss:", "https://cdn.jsdelivr.net"],
             frameAncestors: ["'none'"], // Prevent clickjacking
             upgradeInsecureRequests: null, // Allow HTTP for local network

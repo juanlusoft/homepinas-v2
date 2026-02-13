@@ -11029,19 +11029,19 @@ function renderHomeStoreAppCard(app, categories) {
     }
     
     return `
-        <div id="homestore-app-${app.id}" class="card" style="background: rgba(30, 30, 50, 0.7); border: 2px solid ${isCompatible ? 'rgba(100, 100, 140, 0.5)' : '#f59e0b'}; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); ${!isCompatible ? 'opacity: 0.7;' : ''}">
+        <div id="homestore-app-${app.id}" class="card" style="background: rgba(30, 30, 50, 0.95); border: 2px solid ${isCompatible ? 'rgba(100, 100, 140, 0.5)' : '#f59e0b'}; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); color: #fff; ${!isCompatible ? 'opacity: 0.7;' : ''}">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-size: 2rem;">${app.icon}</span>
+                    ${app.icon && app.icon.startsWith('http') ? `<img src="${app.icon}" style="width: 48px; height: 48px; border-radius: 8px;" onerror="this.outerHTML='📦'">` : `<span style="font-size: 2rem;">${app.icon || '📦'}</span>`}
                     <div>
-                        <h3 style="margin: 0; font-size: 1.1rem;">${app.name}</h3>
-                        <span style="color: var(--text-secondary); font-size: 0.85rem;">${cat.icon} ${cat.name}</span>
+                        <h3 style="margin: 0; font-size: 1.1rem; color: #fff;">${app.name}</h3>
+                        <span style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">${cat.icon} ${cat.name}</span>
                     </div>
                 </div>
                 ${statusBadge}
             </div>
             ${compatWarning}
-            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px; line-height: 1.4;">
+            <p style="color: rgba(255,255,255,0.8); font-size: 0.9rem; margin-bottom: 12px; line-height: 1.4;">
                 ${app.description}
             </p>
             ${configInfoHtml}
@@ -11178,7 +11178,7 @@ async function showHomeStoreConfigModal(appId) {
         <div style="background: #1a1a2e; border: 1px solid #3a3a5e; border-radius: 16px; width: 90%; max-width: 600px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.5);">
             <div style="padding: 20px 24px; border-bottom: 1px solid #3a3a5e; display: flex; justify-content: space-between; align-items: center; background: #1a1a2e;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-size: 2rem;">${app.icon}</span>
+                    ${app.icon && app.icon.startsWith('http') ? `<img src="${app.icon}" style="width: 48px; height: 48px; border-radius: 8px;" onerror="this.outerHTML='📦'">` : `<span style="font-size: 2rem;">${app.icon || '📦'}</span>`}
                     <div>
                         <h3 style="margin: 0; font-size: 1.2rem; color: var(--text);">Configurar ${escapeHtml(app.name)}</h3>
                         <span style="color: var(--text-secondary); font-size: 0.85rem;">Personaliza la instalación</span>
