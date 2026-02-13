@@ -1,5 +1,5 @@
 {
-  "version": "1.8.0",
+  "version": "1.9.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -608,6 +608,25 @@
       "webUI": 6080,
       "privileged": true,
       "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "komga",
+      "name": "Komga",
+      "description": "Servidor de cómics y mangas. CBZ, CBR, PDF, EPUB. Webreader integrado y compatible con Mihon/OPDS.",
+      "category": "media",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/komga.png",
+      "image": "gotson/komga:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "25600": "25600" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/komga/config",
+        "/data": "/mnt/storage/media/comics"
+      },
+      "env": {
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 25600,
+      "docs": "https://komga.org/docs/introduction"
     },
     {
       "id": "beszel",
