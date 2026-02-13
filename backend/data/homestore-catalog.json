@@ -610,6 +610,28 @@
       "docs": "https://nicotine-plus.org/"
     },
     {
+      "id": "conduit",
+      "name": "Matrix Conduit",
+      "description": "Servidor Matrix ligero en Rust. Ideal para Raspberry Pi. Chat federado, E2EE, bridges.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/matrix.png",
+      "image": "matrixconduit/matrix-conduit:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "6167": "6167", "8448": "8448" },
+      "volumes": {
+        "/var/lib/matrix-conduit": "/opt/homepinas/apps/conduit/data"
+      },
+      "env": {
+        "CONDUIT_SERVER_NAME": "your.domain.com",
+        "CONDUIT_DATABASE_BACKEND": "rocksdb",
+        "CONDUIT_ALLOW_REGISTRATION": "true",
+        "CONDUIT_ALLOW_FEDERATION": "true",
+        "CONDUIT_PORT": "6167"
+      },
+      "webUI": 6167,
+      "docs": "https://conduit.rs/"
+    },
+    {
       "id": "pulsarr",
       "name": "Pulsarr",
       "description": "Sincroniza watchlists de Plex con Sonarr/Radarr en tiempo real. Multi-usuario, cuotas y notificaciones Discord.",
