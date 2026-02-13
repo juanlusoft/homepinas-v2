@@ -228,7 +228,7 @@ services:
     restart: unless-stopped
 
   readarr:
-    image: lscr.io/linuxserver/readarr:develop
+    image: lscr.io/linuxserver/readarr:nightly
     environment:
       - PUID=1000
       - PGID=1000

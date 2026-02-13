@@ -149,7 +149,7 @@
       "description": "Gestor de ebooks y audiolibros. Búsqueda y organización automática.",
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/readarr.png",
-      "image": "linuxserver/readarr:develop",
+      "image": "linuxserver/readarr:nightly",
       "arch": ["amd64", "arm64"],
       "ports": { "8787": "8787" },
       "volumes": {
