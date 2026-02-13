@@ -9593,26 +9593,109 @@ function renderADTab(tab, data) {
                 <div style="display: grid; gap: 16px;">
                     <div style="display: flex; gap: 16px; padding: 20px; background: var(--bg-secondary, #f9fafb); border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb);">
                         <div style="width: 40px; height: 40px; background: #dbeafe; color: #1d4ed8; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">1</div>
-                        <div>
-                            <h4 style="margin: 0 0 8px 0; font-size: 1rem;">Configurar DNS del equipo Windows</h4>
-                            <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary, #6b7280); line-height: 1.7;">
-                                <li>Panel de Control → Redes → Cambiar opciones del adaptador</li>
-                                <li>Clic derecho en tu conexión → Propiedades → IPv4</li>
-                                <li>Usar servidor DNS: <code style="background: white; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${window.location.hostname}</code></li>
-                            </ul>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 12px 0; font-size: 1rem;">Configurar DNS del equipo (Windows 11)</h4>
+                            
+                            <div style="display: grid; gap: 12px;">
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">1.1</span>
+                                    <div>
+                                        <strong>Abrir Configuración de Red</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Clic derecho en el icono de WiFi/Red (abajo a la derecha) → <strong>"Configuración de red e Internet"</strong></span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">1.2</span>
+                                    <div>
+                                        <strong>Ir a "Configuración de red avanzada"</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Baja hasta el final y pulsa <strong>"Configuración de red avanzada"</strong></span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">1.3</span>
+                                    <div>
+                                        <strong>Seleccionar tu conexión (Ethernet o Wi-Fi)</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Haz clic en tu adaptador de red activo para expandirlo, luego pulsa <strong>"Ver propiedades adicionales"</strong></span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">1.4</span>
+                                    <div>
+                                        <strong>Editar la configuración DNS</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Junto a "Asignación de servidor DNS" pulsa <strong>"Editar"</strong></span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #10b981;">
+                                    <span style="background: #d1fae5; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">1.5</span>
+                                    <div>
+                                        <strong>Cambiar a "Manual" y poner esta IP:</strong><br>
+                                        <code style="background: #fef3c7; padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 1.1rem; display: inline-block; margin-top: 4px;">${window.location.hostname}</code>
+                                        <br><span style="color: var(--text-secondary, #6b7280); font-size: 0.85rem;">Activa IPv4, pon esta IP en "DNS preferido" y guarda</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
                     <div style="display: flex; gap: 16px; padding: 20px; background: var(--bg-secondary, #f9fafb); border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb);">
                         <div style="width: 40px; height: 40px; background: #dbeafe; color: #1d4ed8; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">2</div>
-                        <div>
-                            <h4 style="margin: 0 0 8px 0; font-size: 1rem;">Unir el equipo al dominio</h4>
-                            <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary, #6b7280); line-height: 1.7;">
-                                <li>Clic derecho en "Este equipo" → Propiedades → Configuración avanzada</li>
-                                <li>Pestaña "Nombre de equipo" → Cambiar</li>
-                                <li>Seleccionar <strong>Dominio</strong> e introducir: <code style="background: white; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${escapeHtml(status.realm)}</code></li>
-                                <li>Credenciales: <code style="background: white; padding: 2px 8px; border-radius: 4px;">Administrator</code> + contraseña del dominio</li>
-                            </ul>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 12px 0; font-size: 1rem;">Unir el equipo al dominio (Windows 11)</h4>
+                            
+                            <div style="display: grid; gap: 12px;">
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">2.1</span>
+                                    <div>
+                                        <strong>Abrir Configuración</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Pulsa <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">⊞ Win + I</code> o busca "Configuración" en el menú inicio</span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">2.2</span>
+                                    <div>
+                                        <strong>Ir a Sistema → Información</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">En el menú lateral izquierdo selecciona <strong>Sistema</strong>, luego baja hasta <strong>Información</strong> (o "Acerca de")</span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">2.3</span>
+                                    <div>
+                                        <strong>Clic en "Dominio o grupo de trabajo"</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Busca el enlace <strong>"Dominio o grupo de trabajo"</strong> en la sección "Especificaciones del dispositivo"</span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">2.4</span>
+                                    <div>
+                                        <strong>Clic en "Cambiar..."</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Se abre la ventana de Propiedades del sistema. Pulsa el botón <strong>"Cambiar..."</strong></span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #10b981;">
+                                    <span style="background: #d1fae5; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">2.5</span>
+                                    <div>
+                                        <strong>Seleccionar "Dominio" e introducir:</strong><br>
+                                        <code style="background: #fef3c7; padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 1.1rem; display: inline-block; margin-top: 4px;">${escapeHtml(status.realm)}</code>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border-left: 3px solid #10b981;">
+                                    <span style="background: #d1fae5; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">2.6</span>
+                                    <div>
+                                        <strong>Introducir credenciales del dominio:</strong><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Usuario:</span> <code style="background: #fef3c7; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Administrator</code><br>
+                                        <span style="color: var(--text-secondary, #6b7280);">Contraseña:</span> <span style="color: #dc2626;">la que pusiste al crear el dominio</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
