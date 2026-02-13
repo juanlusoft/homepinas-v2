@@ -1,5 +1,5 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -608,6 +608,24 @@
       "webUI": 6080,
       "privileged": true,
       "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "beszel",
+      "name": "Beszel",
+      "description": "Monitorización ligera de servidores. Docker stats, alertas, histórico y multi-usuario.",
+      "category": "monitoring",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/beszel.png",
+      "image": "henrygd/beszel:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8090": "8090" },
+      "volumes": {
+        "/beszel_data": "/opt/homepinas/apps/beszel/data"
+      },
+      "env": {
+        "APP_URL": "http://localhost:8090"
+      },
+      "webUI": 8090,
+      "docs": "https://beszel.dev/"
     },
     {
       "id": "emulerr",
