@@ -245,7 +245,7 @@ router.get('/users', async (req, res) => {
             return res.status(400).json({ error: 'AD DC not running' });
         }
         
-        const { stdout } = await execAsync('samba-tool user list');
+        const { stdout } = await execAsync('sudo samba-tool user list');
         const users = stdout.trim().split('\n').filter(u => u);
         
         // Get details for each user
@@ -382,7 +382,7 @@ router.get('/computers', async (req, res) => {
             return res.status(400).json({ error: 'AD DC not running' });
         }
         
-        const { stdout } = await execAsync('samba-tool computer list');
+        const { stdout } = await execAsync('sudo samba-tool computer list');
         const computers = stdout.trim().split('\n').filter(c => c);
         
         res.json(computers.map(name => ({ name })));
@@ -402,7 +402,7 @@ router.get('/groups', async (req, res) => {
             return res.status(400).json({ error: 'AD DC not running' });
         }
         
-        const { stdout } = await execAsync('samba-tool group list');
+        const { stdout } = await execAsync('sudo samba-tool group list');
         const groups = stdout.trim().split('\n').filter(g => g);
         
         res.json(groups.map(name => ({ name })));
