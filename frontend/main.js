@@ -9127,9 +9127,14 @@ async function renderADContent() {
             authFetch(`${API_BASE}/ad/groups`)
         ]);
         
-        const users = await usersRes.json();
-        const computers = await computersRes.json();
-        const groups = await groupsRes.json();
+        const usersData = await usersRes.json();
+        const computersData = await computersRes.json();
+        const groupsData = await groupsRes.json();
+        
+        // Ensure arrays even if API returns error object
+        const users = Array.isArray(usersData) ? usersData : [];
+        const computers = Array.isArray(computersData) ? computersData : [];
+        const groups = Array.isArray(groupsData) ? groupsData : [];
         
         container.innerHTML = `
             <!-- Status Card -->
