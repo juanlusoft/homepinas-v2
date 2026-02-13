@@ -1,20 +1,15 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "apps": [
     {
       "id": "jellyfin",
       "name": "Jellyfin",
       "description": "Servidor multimedia. Streaming de películas, series y música a cualquier dispositivo.",
       "category": "media",
-      "icon": "🎬",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png",
       "image": "jellyfin/jellyfin:latest",
-      "arch": [
-        "amd64",
-        "arm64"
-      ],
-      "ports": {
-        "8096": "8096"
-      },
+      "arch": ["amd64", "arm64"],
+      "ports": { "8096": "8096" },
       "volumes": {
         "/config": "/opt/homepinas/apps/jellyfin/config",
         "/media": "/mnt/storage/media"
@@ -28,15 +23,10 @@
       "name": "Plex",
       "description": "Servidor multimedia premium. Organiza y transmite tu colección de medios.",
       "category": "media",
-      "icon": "📺",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png",
       "image": "plexinc/pms-docker:latest",
-      "arch": [
-        "amd64",
-        "arm64"
-      ],
-      "ports": {
-        "32400": "32400"
-      },
+      "arch": ["amd64", "arm64"],
+      "ports": { "32400": "32400" },
       "volumes": {
         "/config": "/opt/homepinas/apps/plex/config",
         "/media": "/mnt/storage/media"
@@ -46,29 +36,39 @@
       "docs": "https://support.plex.tv/"
     },
     {
+      "id": "tautulli",
+      "name": "Tautulli",
+      "description": "Monitor de Plex Media Server. Estadísticas, historial y notificaciones.",
+      "category": "monitoring",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/tautulli.png",
+      "image": "linuxserver/tautulli:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8181": "8181" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/tautulli/config"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 8181,
+      "docs": "https://tautulli.com/"
+    },
+    {
       "id": "transmission",
       "name": "Transmission",
       "description": "Cliente BitTorrent ligero con interfaz web.",
       "category": "downloads",
-      "icon": "⬇️",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/transmission.png",
       "image": "linuxserver/transmission:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "9091": "9091",
-        "51413": "51413"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "9091": "9091", "51413": "51413" },
       "volumes": {
         "/config": "/opt/homepinas/apps/transmission/config",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": {
-        "PUID": "1000",
-        "PGID": "1000"
-      },
+      "env": { "PUID": "1000", "PGID": "1000" },
       "webUI": 9091,
       "docs": "https://transmissionbt.com/"
     },
@@ -77,43 +77,27 @@
       "name": "qBittorrent",
       "description": "Cliente BitTorrent avanzado con búsqueda integrada.",
       "category": "downloads",
-      "icon": "🔽",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/qbittorrent.png",
       "image": "linuxserver/qbittorrent:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8080": "8080",
-        "6881": "6881"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8080": "8080", "6881": "6881" },
       "volumes": {
         "/config": "/opt/homepinas/apps/qbittorrent/config",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": {
-        "PUID": "1000",
-        "PGID": "1000",
-        "WEBUI_PORT": "8080"
-      },
+      "env": { "PUID": "1000", "PGID": "1000", "WEBUI_PORT": "8080" },
       "webUI": 8080,
       "docs": "https://www.qbittorrent.org/"
     },
     {
       "id": "photoprism",
       "name": "PhotoPrism",
-      "description": "Gestión de fotos con IA. Reconocimiento facial, búsqueda inteligente, álbumes automáticos.",
+      "description": "Gestión de fotos con IA. Reconocimiento facial, búsqueda inteligente.",
       "category": "media",
-      "icon": "📷",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/photoprism.png",
       "image": "photoprism/photoprism:latest",
-      "arch": [
-        "amd64",
-        "arm64"
-      ],
-      "ports": {
-        "2342": "2342"
-      },
+      "arch": ["amd64", "arm64"],
+      "ports": { "2342": "2342" },
       "volumes": {
         "/photoprism/storage": "/opt/homepinas/apps/photoprism/storage",
         "/photoprism/originals": "/mnt/storage/photos"
@@ -126,71 +110,182 @@
       "docs": "https://docs.photoprism.app/"
     },
     {
+      "id": "immich",
+      "name": "Immich",
+      "description": "Alternativa a Google Photos. Backup de fotos con IA y machine learning.",
+      "category": "media",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/immich.png",
+      "image": "ghcr.io/immich-app/immich-server:release",
+      "arch": ["amd64", "arm64"],
+      "ports": { "2283": "2283" },
+      "volumes": {
+        "/usr/src/app/upload": "/mnt/storage/photos/immich"
+      },
+      "env": {
+        "DB_DATABASE_NAME": "immich",
+        "DB_HOSTNAME": "immich-postgres",
+        "DB_PASSWORD": "changeme",
+        "DB_USERNAME": "immich",
+        "REDIS_HOSTNAME": "immich-redis"
+      },
+      "webUI": 2283,
+      "compose": true,
+      "composeNote": "Requiere PostgreSQL con pgvecto-rs y Redis. Usa docker-compose oficial.",
+      "docs": "https://immich.app/docs/overview/introduction"
+    },
+    {
       "id": "nextcloud",
       "name": "Nextcloud",
       "description": "Nube privada completa. Archivos, calendario, contactos, office y más.",
       "category": "productivity",
-      "icon": "☁️",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nextcloud.png",
       "image": "nextcloud:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8888": "80"
-      },
-      "volumes": {
-        "/var/www/html": "/opt/homepinas/apps/nextcloud/data"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8888": "80" },
+      "volumes": { "/var/www/html": "/opt/homepinas/apps/nextcloud/data" },
       "env": {},
       "webUI": 8888,
       "docs": "https://docs.nextcloud.com/"
+    },
+    {
+      "id": "booklore",
+      "name": "Booklore",
+      "description": "Gestión de biblioteca digital. Organiza tus ebooks y audiolibros.",
+      "category": "productivity",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/calibre.png",
+      "image": "booklore/booklore:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "6060": "6060" },
+      "volumes": {
+        "/app/data": "/opt/homepinas/apps/booklore/data",
+        "/books": "/mnt/storage/books",
+        "/bookdrop": "/mnt/storage/bookdrop"
+      },
+      "env": {
+        "BOOKLORE_PORT": "6060",
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 6060,
+      "compose": true,
+      "composeNote": "Requiere MariaDB. Usa docker-compose con base de datos.",
+      "docs": "https://github.com/booklore/booklore"
     },
     {
       "id": "pihole",
       "name": "Pi-hole",
       "description": "Bloqueador de anuncios a nivel de red. DNS sinkhole.",
       "category": "network",
-      "icon": "🛡️",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pi-hole.png",
       "image": "pihole/pihole:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8053": "80",
-        "53": "53/udp"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8053": "80", "53": "53/udp" },
       "volumes": {
         "/etc/pihole": "/opt/homepinas/apps/pihole/etc",
         "/etc/dnsmasq.d": "/opt/homepinas/apps/pihole/dnsmasq"
       },
-      "env": {
-        "WEBPASSWORD": "changeme"
-      },
+      "env": { "WEBPASSWORD": "changeme" },
       "webUI": 8053,
       "docs": "https://docs.pi-hole.net/"
+    },
+    {
+      "id": "adguard",
+      "name": "AdGuard Home",
+      "description": "Bloqueador de anuncios y rastreadores. Alternativa a Pi-hole.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/adguard-home.png",
+      "image": "adguard/adguardhome:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "3003": "3000", "53": "53/udp", "853": "853" },
+      "volumes": {
+        "/opt/adguardhome/work": "/opt/homepinas/apps/adguard/work",
+        "/opt/adguardhome/conf": "/opt/homepinas/apps/adguard/conf"
+      },
+      "env": {},
+      "webUI": 3003,
+      "docs": "https://adguard.com/en/adguard-home/overview.html"
+    },
+    {
+      "id": "caddy",
+      "name": "Caddy",
+      "description": "Servidor web y reverse proxy con HTTPS automático. Simple y potente.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/caddy.png",
+      "image": "caddy:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "80": "80", "443": "443" },
+      "volumes": {
+        "/etc/caddy/Caddyfile": "/opt/homepinas/apps/caddy/Caddyfile",
+        "/data": "/opt/homepinas/apps/caddy/data",
+        "/config": "/opt/homepinas/apps/caddy/config"
+      },
+      "env": {},
+      "docs": "https://caddyserver.com/docs/"
+    },
+    {
+      "id": "cloudflared",
+      "name": "Cloudflare Tunnel",
+      "description": "Expón servicios a internet de forma segura sin abrir puertos.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/cloudflare.png",
+      "image": "wisdomsky/cloudflared-web:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "14333": "14333" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/cloudflared/config"
+      },
+      "env": {},
+      "networkMode": "host",
+      "webUI": 14333,
+      "docs": "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/"
+    },
+    {
+      "id": "tailscale",
+      "name": "Tailscale",
+      "description": "VPN mesh basada en WireGuard. Conecta dispositivos de forma segura.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/tailscale.png",
+      "image": "tailscale/tailscale:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": {},
+      "volumes": {
+        "/var/lib/tailscale": "/opt/homepinas/apps/tailscale/state",
+        "/dev/net/tun": "/dev/net/tun"
+      },
+      "env": {
+        "TS_AUTHKEY": "",
+        "TS_HOSTNAME": "homepinas",
+        "TS_ROUTES": "",
+        "TS_STATE_DIR": "/var/lib/tailscale"
+      },
+      "capabilities": ["NET_ADMIN", "NET_RAW"],
+      "networkMode": "host",
+      "docs": "https://tailscale.com/kb/"
+    },
+    {
+      "id": "wireguard",
+      "name": "WireGuard",
+      "description": "VPN moderna y rápida. Accede a tu red desde cualquier lugar.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/wireguard.png",
+      "image": "linuxserver/wireguard:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "51820": "51820/udp" },
+      "volumes": { "/config": "/opt/homepinas/apps/wireguard/config" },
+      "env": { "PUID": "1000", "PGID": "1000", "SERVERURL": "auto", "PEERS": "3" },
+      "capabilities": ["NET_ADMIN", "SYS_MODULE"],
+      "sysctls": { "net.ipv4.conf.all.src_valid_mark": "1" },
+      "docs": "https://www.wireguard.com/"
     },
     {
       "id": "homeassistant",
       "name": "Home Assistant",
       "description": "Automatización del hogar. Controla luces, sensores, cámaras y más.",
       "category": "automation",
-      "icon": "🏠",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/home-assistant.png",
       "image": "homeassistant/home-assistant:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8123": "8123"
-      },
-      "volumes": {
-        "/config": "/opt/homepinas/apps/homeassistant/config"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8123": "8123" },
+      "volumes": { "/config": "/opt/homepinas/apps/homeassistant/config" },
       "env": {},
       "webUI": 8123,
       "privileged": true,
@@ -201,17 +296,11 @@
       "name": "Frigate",
       "description": "NVR con detección de objetos por IA. Vigilancia inteligente.",
       "category": "surveillance",
-      "icon": "📹",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/frigate.png",
       "image": "ghcr.io/blakeblackshear/frigate:stable",
-      "arch": [
-        "amd64"
-      ],
+      "arch": ["amd64"],
       "archNote": "ARM requiere imagen específica con Coral TPU",
-      "ports": {
-        "5000": "5000",
-        "8554": "8554",
-        "8555": "8555"
-      },
+      "ports": { "5000": "5000", "8554": "8554", "8555": "8555" },
       "volumes": {
         "/config": "/opt/homepinas/apps/frigate/config",
         "/media/frigate": "/mnt/storage/surveillance"
@@ -226,19 +315,11 @@
       "name": "Gitea",
       "description": "Servidor Git ligero. Tu propio GitHub privado.",
       "category": "development",
-      "icon": "🐙",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/gitea.png",
       "image": "gitea/gitea:latest",
-      "arch": [
-        "amd64",
-        "arm64"
-      ],
-      "ports": {
-        "3333": "3000",
-        "2222": "22"
-      },
-      "volumes": {
-        "/data": "/opt/homepinas/apps/gitea/data"
-      },
+      "arch": ["amd64", "arm64"],
+      "ports": { "3333": "3000", "2222": "22" },
+      "volumes": { "/data": "/opt/homepinas/apps/gitea/data" },
       "env": {},
       "webUI": 3333,
       "docs": "https://docs.gitea.io/"
@@ -248,19 +329,11 @@
       "name": "Vaultwarden",
       "description": "Gestor de contraseñas compatible con Bitwarden.",
       "category": "security",
-      "icon": "🔐",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/vaultwarden.png",
       "image": "vaultwarden/server:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8880": "80"
-      },
-      "volumes": {
-        "/data": "/opt/homepinas/apps/vaultwarden/data"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8880": "80" },
+      "volumes": { "/data": "/opt/homepinas/apps/vaultwarden/data" },
       "env": {},
       "webUI": 8880,
       "docs": "https://github.com/dani-garcia/vaultwarden/wiki"
@@ -270,16 +343,10 @@
       "name": "File Browser",
       "description": "Explorador de archivos web alternativo.",
       "category": "files",
-      "icon": "📁",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/filebrowser.png",
       "image": "filebrowser/filebrowser:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8085": "80"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8085": "80" },
       "volumes": {
         "/srv": "/mnt/storage",
         "/database.db": "/opt/homepinas/apps/filebrowser/database.db"
@@ -293,104 +360,29 @@
       "name": "Uptime Kuma",
       "description": "Monitor de servicios con alertas. Alternativa a UptimeRobot.",
       "category": "monitoring",
-      "icon": "📊",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png",
       "image": "louislam/uptime-kuma:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "3002": "3001"
-      },
-      "volumes": {
-        "/app/data": "/opt/homepinas/apps/uptime-kuma/data"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "3002": "3001" },
+      "volumes": { "/app/data": "/opt/homepinas/apps/uptime-kuma/data" },
       "env": {},
       "webUI": 3002,
       "docs": "https://github.com/louislam/uptime-kuma/wiki"
-    },
-    {
-      "id": "wireguard",
-      "name": "WireGuard",
-      "description": "VPN moderna y rápida. Accede a tu red desde cualquier lugar.",
-      "category": "network",
-      "icon": "🔒",
-      "image": "linuxserver/wireguard:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "51820": "51820/udp"
-      },
-      "volumes": {
-        "/config": "/opt/homepinas/apps/wireguard/config"
-      },
-      "env": {
-        "PUID": "1000",
-        "PGID": "1000",
-        "SERVERURL": "auto",
-        "PEERS": "3"
-      },
-      "capabilities": [
-        "NET_ADMIN",
-        "SYS_MODULE"
-      ],
-      "sysctls": {
-        "net.ipv4.conf.all.src_valid_mark": "1"
-      },
-      "docs": "https://www.wireguard.com/"
-    },
-    {
-      "id": "adguard",
-      "name": "AdGuard Home",
-      "description": "Bloqueador de anuncios y rastreadores. Alternativa a Pi-hole.",
-      "category": "network",
-      "icon": "🚫",
-      "image": "adguard/adguardhome:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "3003": "3000",
-        "53": "53/udp",
-        "853": "853"
-      },
-      "volumes": {
-        "/opt/adguardhome/work": "/opt/homepinas/apps/adguard/work",
-        "/opt/adguardhome/conf": "/opt/homepinas/apps/adguard/conf"
-      },
-      "env": {},
-      "webUI": 3003,
-      "docs": "https://adguard.com/en/adguard-home/overview.html"
     },
     {
       "id": "duplicati",
       "name": "Duplicati",
       "description": "Backups encriptados a la nube (S3, B2, Google Drive, etc).",
       "category": "backup",
-      "icon": "💾",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/duplicati.png",
       "image": "linuxserver/duplicati:latest",
-      "arch": [
-        "amd64",
-        "arm64",
-        "arm"
-      ],
-      "ports": {
-        "8200": "8200"
-      },
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "8200": "8200" },
       "volumes": {
         "/config": "/opt/homepinas/apps/duplicati/config",
         "/source": "/mnt/storage"
       },
-      "env": {
-        "PUID": "1000",
-        "PGID": "1000"
-      },
+      "env": { "PUID": "1000", "PGID": "1000" },
       "webUI": 8200,
       "docs": "https://duplicati.readthedocs.io/"
     },
@@ -399,15 +391,10 @@
       "name": "Paperless-ngx",
       "description": "Gestión documental con OCR. Digitaliza y organiza documentos.",
       "category": "productivity",
-      "icon": "📄",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/paperless-ngx.png",
       "image": "ghcr.io/paperless-ngx/paperless-ngx:latest",
-      "arch": [
-        "amd64",
-        "arm64"
-      ],
-      "ports": {
-        "8000": "8000"
-      },
+      "arch": ["amd64", "arm64"],
+      "ports": { "8000": "8000" },
       "volumes": {
         "/usr/src/paperless/data": "/opt/homepinas/apps/paperless/data",
         "/usr/src/paperless/media": "/opt/homepinas/apps/paperless/media",
@@ -419,93 +406,20 @@
       },
       "webUI": 8000,
       "docs": "https://docs.paperless-ngx.com/"
-    },
-    {
-      "id": "immich",
-      "name": "Immich",
-      "description": "Alternativa a Google Photos. Backup de fotos con IA.",
-      "category": "media",
-      "icon": "🖼️",
-      "image": "ghcr.io/immich-app/immich-server:release",
-      "arch": [
-        "amd64",
-        "arm64"
-      ],
-      "ports": {
-        "2283": "2283"
-      },
-      "volumes": {
-        "/usr/src/app/upload": "/mnt/storage/photos/immich"
-      },
-      "env": {
-        "DB_PASSWORD": "postgres",
-        "REDIS_HOSTNAME": "immich-redis"
-      },
-      "webUI": 2283,
-      "compose": true,
-      "docs": "https://immich.app/docs/overview/introduction"
     }
   ],
   "categories": {
-    "media": {
-      "name": "Multimedia",
-      "icon": "🎬",
-      "order": 1
-    },
-    "downloads": {
-      "name": "Descargas",
-      "icon": "⬇️",
-      "order": 2
-    },
-    "productivity": {
-      "name": "Productividad",
-      "icon": "📋",
-      "order": 3
-    },
-    "network": {
-      "name": "Red",
-      "icon": "🌐",
-      "order": 4
-    },
-    "security": {
-      "name": "Seguridad",
-      "icon": "🔐",
-      "order": 5
-    },
-    "surveillance": {
-      "name": "Vigilancia",
-      "icon": "📹",
-      "order": 6
-    },
-    "automation": {
-      "name": "Automatización",
-      "icon": "🏠",
-      "order": 7
-    },
-    "backup": {
-      "name": "Backup",
-      "icon": "💾",
-      "order": 8
-    },
-    "development": {
-      "name": "Desarrollo",
-      "icon": "💻",
-      "order": 9
-    },
-    "monitoring": {
-      "name": "Monitorización",
-      "icon": "📊",
-      "order": 10
-    },
-    "system": {
-      "name": "Sistema",
-      "icon": "⚙️",
-      "order": 11
-    },
-    "files": {
-      "name": "Archivos",
-      "icon": "📁",
-      "order": 12
-    }
+    "media": { "name": "Multimedia", "icon": "🎬", "order": 1 },
+    "downloads": { "name": "Descargas", "icon": "⬇️", "order": 2 },
+    "productivity": { "name": "Productividad", "icon": "📋", "order": 3 },
+    "network": { "name": "Red", "icon": "🌐", "order": 4 },
+    "security": { "name": "Seguridad", "icon": "🔐", "order": 5 },
+    "surveillance": { "name": "Vigilancia", "icon": "📹", "order": 6 },
+    "automation": { "name": "Automatización", "icon": "🏠", "order": 7 },
+    "backup": { "name": "Backup", "icon": "💾", "order": 8 },
+    "development": { "name": "Desarrollo", "icon": "💻", "order": 9 },
+    "monitoring": { "name": "Monitorización", "icon": "📊", "order": 10 },
+    "system": { "name": "Sistema", "icon": "⚙️", "order": 11 },
+    "files": { "name": "Archivos", "icon": "📁", "order": 12 }
   }
 }
