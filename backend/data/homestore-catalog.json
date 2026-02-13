@@ -610,6 +610,24 @@
       "docs": "https://nicotine-plus.org/"
     },
     {
+      "id": "guacamole",
+      "name": "Apache Guacamole",
+      "description": "Escritorio remoto vía web. Accede a RDP, VNC y SSH desde el navegador sin cliente.",
+      "category": "network",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/guacamole.png",
+      "image": "flcontainers/guacamole:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8280": "8080" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/guacamole/config"
+      },
+      "env": {
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 8280,
+      "docs": "https://guacamole.apache.org/doc/gug/"
+    },
+    {
       "id": "tvheadend",
       "name": "TVHeadend",
       "description": "Servidor de TV y grabador DVR. Soporta DVB-S/S2/C/T, IPTV, SAT>IP. Streaming a Kodi, VLC, Jellyfin.",
