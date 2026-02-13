@@ -610,6 +610,24 @@
       "docs": "https://nicotine-plus.org/"
     },
     {
+      "id": "pulsarr",
+      "name": "Pulsarr",
+      "description": "Sincroniza watchlists de Plex con Sonarr/Radarr en tiempo real. Multi-usuario, cuotas y notificaciones Discord.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pulsarr.png",
+      "image": "lakker/pulsarr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "3003": "3003" },
+      "volumes": {
+        "/app/data": "/opt/homepinas/apps/pulsarr/data"
+      },
+      "env": {
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 3003,
+      "docs": "https://jamcalli.github.io/Pulsarr/"
+    },
+    {
       "id": "guacamole",
       "name": "Apache Guacamole",
       "description": "Escritorio remoto vía web. Accede a RDP, VNC y SSH desde el navegador sin cliente.",
