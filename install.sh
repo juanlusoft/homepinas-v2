@@ -1195,7 +1195,7 @@ usermod -aG docker $REAL_USER 2>/dev/null || true
 
 # Sudoers for system control, fan PWM, storage and Samba management
 cat > /etc/sudoers.d/homepinas <<EOF
-# HomePiNAS Sudoers - SECURITY HARDENED v1.5.2
+# HomePiNAS Sudoers - SECURITY HARDENED v1.5.3
 # Only allows specific commands with restricted arguments
 
 # System control (safe - no arguments needed)
@@ -1322,6 +1322,25 @@ $REAL_USER ALL=(ALL) NOPASSWD: /bin/journalctl -u smbd -n *
 $REAL_USER ALL=(ALL) NOPASSWD: /bin/journalctl -u docker -n *
 $REAL_USER ALL=(ALL) NOPASSWD: /bin/journalctl --since * --until *
 EOF
+
+# Fix sudo audit plugin issue (common on some Debian/Ubuntu systems)
+# This error prevents sudo from working: "error initializing audit plugin sudoers_audit"
+if [ -f /etc/sudo.conf ]; then
+    if grep -q "^Plugin sudoers_audit" /etc/sudo.conf 2>/dev/null; then
+        echo -e "${YELLOW}Fixing sudo audit plugin issue...${NC}"
+        sed -i 's/^Plugin sudoers_audit/#Plugin sudoers_audit/' /etc/sudo.conf
+    fi
+fi
+# Also check if sudo works and try alternative fix if needed
+if ! sudo -n -u $REAL_USER true 2>/dev/null; then
+    if sudo -n -u $REAL_USER true 2>&1 | grep -q "audit plugin"; then
+        echo -e "${YELLOW}Applying alternative audit plugin fix...${NC}"
+        # Disable audit in PAM if that's the issue
+        if [ -f /etc/pam.d/sudo ]; then
+            sed -i 's/^session.*pam_audit.so/#&/' /etc/pam.d/sudo 2>/dev/null || true
+        fi
+    fi
+fi
 
 # Create SnapRAID sync script
 cat > /usr/local/bin/homepinas-snapraid-sync.sh <<'SYNCEOF'
