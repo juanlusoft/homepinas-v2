@@ -11570,8 +11570,59 @@ window.addDevice = addDevice;
 
 let stacksCache = [];
 
+// Dockhand integration - replaces old stacks manager
+const DOCKHAND_PORT = 3080;
+
 async function openStacksManager() {
     // Remove existing modal
+    const existing = document.getElementById('stacks-modal');
+    if (existing) existing.remove();
+    
+    const dockhandUrl = `http://${window.location.hostname}:${DOCKHAND_PORT}`;
+    
+    const modal = document.createElement('div');
+    modal.id = 'stacks-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.95);
+        display: flex;
+        flex-direction: column;
+        z-index: 99999;
+    `;
+    
+    modal.innerHTML = `
+        <div style="
+            padding: 10px 20px;
+            background: #1a1a2e;
+            border-bottom: 1px solid #3d3d5c;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        ">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <h2 style="margin: 0; color: #10b981; font-size: 18px;">🐳 Dockhand - Docker Manager</h2>
+                <a href="${dockhandUrl}" target="_blank" style="color: #6366f1; font-size: 13px; text-decoration: none;">↗ Abrir en nueva pestaña</a>
+            </div>
+            <button id="stacks-close-btn" style="background: none; border: none; color: #ffffff; font-size: 24px; cursor: pointer; padding: 0 10px;">×</button>
+        </div>
+        <iframe 
+            src="${dockhandUrl}" 
+            style="flex: 1; border: none; width: 100%; background: #0d1117;"
+            allow="clipboard-read; clipboard-write"
+        ></iframe>
+    `;
+    
+    document.body.appendChild(modal);
+    document.getElementById('stacks-close-btn').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+// Legacy function kept for compatibility but now unused
+async function openStacksManagerLegacy() {
     const existing = document.getElementById('stacks-modal');
     if (existing) existing.remove();
     

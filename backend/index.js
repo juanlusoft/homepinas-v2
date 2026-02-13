@@ -180,6 +180,7 @@ app.use(helmet({
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "https://api.qrserver.com", "https://cdn.jsdelivr.net"],
             connectSrc: ["'self'", "ws:", "wss:", "https://cdn.jsdelivr.net"],
+            frameSrc: ["'self'", "http:", "https:"], // Allow Dockhand iframe
             frameAncestors: ["'none'"], // Prevent clickjacking
             upgradeInsecureRequests: null, // Allow HTTP for local network
         },
