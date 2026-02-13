@@ -1,5 +1,5 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -608,6 +608,27 @@
       "webUI": 6080,
       "privileged": true,
       "docs": "https://nicotine-plus.org/"
+    },
+    {
+      "id": "emulerr",
+      "name": "eMulerr",
+      "description": "Integración de eMule (eD2k/KAD) con Sonarr/Radarr. Busca contenido en redes P2P clásicas.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/amule.png",
+      "image": "isc30/emulerr:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "3030": "3000", "4662": "4662" },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/emulerr/config",
+        "/downloads": "/mnt/storage/downloads"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "PORT": "3000"
+      },
+      "webUI": 3030,
+      "docs": "https://github.com/isc30/eMulerr"
     },
     {
       "id": "ubooquity",
