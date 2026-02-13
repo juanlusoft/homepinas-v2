@@ -406,6 +406,27 @@
       },
       "webUI": 8000,
       "docs": "https://docs.paperless-ngx.com/"
+    },
+    {
+      "id": "dropbot",
+      "name": "Dropbot",
+      "description": "Bot de Telegram para descargar archivos al servidor. YouTube, Instagram, TikTok y 1800+ sitios.",
+      "category": "downloads",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/telegram.png",
+      "image": "dgongut/dropbot:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": {},
+      "volumes": {
+        "/downloads": "/mnt/storage/downloads"
+      },
+      "env": {
+        "TELEGRAM_TOKEN": "",
+        "TELEGRAM_ADMIN": "",
+        "TELEGRAM_API_HASH": "",
+        "TELEGRAM_API_ID": "",
+        "LANGUAGE": "ES"
+      },
+      "docs": "https://github.com/dgongut/dropbot"
     }
   ],
   "categories": {
