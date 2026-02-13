@@ -14,7 +14,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 const { requireAuth } = require('../middleware/auth');
-const { logSecurityEvent, safeExec } = require('../utils/security');
+const { logSecurityEvent, safeExec, sudoExec } = require('../utils/security');
 const { sanitizePathWithinBase } = require('../utils/sanitize');
 const { getData } = require('../utils/data');
 
@@ -134,12 +134,12 @@ async function writeSmbConf(content) {
 
   try {
     // Backup current config
-    await safeExec('sudo', ['cp', SMB_CONF_PATH, `${SMB_CONF_PATH}.bak`]);
+    await sudoExec('cp', [SMB_CONF_PATH, `${SMB_CONF_PATH}.bak`]);
     // Move temp file to smb.conf location
-    await safeExec('sudo', ['mv', tmpFile, SMB_CONF_PATH]);
+    await sudoExec('mv', [tmpFile, SMB_CONF_PATH]);
     // Ensure correct ownership and permissions
-    await safeExec('sudo', ['chown', 'root:root', SMB_CONF_PATH]);
-    await safeExec('sudo', ['chmod', '644', SMB_CONF_PATH]);
+    await sudoExec('chown', ['root:root', SMB_CONF_PATH]);
+    await sudoExec('chmod', ['644', SMB_CONF_PATH]);
   } catch (err) {
     // Clean up temp file on failure
     try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
@@ -200,8 +200,8 @@ function upsertSectionInConf(content, shareName, newSection) {
  * Restart Samba services (smbd and nmbd)
  */
 async function restartSamba() {
-  await safeExec('sudo', ['systemctl', 'restart', 'smbd']);
-  await safeExec('sudo', ['systemctl', 'restart', 'nmbd']);
+  await sudoExec('systemctl', ['restart', 'smbd']);
+  await sudoExec('systemctl', ['restart', 'nmbd']);
 }
 
 /**

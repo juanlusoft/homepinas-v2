@@ -64,6 +64,46 @@ async function safeExec(command, args = [], options = {}) {
 }
 
 /**
+ * Execute command with sudo - only specific subcommands allowed
+ * Use this for system administration tasks that require root
+ */
+async function sudoExec(subCommand, args = [], options = {}) {
+    // SECURITY: Only these commands can be run with sudo
+    const allowedSudoCommands = [
+        'cp', 'mv', 'chown', 'chmod', 'mkdir', 'tee',
+        'systemctl', 'smbpasswd', 'useradd', 'usermod', 'userdel',
+        'mount', 'umount', 'mkfs.ext4', 'mkfs.xfs', 'parted', 'partprobe',
+        'samba-tool', 'net', 'testparm'
+    ];
+
+    const baseCommand = path.basename(subCommand);
+    if (!allowedSudoCommands.includes(baseCommand)) {
+        throw new Error(`Sudo command not allowed: ${baseCommand}`);
+    }
+
+    // Validate args don't contain shell metacharacters
+    for (const arg of args) {
+        if (typeof arg !== 'string') {
+            throw new Error('Invalid argument type');
+        }
+        // Block obvious shell injection attempts
+        if (/[;&|`$()]/.test(arg) && !arg.startsWith('/')) {
+            throw new Error('Invalid characters in argument');
+        }
+    }
+
+    const userOpts = { ...options };
+    delete userOpts.timeout;
+    delete userOpts.maxBuffer;
+
+    return execFileAsync('sudo', [subCommand, ...args], {
+        ...userOpts,
+        timeout: options.timeout || 30000,
+        maxBuffer: 10 * 1024 * 1024,
+    });
+}
+
+/**
  * Safe file/directory removal with path traversal protection
  */
 const fs = require('fs').promises;
@@ -91,5 +131,6 @@ async function safeRemove(targetPath, basePath) {
 module.exports = {
     logSecurityEvent,
     safeExec,
+    sudoExec,
     safeRemove
 };
