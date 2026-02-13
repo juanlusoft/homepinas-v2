@@ -65,6 +65,7 @@ async function getADStatus() {
     let realm = null;
     
     if (provisioned) {
+        // Check if service is running
         try {
             const { stdout } = await execAsync('systemctl is-active samba-ad-dc', { timeout: 5000 });
             running = stdout.trim() === 'active';
@@ -72,15 +73,24 @@ async function getADStatus() {
             running = false;
         }
         
+        // Read domain/realm from provisioned flag file (reliable source)
         try {
-            const { stdout } = await execAsync("samba-tool domain info 127.0.0.1 2>/dev/null | grep -E '^(Domain|Realm)' || true");
-            const lines = stdout.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('Domain')) domain = line.split(':')[1]?.trim();
-                if (line.startsWith('Realm')) realm = line.split(':')[1]?.trim();
-            }
+            const flagData = await fs.readFile(AD_PROVISIONED_FLAG, 'utf8');
+            const config = JSON.parse(flagData);
+            domain = config.domain || null;
+            realm = config.realm || null;
         } catch {
-            // ignore
+            // Fallback to samba-tool if flag file is corrupted
+            try {
+                const { stdout } = await execAsync("sudo samba-tool domain info 127.0.0.1 2>/dev/null | grep -E '^(Domain|Realm)' || true");
+                const lines = stdout.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('Domain')) domain = line.split(':')[1]?.trim();
+                    if (line.startsWith('Realm')) realm = line.split(':')[1]?.trim();
+                }
+            } catch {
+                // ignore
+            }
         }
     }
     
