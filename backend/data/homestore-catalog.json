@@ -146,11 +146,11 @@
     {
       "id": "readarr",
       "name": "Readarr",
-      "description": "Gestor de ebooks y audiolibros. Búsqueda y organización automática.",
+      "description": "Gestor de ebooks y audiolibros. Búsqueda y organización automática. ⚠️ Solo x86.",
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/readarr.png",
-      "image": "linuxserver/readarr:nightly",
-      "arch": ["amd64", "arm64"],
+      "image": "linuxserver/readarr:develop",
+      "arch": ["amd64"],
       "ports": { "8787": "8787" },
       "volumes": {
         "/config": "/opt/homepinas/apps/readarr/config",

@@ -168,7 +168,7 @@ volumes:
     },
     'media': {
         name: 'Media Stack',
-        description: 'Jellyfin + Sonarr + Radarr + Lidarr + Readarr + Bazarr + Prowlarr + Jellyseerr',
+        description: 'Jellyfin + Sonarr + Radarr + Lidarr + Bazarr + Prowlarr + Jellyseerr (7 servicios)',
         icon: '🎬',
         compose: `version: '3.8'
 services:
@@ -225,20 +225,6 @@ services:
       - /mnt/storage/downloads:/downloads
     ports:
       - "8686:8686"
-    restart: unless-stopped
-
-  readarr:
-    image: lscr.io/linuxserver/readarr:nightly
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Madrid
-    volumes:
-      - ./readarr:/config
-      - /mnt/storage/media/books:/books
-      - /mnt/storage/downloads:/downloads
-    ports:
-      - "8787:8787"
     restart: unless-stopped
 
   bazarr:
