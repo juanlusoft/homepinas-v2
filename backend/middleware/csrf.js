@@ -134,8 +134,9 @@ function cleanExpiredCsrfTokens() {
     }
 }
 
-// Clean tokens every hour
-setInterval(cleanExpiredCsrfTokens, 60 * 60 * 1000);
+// Clean tokens every hour (unref to not block process exit)
+const cleanupInterval = setInterval(cleanExpiredCsrfTokens, 60 * 60 * 1000);
+cleanupInterval.unref();
 
 module.exports = {
     generateCsrfToken,

@@ -53,6 +53,15 @@ jest.mock('../../utils/session', () => ({
 const { execSync, execFileSync } = require('child_process');
 const { getData, saveData } = require('../../utils/data');
 
+// Suppress console.error during tests
+beforeAll(() => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterAll(() => {
+    console.error.mockRestore();
+});
+
 // Create app
 const storageRouter = require('../../routes/storage');
 const app = express();

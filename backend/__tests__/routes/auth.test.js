@@ -48,6 +48,17 @@ const { createSession, destroySession, validateSession } = require('../../utils/
 const { logSecurityEvent } = require('../../utils/security');
 const { getCsrfToken, clearCsrfToken } = require('../../middleware/csrf');
 
+// Suppress console.log/error during tests
+beforeAll(() => {
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterAll(() => {
+    console.log.mockRestore();
+    console.error.mockRestore();
+});
+
 // Create Express app with auth router
 const authRouter = require('../../routes/auth');
 const app = express();
