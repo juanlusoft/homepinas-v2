@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "apps": [
     {
       "id": "jellyfin",
@@ -917,6 +917,109 @@
       },
       "webUI": 8687,
       "docs": "https://github.com/dullage/flatnotes"
+    },
+    {
+      "id": "traccar",
+      "name": "Traccar",
+      "description": "Servidor GPS tracking. Rastrea vehículos, flotas y dispositivos en tiempo real.",
+      "category": "surveillance",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/traccar.png",
+      "image": "traccar/traccar:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8182": "8082", "5000-5150": "5000-5150" },
+      "volumes": {
+        "/opt/traccar/logs": "/opt/homepinas/apps/traccar/logs",
+        "/opt/traccar/data": "/opt/homepinas/apps/traccar/data"
+      },
+      "env": {},
+      "webUI": 8182,
+      "docs": "https://www.traccar.org/documentation/"
+    },
+    {
+      "id": "kavita",
+      "name": "Kavita",
+      "description": "Lector de manga, cómics y ebooks. Interfaz moderna, soporte OPDS y lectura web.",
+      "category": "media",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/kavita.png",
+      "image": "jvmilazz0/kavita:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "5001": "5000" },
+      "volumes": {
+        "/kavita/config": "/opt/homepinas/apps/kavita/config",
+        "/manga": "/mnt/storage/media/manga",
+        "/comics": "/mnt/storage/media/comics",
+        "/books": "/mnt/storage/media/books"
+      },
+      "env": {
+        "TZ": "Europe/Madrid"
+      },
+      "webUI": 5001,
+      "docs": "https://wiki.kavitareader.com/"
+    },
+    {
+      "id": "excalidraw",
+      "name": "Excalidraw",
+      "description": "Pizarra colaborativa. Diagramas, bocetos y brainstorming con estilo dibujado a mano.",
+      "category": "productivity",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/excalidraw.png",
+      "image": "excalidraw/excalidraw:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "8084": "80" },
+      "volumes": {},
+      "env": {},
+      "webUI": 8084,
+      "docs": "https://docs.excalidraw.com/"
+    },
+    {
+      "id": "dozzle",
+      "name": "Dozzle",
+      "description": "Visor de logs Docker en tiempo real. Interfaz web ligera y rápida.",
+      "category": "monitoring",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/dozzle.png",
+      "image": "amir20/dozzle:latest",
+      "arch": ["amd64", "arm64", "arm"],
+      "ports": { "9999": "8080" },
+      "volumes": {
+        "/var/run/docker.sock": "/var/run/docker.sock:ro"
+      },
+      "env": {},
+      "webUI": 9999,
+      "docs": "https://dozzle.dev/"
+    },
+    {
+      "id": "karakeep",
+      "name": "Karakeep",
+      "description": "Gestor de marcadores y read-later. Guarda enlaces, artículos y contenido con IA.",
+      "category": "productivity",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/linkwarden.png",
+      "image": "karakeep/karakeep:latest",
+      "arch": ["amd64", "arm64"],
+      "ports": { "3005": "3000" },
+      "volumes": {
+        "/data": "/opt/homepinas/apps/karakeep/data"
+      },
+      "env": {
+        "NEXTAUTH_SECRET": "changeme",
+        "NEXTAUTH_URL": "http://localhost:3005"
+      },
+      "webUI": 3005,
+      "docs": "https://github.com/karakeep/karakeep"
+    },
+    {
+      "id": "websiteshot",
+      "name": "Website Shot",
+      "description": "Servicio de capturas de pantalla de webs. API para generar screenshots automáticamente.",
+      "category": "productivity",
+      "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/changedetection-io.png",
+      "image": "flowko/website-shot:latest",
+      "arch": ["amd64"],
+      "ports": { "3006": "3000" },
+      "volumes": {
+        "/app/screenshots": "/opt/homepinas/apps/websiteshot/screenshots"
+      },
+      "env": {},
+      "webUI": 3006,
+      "docs": "https://github.com/nicholasadamou/website-shot"
     }
   ],
   "categories": {
