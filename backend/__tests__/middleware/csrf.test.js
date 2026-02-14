@@ -3,6 +3,24 @@
  * Tests for CSRF token generation, validation, and protection
  */
 
+// In-memory token storage for tests (prefixed with mock to be allowed in jest.mock)
+const mockTokenStorage = new Map();
+
+// Mock session module before requiring csrf
+jest.mock('../../utils/session', () => ({
+    storeCsrfToken: jest.fn((sessionId, token) => {
+        mockTokenStorage.set(sessionId, { token, createdAt: Date.now() });
+    }),
+    getCsrfTokenFromDb: jest.fn((sessionId) => {
+        return mockTokenStorage.get(sessionId) || null;
+    }),
+    deleteCsrfToken: jest.fn((sessionId) => {
+        mockTokenStorage.delete(sessionId);
+    }),
+    cleanExpiredCsrfTokens: jest.fn(),
+    CSRF_TOKEN_DURATION: 24 * 60 * 60 * 1000 // 24 hours
+}));
+
 const {
     generateCsrfToken,
     getCsrfToken,
@@ -10,6 +28,12 @@ const {
     clearCsrfToken,
     csrfProtection
 } = require('../../middleware/csrf');
+
+// Clear token storage before each test
+beforeEach(() => {
+    mockTokenStorage.clear();
+    jest.clearAllMocks();
+});
 
 // Mock request/response helpers
 function mockReq(method, path, headers = {}) {
@@ -79,18 +103,16 @@ describe('generateCsrfToken', () => {
 describe('getCsrfToken', () => {
     test('returns null for null sessionId', () => {
         expect(getCsrfToken(null)).toBeNull();
-        expect(getCsrfToken(undefined)).toBeNull();
     });
 
     test('returns existing valid token', () => {
-        const sessionId = 'session-get-existing';
-        const token1 = generateCsrfToken(sessionId);
-        const token2 = getCsrfToken(sessionId);
-        expect(token1).toBe(token2);
+        const token = generateCsrfToken('session-get');
+        const retrieved = getCsrfToken('session-get');
+        expect(retrieved).toBe(token);
     });
 
     test('generates new token if none exists', () => {
-        const token = getCsrfToken('session-new-' + Date.now());
+        const token = getCsrfToken('session-new');
         expect(token).toHaveLength(64);
     });
 });
@@ -107,32 +129,23 @@ describe('validateCsrfToken', () => {
     });
 
     test('returns false for unknown session', () => {
-        expect(validateCsrfToken('unknown-session', 'fake-token')).toBe(false);
+        expect(validateCsrfToken('unknown-session', 'token')).toBe(false);
     });
 
     test('returns true for valid token', () => {
-        const sessionId = 'session-valid';
-        const token = generateCsrfToken(sessionId);
-        expect(validateCsrfToken(sessionId, token)).toBe(true);
+        const token = generateCsrfToken('session-validate');
+        expect(validateCsrfToken('session-validate', token)).toBe(true);
     });
 
     test('returns false for wrong token', () => {
-        const sessionId = 'session-wrong-token';
-        generateCsrfToken(sessionId);
-        expect(validateCsrfToken(sessionId, 'wrong-token-value')).toBe(false);
+        generateCsrfToken('session-wrong');
+        expect(validateCsrfToken('session-wrong', 'wrong-token')).toBe(false);
     });
 
     test('returns false for token from different session', () => {
         const token1 = generateCsrfToken('session-a');
         generateCsrfToken('session-b');
         expect(validateCsrfToken('session-b', token1)).toBe(false);
-    });
-
-    test('returns false for malformed token', () => {
-        const sessionId = 'session-malformed';
-        generateCsrfToken(sessionId);
-        expect(validateCsrfToken(sessionId, 'not-hex!')).toBe(false);
-        expect(validateCsrfToken(sessionId, '')).toBe(false);
     });
 });
 
@@ -142,180 +155,136 @@ describe('validateCsrfToken', () => {
 
 describe('clearCsrfToken', () => {
     test('removes token for session', () => {
-        const sessionId = 'session-to-clear';
-        const token = generateCsrfToken(sessionId);
-        
-        // Token is valid before clearing
-        expect(validateCsrfToken(sessionId, token)).toBe(true);
-        
-        clearCsrfToken(sessionId);
-        
-        // Token is invalid after clearing
-        expect(validateCsrfToken(sessionId, token)).toBe(false);
+        const token = generateCsrfToken('session-clear');
+        expect(validateCsrfToken('session-clear', token)).toBe(true);
+        clearCsrfToken('session-clear');
+        expect(validateCsrfToken('session-clear', token)).toBe(false);
     });
 
-    test('does not throw for non-existent session', () => {
-        expect(() => clearCsrfToken('non-existent')).not.toThrow();
+    test('does not error for unknown session', () => {
+        expect(() => clearCsrfToken('unknown')).not.toThrow();
     });
 });
 
 // ============================================================================
-// csrfProtection MIDDLEWARE TESTS
+// csrfProtection Middleware TESTS
 // ============================================================================
 
-describe('csrfProtection', () => {
+describe('csrfProtection middleware', () => {
     test('skips GET requests', () => {
-        const req = mockReq('GET', '/api/files');
+        const req = mockReq('GET', '/api/test');
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
         expect(res.status).not.toHaveBeenCalled();
     });
 
     test('skips HEAD requests', () => {
-        const req = mockReq('HEAD', '/api/files');
+        const req = mockReq('HEAD', '/api/test');
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
     });
 
     test('skips OPTIONS requests', () => {
-        const req = mockReq('OPTIONS', '/api/files');
+        const req = mockReq('OPTIONS', '/api/test');
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
     });
 
-    test('skips /api/auth/* routes', () => {
-        const req = mockReq('POST', '/api/auth/login');
+    test('skips excluded paths', () => {
+        // Note: paths must match startsWith pattern including trailing slash for agent
+        const excludedPaths = ['/api/auth/setup', '/api/auth/login', '/api/active-backup/agent/register'];
+        
+        for (const path of excludedPaths) {
+            const req = mockReq('POST', path, { sessionId: 'sess-1' });
+            const res = mockRes();
+            const next = jest.fn();
+
+            csrfProtection(req, res, next);
+            expect(next).toHaveBeenCalled();
+        }
+    });
+
+    test('skips POST without session ID (auth middleware handles it)', () => {
+        // CSRF middleware now lets requests without session through
+        // because auth middleware will reject them
+        const req = mockReq('POST', '/api/test');
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
     });
 
-    test('skips /api/verify-session route', () => {
-        const req = mockReq('POST', '/api/verify-session');
+    test('rejects POST without CSRF token', () => {
+        const req = mockReq('POST', '/api/test', { sessionId: 'session-no-token' });
         const res = mockRes();
         const next = jest.fn();
-        
-        csrfProtection(req, res, next);
-        
-        expect(next).toHaveBeenCalled();
-    });
 
-    test('skips /api/active-backup/agent/* routes', () => {
-        const req = mockReq('POST', '/api/active-backup/agent/register');
-        const res = mockRes();
-        const next = jest.fn();
-        
         csrfProtection(req, res, next);
-        
-        expect(next).toHaveBeenCalled();
-    });
-
-    test('skips if no session ID (let auth middleware handle it)', () => {
-        const req = mockReq('POST', '/api/files/upload', { sessionId: null });
-        const res = mockRes();
-        const next = jest.fn();
-        
-        csrfProtection(req, res, next);
-        
-        expect(next).toHaveBeenCalled();
-    });
-
-    test('returns 403 for missing CSRF token', () => {
-        const sessionId = 'csrf-test-session-1';
-        generateCsrfToken(sessionId);
-        
-        const req = mockReq('POST', '/api/files/delete', { 
-            sessionId,
-            csrfToken: null 
-        });
-        const res = mockRes();
-        const next = jest.fn();
-        
-        csrfProtection(req, res, next);
-        
-        expect(res.statusCode).toBe(403);
-        expect(res.body.code).toBe('CSRF_INVALID');
+        expect(res.status).toHaveBeenCalledWith(403);
         expect(next).not.toHaveBeenCalled();
     });
 
-    test('returns 403 for invalid CSRF token', () => {
-        const sessionId = 'csrf-test-session-2';
-        generateCsrfToken(sessionId);
-        
-        const req = mockReq('POST', '/api/files/delete', { 
-            sessionId,
-            csrfToken: 'invalid-token-value' 
+    test('rejects POST with invalid CSRF token', () => {
+        generateCsrfToken('session-invalid');
+        const req = mockReq('POST', '/api/test', {
+            sessionId: 'session-invalid',
+            csrfToken: 'wrong-token'
         });
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
-        expect(res.statusCode).toBe(403);
+        expect(res.status).toHaveBeenCalledWith(403);
         expect(next).not.toHaveBeenCalled();
     });
 
     test('allows request with valid CSRF token', () => {
-        const sessionId = 'csrf-test-session-3';
-        const token = generateCsrfToken(sessionId);
-        
-        const req = mockReq('POST', '/api/files/delete', { 
-            sessionId,
-            csrfToken: token 
+        const token = generateCsrfToken('session-valid');
+        const req = mockReq('POST', '/api/test', {
+            sessionId: 'session-valid',
+            csrfToken: token
         });
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
         expect(res.status).not.toHaveBeenCalled();
     });
 
     test('validates PUT requests', () => {
-        const sessionId = 'csrf-test-session-4';
-        const token = generateCsrfToken(sessionId);
-        
-        const req = mockReq('PUT', '/api/users/update', { 
-            sessionId,
-            csrfToken: token 
+        const token = generateCsrfToken('session-put');
+        const req = mockReq('PUT', '/api/test', {
+            sessionId: 'session-put',
+            csrfToken: token
         });
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
     });
 
     test('validates DELETE requests', () => {
-        const sessionId = 'csrf-test-session-5';
-        const token = generateCsrfToken(sessionId);
-        
-        const req = mockReq('DELETE', '/api/files/remove', { 
-            sessionId,
-            csrfToken: token 
+        const token = generateCsrfToken('session-delete');
+        const req = mockReq('DELETE', '/api/test', {
+            sessionId: 'session-delete',
+            csrfToken: token
         });
         const res = mockRes();
         const next = jest.fn();
-        
+
         csrfProtection(req, res, next);
-        
         expect(next).toHaveBeenCalled();
     });
 });

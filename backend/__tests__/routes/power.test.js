@@ -11,9 +11,13 @@ jest.mock('child_process', () => ({
 
 jest.mock('../../middleware/auth', () => ({
     requireAuth: (req, res, next) => {
-        req.user = { username: 'testadmin' };
+        req.user = { username: 'testadmin', role: 'admin' };
         next();
     }
+}));
+
+jest.mock('../../middleware/rbac', () => ({
+    requireAdmin: (req, res, next) => next()
 }));
 
 jest.mock('../../middleware/rateLimit', () => ({

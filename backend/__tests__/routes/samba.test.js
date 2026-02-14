@@ -79,7 +79,8 @@ jest.mock('../../utils/data', () => ({
 // Mock security
 jest.mock('../../utils/security', () => ({
     logSecurityEvent: jest.fn(),
-    safeExec: jest.fn(() => Promise.resolve({ stdout: '', stderr: '' }))
+    safeExec: jest.fn(() => Promise.resolve({ stdout: '', stderr: '' })),
+    sudoExec: jest.fn(() => Promise.resolve({ stdout: '', stderr: '' }))
 }));
 
 // Mock auth middleware
@@ -101,7 +102,7 @@ jest.mock('../../utils/sanitize', () => ({
 
 const fs = require('fs');
 const { getData } = require('../../utils/data');
-const { logSecurityEvent, safeExec } = require('../../utils/security');
+const { logSecurityEvent, safeExec, sudoExec } = require('../../utils/security');
 const { sanitizePathWithinBase } = require('../../utils/sanitize');
 
 // Suppress console during tests
@@ -228,7 +229,7 @@ describe('POST /api/samba/shares', () => {
         expect(res.status).toBe(201);
         expect(res.body.message).toContain('created');
         expect(res.body.share.name).toBe('newshare');
-        expect(safeExec).toHaveBeenCalled();
+        expect(sudoExec).toHaveBeenCalled();
         expect(logSecurityEvent).toHaveBeenCalledWith(
             'samba_share_created',
             'testuser',
@@ -451,7 +452,7 @@ describe('POST /api/samba/restart', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.message).toContain('restarted');
-        expect(safeExec).toHaveBeenCalled();
+        expect(sudoExec).toHaveBeenCalled();
         expect(logSecurityEvent).toHaveBeenCalledWith(
             'samba_restart',
             'testuser'

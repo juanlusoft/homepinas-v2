@@ -22,6 +22,7 @@ function mockReq(sessionId) {
         headers: {
             'x-session-id': sessionId
         },
+        query: {},
         path: '/api/test',
         ip: '192.168.1.100'
     };
