@@ -20,7 +20,8 @@ jest.mock('child_process', () => ({
         stderr: { on: jest.fn() },
         on: jest.fn((event, cb) => {
             if (event === 'close') setTimeout(() => cb(0), 0);
-        })
+        }),
+        kill: jest.fn()
     }))
 }));
 
