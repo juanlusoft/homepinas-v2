@@ -1,8 +1,9 @@
-# HomePiNAS v2.5.0
+# HomePiNAS v2.8.0
 
 Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 
-![HomePiNAS Dashboard](https://img.shields.io/badge/version-2.5.0-brightgreen)
+![HomePiNAS Dashboard](https://img.shields.io/badge/version-2.8.0-brightgreen)
+![Tests](https://img.shields.io/badge/tests-432%20passing-success)
 ![PWA Ready](https://img.shields.io/badge/PWA-Ready-blueviolet)
 ![Mobile Friendly](https://img.shields.io/badge/Mobile-Friendly-blue)
 
@@ -11,7 +12,7 @@ Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 ### Core
 - **SnapRAID + MergerFS** — Disk pooling with parity protection
 - **Samba Sharing** — Network file sharing with automatic user creation
-- **Docker Management** — Container control from dashboard
+- **Docker Management** — Container control from dashboard (Dockhand GUI)
 - **Fan Control** — PWM control for EMC2305 (Silent/Balanced/Performance)
 - **System Monitoring** — CPU, Memory, Disk, Network stats
 - **Web Terminal** — Full terminal access from the browser
@@ -26,6 +27,13 @@ Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 - **⏰ Task Scheduler** — Cron jobs from dashboard
 - **🔌 UPS Support** — APC UPS monitoring
 - **🌐 DDNS** — DuckDNS, No-IP, Dynu remote access
+- **🏪 HomeStore** — App marketplace with 43+ one-click installs
+
+### 🏢 Active Directory Domain Controller (NEW in v2.7+)
+- **Samba AD DC** — Full Windows domain controller
+- **User & Group management** — Create, delete, manage from dashboard
+- **Windows integration** — Join Windows 10/11 PCs to domain
+- **Professional UI** — Tabs, cards, step-by-step instructions
 
 ### ☁️ Cloud Sync (Syncthing)
 - **Real-time folder sync** between NAS and other devices
@@ -48,6 +56,11 @@ Premium NAS Dashboard for Raspberry Pi CM5 - Homelabs.club Edition
 - **📱 Responsive UI** — Full mobile support
 - **📲 PWA Support** — Install as native app
 - **🌐 mDNS Discovery** — Access via `homepinas.local`
+
+### 🧪 Testing
+- **432 unit tests** across 27 test suites
+- **Jest + Supertest** — Automated CI via GitHub Actions
+- **Full coverage** — Auth, RBAC, files, storage, backup, AD, and more
 
 ## 🔒 Security
 
@@ -129,34 +142,39 @@ http://<IP>                     (HTTP - redirige a HTTPS)
 
 ## 📜 Version History
 
+### v2.8.0 — Active Directory + Testing + HomeStore
+- **Active Directory DC** — Full Samba AD domain controller with UI
+- **432 unit tests** — Jest + Supertest, CI via GitHub Actions
+- **HomeStore** — 43 one-click app installs
+- **Dockhand** — Docker GUI integration
+- **SQLite session persistence**
+
+### v2.7.0 — Active Directory
+- **Samba AD DC** — Provision domain, manage users/groups
+- **Windows 10/11 domain join** — Step-by-step instructions in UI
+- **Professional AD UI** — Tabs, cards, filtered system accounts
+
+### v2.6.0 — Image Builder
+- **Pre-built image strategy** — Flash and boot on any disk
+- **Firstboot wizard** — Expand partition, set hostname/user/pass
+
 ### v2.5.0 — Cloud Sync + Polish
 - **Cloud Sync** — Syncthing integration for real-time folder sync
 - **HTTP → HTTPS redirect** — Automatic secure connection
-- **Improved terminal** — Fixed colors on dark backgrounds
 - **Dynamic user detection** — No hardcoded usernames
-- **UI polish** — Custom modals, fixed race conditions
 
 ### v2.4.0 — Active Backup + Recovery
 - **Active Backup** — Centralized backup of PCs/servers
 - **Backup Agent** — Cross-platform Electron app (Windows/Mac)
-- **Agent auto-registration** — Install, discover NAS, wait for approval
 - **USB Recovery Tool** — Bootable Debian ISO for bare-metal restore
-- **Per-device Samba shares** — Auto-created with random credentials
 
 ### v2.3.0 — Extended Features
 - File Manager, Users & Permissions, Samba management
-- Notifications (Email/Telegram), 2FA (TOTP)
-- Log Viewer, Backup & Restore, Task Scheduler
-- UPS monitoring, DDNS remote access
+- Notifications, 2FA, Log Viewer, Backup, Scheduler, UPS, DDNS
 
 ### v2.2.0 — Mobile & PWA
-- Responsive UI, PWA support, mDNS discovery
-
 ### v2.1.0 — Internationalization
-- Multi-language (English/Spanish), theme toggle
-
 ### v2.0.0 — Major Rewrite
-- Complete UI redesign, Docker management, storage wizard
 
 ## 🐛 Troubleshooting
 
