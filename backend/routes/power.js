@@ -65,10 +65,10 @@ router.post('/factory-reset', factoryResetLimiter, (req, res) => {
 // System reboot
 router.post('/reboot', requireAuth, requireAdmin, criticalLimiter, (req, res) => {
     logSecurityEvent('SYSTEM_REBOOT', { user: req.user.username }, req.ip);
-    res.json({ message: 'Rebooting...' });
+    res.json({ success: true, message: 'Rebooting...' });
 
     setTimeout(() => {
-        execFile('reboot', [], (error) => {
+        execFile('sudo', ['reboot'], (error) => {
             if (error) {
                 console.error('Reboot failed:', error.message);
             }
@@ -79,10 +79,10 @@ router.post('/reboot', requireAuth, requireAdmin, criticalLimiter, (req, res) =>
 // System shutdown
 router.post('/shutdown', requireAuth, requireAdmin, criticalLimiter, (req, res) => {
     logSecurityEvent('SYSTEM_SHUTDOWN', { user: req.user.username }, req.ip);
-    res.json({ message: 'Shutting down...' });
+    res.json({ success: true, message: 'Shutting down...' });
 
     setTimeout(() => {
-        execFile('shutdown', ['-h', 'now'], (error) => {
+        execFile('sudo', ['shutdown', '-h', 'now'], (error) => {
             if (error) {
                 console.error('Shutdown failed:', error.message);
             }

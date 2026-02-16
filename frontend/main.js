@@ -4585,12 +4585,6 @@ if (powerBtn && powerDropdown) {
     });
     powerDropdown.addEventListener("click", (e) => e.stopPropagation());
 
-    // Hover effect for options
-    powerDropdown.querySelectorAll('.power-option').forEach(opt => {
-        opt.addEventListener('mouseover', () => { opt.style.background = 'var(--hover-bg, rgba(0,0,0,0.05))'; });
-        opt.addEventListener('mouseout', () => { opt.style.background = 'none'; });
-    });
-
     // Logout
     document.getElementById("power-logout").addEventListener("click", async () => {
         powerDropdown.style.display = 'none';

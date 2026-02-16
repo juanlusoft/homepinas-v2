@@ -4835,3 +4835,49 @@ body.fm-dragging .fm-tree-item {
     justify-content: center;
     align-items: center;
 }
+
+/* Power Menu */
+.power-menu-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.power-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    min-width: 200px;
+    background: var(--card-bg, #fff);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.power-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-primary, #333);
+    transition: background 0.2s;
+}
+
+.power-option:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.power-option--danger {
+    color: #e74c3c;
+}
+
+[data-theme="dark"] .power-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}

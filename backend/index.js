@@ -289,7 +289,7 @@ app.use('/api', authRoutes);
 app.use('/api/network', networkRoutes);
 
 // Power routes (reset, reboot, shutdown)
-app.use('/api/system', powerRoutes);
+app.use('/api/power', powerRoutes);
 
 // Update routes (check, apply)
 app.use('/api/update', updateRoutes);

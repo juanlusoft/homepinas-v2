@@ -418,16 +418,16 @@
                         <div class="header-user-avatar" id="user-avatar-letter">U</div>
                         <span class="header-user-name" id="username-display">Usuario</span>
                     </div>
-                    <div class="power-menu-wrapper" style="position:relative;display:inline-block;">
+                    <div class="power-menu-wrapper">
                         <button class="header-btn" id="power-btn" title="Opciones de energía">⏻</button>
-                        <div class="power-dropdown" id="power-dropdown" style="display:none;position:absolute;right:0;top:100%;min-width:200px;background:var(--card-bg,#fff);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:9999;overflow:hidden;margin-top:8px;">
-                            <button class="power-option" id="power-logout" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border:none;background:none;cursor:pointer;font-size:14px;color:var(--text-primary,#333);transition:background 0.2s;">
+                        <div class="power-dropdown" id="power-dropdown">
+                            <button class="power-option" id="power-logout">
                                 <span style="font-size:18px;">🚪</span> Cerrar sesión
                             </button>
-                            <button class="power-option" id="power-reboot" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border:none;background:none;cursor:pointer;font-size:14px;color:var(--text-primary,#333);transition:background 0.2s;">
+                            <button class="power-option" id="power-reboot">
                                 <span style="font-size:18px;">🔄</span> Reiniciar sistema
                             </button>
-                            <button class="power-option" id="power-shutdown" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border:none;background:none;cursor:pointer;font-size:14px;color:#e74c3c;transition:background 0.2s;">
+                            <button class="power-option power-option--danger" id="power-shutdown">
                                 <span style="font-size:18px;">⏻</span> Apagar sistema
                             </button>
                         </div>
