@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HomePiNAS Finder</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0f172a; --card: #1e293b; --card-hover: #334155;
+      --primary: #3b82f6; --primary-hover: #2563eb;
+      --text: #f1f5f9; --text-muted: #94a3b8;
+      --success: #22c55e; --border: #334155;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    .container { max-width: 640px; margin: 0 auto; padding: 32px 24px; flex: 1; width: 100%; }
+    .header { text-align: center; margin-bottom: 32px; }
+    .logo-wrap {
+      width: 80px; height: 80px; margin: 0 auto 16px;
+      background: linear-gradient(135deg, var(--primary), #8b5cf6);
+      border-radius: 20px; display: flex; align-items: center; justify-content: center;
+    }
+    .logo-wrap svg { width: 44px; height: 44px; fill: white; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+    .header p { color: var(--text-muted); font-size: 0.9rem; }
+    .scan-btn {
+      width: 100%; padding: 16px; background: var(--primary); color: white;
+      border: none; border-radius: 12px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; display: flex;
+      align-items: center; justify-content: center; gap: 10px;
+    }
+    .scan-btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 20px rgba(59,130,246,0.3); }
+    .scan-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2.5px solid rgba(255,255,255,0.3);
+      border-top-color: white; border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results { margin-top: 28px; }
+    .results-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px; padding: 0 4px;
+    }
+    .results-header h2 {
+      font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .count {
+      background: var(--primary); color: white; padding: 3px 10px;
+      border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    }
+    .device-list { display: flex; flex-direction: column; gap: 10px; }
+    .device-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px; cursor: pointer;
+      transition: all 0.2s; display: flex; align-items: center; gap: 16px;
+      text-decoration: none; color: inherit;
+    }
+    .device-card:hover {
+      background: var(--card-hover); border-color: var(--primary);
+      transform: translateX(4px); box-shadow: 0 2px 12px rgba(59,130,246,0.15);
+    }
+    .device-icon {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, var(--primary), #8b5cf6);
+      border-radius: 12px; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+    }
+    .device-icon svg { width: 26px; height: 26px; fill: white; }
+    .device-info { flex: 1; min-width: 0; }
+    .device-name { font-weight: 700; font-size: 1rem; margin-bottom: 3px; }
+    .device-ip { color: var(--text-muted); font-size: 0.875rem; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+    .device-meta { display: flex; gap: 12px; margin-top: 4px; }
+    .device-version { color: var(--success); font-size: 0.75rem; font-weight: 500; }
+    .device-method { color: var(--text-muted); font-size: 0.7rem; opacity: 0.7; }
+    .device-arrow { color: var(--text-muted); transition: all 0.2s; }
+    .device-card:hover .device-arrow { transform: translateX(4px); color: var(--primary); }
+    .empty-state { text-align: center; padding: 56px 24px; }
+    .empty-icon {
+      width: 72px; height: 72px; margin: 0 auto 20px;
+      background: var(--card); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .empty-icon svg { width: 36px; height: 36px; stroke: var(--text-muted); opacity: 0.6; }
+    .empty-state h3 { color: var(--text); font-size: 1rem; margin-bottom: 8px; }
+    .empty-state p { color: var(--text-muted); font-size: 0.85rem; line-height: 1.6; }
+    .progress { margin-top: 20px; }
+    .progress-bar {
+      height: 4px; background: var(--card); border-radius: 4px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: var(--primary); border-radius: 4px;
+      animation: progress 4s ease-in-out;
+    }
+    @keyframes progress { from { width: 0%; } to { width: 100%; } }
+    .progress-text { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 10px; }
+    .footer {
+      text-align: center; padding: 16px; color: var(--text-muted);
+      font-size: 0.75rem; border-top: 1px solid var(--border);
+    }
+    .footer a { color: var(--primary); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+    @media (max-width: 480px) {
+      .container { padding: 20px 16px; }
+      .device-card { padding: 14px; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo-wrap">
+        <svg viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 14a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/><circle cx="8" cy="8" r="1.2" fill="#0f172a"/><circle cx="8" cy="16" r="1.2" fill="#0f172a"/><rect x="12" y="7" width="6" height="2" rx="1" fill="#0f172a" opacity=".5"/><rect x="12" y="15" width="6" height="2" rx="1" fill="#0f172a" opacity=".5"/></svg>
+      </div>
+      <h1>HomePiNAS Finder</h1>
+      <p>Encuentra tu NAS en la red local</p>
+    </div>
+
+    <button class="scan-btn" id="scanBtn" onclick="startScan()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      Buscar dispositivos
+    </button>
+
+    <div id="progressArea" style="display:none" class="progress">
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+      <div class="progress-text">Escaneando red local...</div>
+    </div>
+
+    <div class="results" id="results" style="display:none">
+      <div class="results-header">
+        <h2>Dispositivos encontrados</h2>
+        <span class="count" id="count">0</span>
+      </div>
+      <div class="device-list" id="deviceList"></div>
+    </div>
+
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.172 16.172a4 4 0 015.656 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10h.01M15 10h.01"/></svg>
+      </div>
+      <h3>No se encontraron dispositivos</h3>
+      <p>Asegúrate de que tu HomePiNAS está encendido<br>y conectado a la misma red.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="https://homepinas.com" target="_blank">homepinas.com</a> · <a href="https://homelabs.club" target="_blank">HomeLabs Club</a>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    async function startScan() {
+      const btn = $('scanBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div> Escaneando...';
+      $('results').style.display = 'none';
+      $('emptyState').style.display = 'none';
+      $('progressArea').style.display = 'block';
+
+      try {
+        const res = await fetch('/api/scan');
+        const devices = await res.json();
+
+        $('progressArea').style.display = 'none';
+
+        if (devices && devices.length > 0) {
+          renderDevices(devices);
+          $('results').style.display = 'block';
+        } else {
+          $('emptyState').style.display = 'block';
+        }
+      } catch (err) {
+        $('progressArea').style.display = 'none';
+        $('emptyState').style.display = 'block';
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> Buscar de nuevo`;
+    }
+
+    function renderDevices(devices) {
+      $('count').textContent = devices.length;
+      $('deviceList').innerHTML = devices.map(d => `
+        <a class="device-card" href="https://${esc(d.ip)}" target="_blank">
+          <div class="device-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 14a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/><circle cx="8" cy="8" r="1.2" fill="#0f172a"/><circle cx="8" cy="16" r="1.2" fill="#0f172a"/></svg>
+          </div>
+          <div class="device-info">
+            <div class="device-name">${esc(d.name)}</div>
+            <div class="device-ip">${esc(d.ip)}</div>
+            <div class="device-meta">
+              ${d.version ? `<span class="device-version">v${esc(d.version)}</span>` : ''}
+              <span class="device-method">${esc(d.method)}</span>
+            </div>
+          </div>
+          <div class="device-arrow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    // Auto-scan on load
+    window.addEventListener('load', () => setTimeout(startScan, 300));
+  </script>
+</body>
+</html>
