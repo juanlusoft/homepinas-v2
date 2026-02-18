@@ -12,7 +12,6 @@ backend/config/compose/
 backend/certs/
 *.key
 *.pem
-package-lock.json
 .gemini
 brain
 
