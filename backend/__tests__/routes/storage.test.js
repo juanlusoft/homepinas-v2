@@ -78,21 +78,33 @@ describe('GET /api/storage/pool/status', () => {
     });
 
     test('returns pool status when configured', async () => {
-        execSync.mockImplementation((cmd) => {
-            if (cmd.includes('snapraid.conf')) {
+        const fs = require('fs');
+        fs.readFileSync.mockImplementation((filePath) => {
+            if (filePath.includes('snapraid.conf')) {
                 return 'content /var/snapraid.content\ndisk d1 /mnt/disks/disk1';
             }
-            if (cmd.includes('mount | grep mergerfs')) {
-                return 'mergerfs on /mnt/storage type fuse.mergerfs';
-            }
-            if (cmd.includes('df -BG')) {
-                return '/dev/sda1 500G 200G 300G 40% /mnt/storage';
-            }
-            if (cmd.includes('snapraid-sync.log')) {
-                return 'SnapRAID Sync Finished: 2026-02-14 10:00=';
+            if (filePath.includes('snapraid-sync.log')) {
+                return '=== SnapRAID Sync Finished: 2026-02-14 10:00 ===';
             }
             return '';
         });
+        fs.readdirSync.mockReturnValue([]);
+        execFileSync.mockImplementation((cmd, args) => {
+            if (cmd === 'mount') {
+                return '/dev/sda1:/dev/sdb1 on /mnt/storage type fuse.mergerfs (rw)\n';
+            }
+            if (cmd === 'df') {
+                return 'Filesystem      1G-blocks  Used Available Use% Mounted on\n/dev/sda1           500G  200G      300G  40% /mnt/storage';
+            }
+            if (cmd === 'systemctl') {
+                return 'active';
+            }
+            if (cmd === 'lsblk') {
+                return JSON.stringify({ blockdevices: [] });
+            }
+            return '';
+        });
+        getData.mockReturnValue({ storageConfig: [{ id: 'sda', role: 'data' }] });
 
         const res = await request(app)
             .get('/api/storage/pool/status');
@@ -104,6 +116,15 @@ describe('GET /api/storage/pool/status', () => {
     });
 
     test('returns unconfigured status when no pool', async () => {
+        const fs = require('fs');
+        fs.readFileSync.mockImplementation(() => { throw new Error('ENOENT'); });
+        fs.readdirSync.mockReturnValue([]);
+        execFileSync.mockImplementation((cmd) => {
+            if (cmd === 'mount') return '';
+            if (cmd === 'lsblk') return JSON.stringify({ blockdevices: [] });
+            throw new Error('not found');
+        });
+        getData.mockReturnValue({ storageConfig: [] });
         execSync.mockImplementation(() => '');
 
         const res = await request(app)
@@ -291,7 +312,7 @@ describe('GET /api/storage/disks/detect', () => {
     });
 
     test('handles lsblk failure', async () => {
-        execSync.mockImplementation(() => {
+        execFileSync.mockImplementation(() => {
             throw new Error('lsblk failed');
         });
 

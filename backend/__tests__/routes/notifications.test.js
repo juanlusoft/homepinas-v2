@@ -145,8 +145,8 @@ describe('POST /api/notifications/config/email', () => {
         expect(res.body.success).toBe(true);
         expect(saveData).toHaveBeenCalled();
         expect(logSecurityEvent).toHaveBeenCalledWith(
-            'notifications',
-            'email_config_updated',
+            'EMAIL_CONFIG_UPDATED',
+            expect.any(String),
             expect.anything()
         );
     });
@@ -241,8 +241,8 @@ describe('POST /api/notifications/config/telegram', () => {
         expect(res.body.success).toBe(true);
         expect(saveData).toHaveBeenCalled();
         expect(logSecurityEvent).toHaveBeenCalledWith(
-            'notifications',
-            'telegram_config_updated',
+            'TELEGRAM_CONFIG_UPDATED',
+            expect.any(String),
             expect.anything()
         );
     });
@@ -329,8 +329,8 @@ describe('POST /api/notifications/test/email', () => {
         expect(res.body.messageId).toBeDefined();
         expect(nodemailer.createTransport).toHaveBeenCalled();
         expect(logSecurityEvent).toHaveBeenCalledWith(
-            'notifications',
-            'test_email_sent',
+            'TEST_EMAIL_SENT',
+            expect.any(String),
             expect.anything()
         );
     });
@@ -401,8 +401,8 @@ describe('POST /api/notifications/test/telegram', () => {
             expect.anything()
         );
         expect(logSecurityEvent).toHaveBeenCalledWith(
-            'notifications',
-            'test_telegram_sent',
+            'TEST_TELEGRAM_SENT',
+            expect.any(String),
             expect.anything()
         );
     });

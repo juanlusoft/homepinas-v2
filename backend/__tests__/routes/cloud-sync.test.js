@@ -21,8 +21,21 @@ jest.mock('child_process', () => ({
             callback(null, '', '');
         }
     }),
+    execFile: jest.fn((cmd, args, optsOrCb, cb) => {
+        const callback = typeof optsOrCb === 'function' ? optsOrCb : cb;
+        if (cmd === 'which' && args.includes('syncthing')) {
+            callback(null, '/usr/bin/syncthing', '');
+        } else if (cmd === 'systemctl' && args.includes('is-active')) {
+            callback(null, 'inactive', '');
+        } else if (cmd === 'sudo') {
+            callback(null, '', '');
+        } else {
+            callback(null, '', '');
+        }
+    }),
     spawn: jest.fn(() => ({
-        stdout: { on: jest.fn() },
+        stdout: { on: jest.fn(), pipe: jest.fn() },
+        stdin: { end: jest.fn() },
         stderr: { on: jest.fn() },
         on: jest.fn((event, cb) => event === 'close' && cb(0)),
         kill: jest.fn()

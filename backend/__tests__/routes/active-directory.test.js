@@ -36,17 +36,59 @@ jest.mock('child_process', () => ({
         } else {
             callback(null, { stdout: '', stderr: '' });
         }
-    })
+    }),
+    execFile: jest.fn((file, args, opts, cb) => {
+        const callback = typeof opts === 'function' ? opts : cb;
+        const cmd = file + ' ' + (args || []).join(' ');
+        
+        if (file === 'which' && args.includes('samba-tool')) {
+            callback(null, '/usr/bin/samba-tool', '');
+        } else if (file === 'systemctl' && args.includes('is-active')) {
+            callback(null, 'active', '');
+        } else if (file === 'sudo' && args.includes('samba-tool')) {
+            if (args.includes('user') && args.includes('list')) {
+                callback(null, 'Administrator\ntestuser\n', '');
+            } else if (args.includes('group') && args.includes('list')) {
+                callback(null, 'Domain Admins\nDomain Users\n', '');
+            } else if (args.includes('computer') && args.includes('list')) {
+                callback(null, 'PC-001$\n', '');
+            } else if (args.includes('user') && args.includes('show')) {
+                callback(null, 'cn: Test User\nmail: test@test.com\n', '');
+            } else {
+                callback(null, '', '');
+            }
+        } else if (file === 'samba-tool') {
+            if (args.includes('user') && args.includes('list')) {
+                callback(null, 'Administrator\ntestuser\n', '');
+            } else if (args.includes('group') && args.includes('list')) {
+                callback(null, 'Domain Admins\nDomain Users\n', '');
+            } else if (args.includes('computer') && args.includes('list')) {
+                callback(null, 'PC-001$\n', '');
+            } else if (args.includes('user') && args.includes('show')) {
+                callback(null, 'cn: Test User\nmail: test@test.com\n', '');
+            } else {
+                callback(null, '', '');
+            }
+        } else {
+            callback(null, '', '');
+        }
+    }),
+    spawn: jest.fn(() => ({
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, cb) => event === 'close' && cb(0)),
+        kill: jest.fn()
+    }))
 }));
 
-// Mock util.promisify to work with our exec mock
+// Mock util.promisify to work with our execFile mock
 jest.mock('util', () => ({
     ...jest.requireActual('util'),
     promisify: jest.fn((fn) => (...args) => {
         return new Promise((resolve, reject) => {
-            fn(...args, (err, result) => {
+            fn(...args, (err, stdout, stderr) => {
                 if (err) reject(err);
-                else resolve(result);
+                else resolve({ stdout, stderr });
             });
         });
     })
@@ -61,6 +103,15 @@ jest.mock('../../middleware/auth', () => ({
 jest.mock('../../utils/security', () => ({
     logSecurityEvent: jest.fn(),
     sudoExec: jest.fn(() => Promise.resolve({ stdout: '', stderr: '' }))
+}));
+
+// Mock rbac middleware
+jest.mock('../../middleware/rbac', () => ({
+    requireAdmin: (req, res, next) => next(),
+    requirePermission: () => (req, res, next) => next(),
+    hasPermission: jest.fn(() => true),
+    getUserRole: jest.fn(() => 'admin'),
+    getUserPermissions: jest.fn(() => ['read', 'write', 'delete', 'admin'])
 }));
 
 // Suppress console during tests

@@ -94,6 +94,10 @@ function sanitizePathWithinBase(inputPath, baseDir) {
     try {
         realFull = fs.realpathSync(fullPath);
     } catch (e) {
+        // Fallback: check the resolved (non-realpath) path first
+        if (fullPath === realBase) {
+            return fullPath;
+        }
         // Path may not exist yet (e.g., mkdir). Resolve parent instead.
         const parentDir = path.dirname(fullPath);
         try {
@@ -104,7 +108,6 @@ function sanitizePathWithinBase(inputPath, baseDir) {
         } catch (e2) {
             // Parent doesn't exist either — fall back to path.resolve check
         }
-        // Fallback: check the resolved (non-realpath) path
         if (!fullPath.startsWith(realBase + path.sep) && fullPath !== realBase) {
             return null;
         }
