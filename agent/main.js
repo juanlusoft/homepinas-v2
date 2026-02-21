@@ -223,7 +223,7 @@ async function pollNAS() {
       sendToRenderer('status-update', { status: 'approved', config: result.config });
     }
   } catch (err) {
-    // Silent fail — will retry on next poll
+    console.error('[Poll] Error:', err.message);
   }
 }
 
@@ -235,16 +235,18 @@ async function runBackupNow() {
   notify('Backup iniciado', 'Creando copia de seguridad...');
 
   const startTime = Date.now();
+  const config = {
+    nasAddress: store.get('nasAddress'),
+    nasPort: store.get('nasPort'),
+    backupType: store.get('backupType'),
+    backupPaths: store.get('backupPaths'),
+    sambaShare: store.get('sambaShare'),
+    sambaUser: store.get('sambaUser'),
+    sambaPass: store.get('sambaPass'),
+  };
+  console.log('[Backup] Config:', JSON.stringify({ ...config, sambaPass: config.sambaPass ? '***' : '(empty)' }));
   try {
-    await backupManager.runBackup({
-      nasAddress: store.get('nasAddress'),
-      nasPort: store.get('nasPort'),
-      backupType: store.get('backupType'),
-      backupPaths: store.get('backupPaths'),
-      sambaShare: store.get('sambaShare'),
-      sambaUser: store.get('sambaUser'),
-      sambaPass: store.get('sambaPass'),
-    });
+    await backupManager.runBackup(config);
 
     const duration = Math.round((Date.now() - startTime) / 1000);
     store.set('lastBackup', new Date().toISOString());
