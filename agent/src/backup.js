@@ -180,10 +180,14 @@ class BackupManager {
       const metadataPath = `${destBase}\\disk-metadata.json`;
       // Write metadata via PowerShell (safe, no shell interpolation issues)
       const metadataJson = JSON.stringify(diskMetadata, null, 2);
-      await execFileAsync('powershell', [
-        '-NoProfile', '-Command',
-        `[System.IO.File]::WriteAllText('${metadataPath}', '${metadataJson.replace(/'/g, "''")}')`
-      ], { shell: false });
+      const tempMeta = path.join(os.tmpdir(), 'homepinas-metadata.json');
+      try {
+        fs.writeFileSync(tempMeta, metadataJson);
+        await execFileAsync('cmd', ['/c', 'copy', '/y', tempMeta, metadataPath], { shell: false });
+        fs.unlinkSync(tempMeta);
+      } catch (metaErr) {
+        this._log(`Warning: could not write metadata: ${metaErr.message}`);
+      }
 
       // ── Step 2: Check if wimlib is available, install if not ──
       this._setProgress('wimlib', 15, 'Verificando wimlib...');
@@ -335,10 +339,16 @@ class BackupManager {
       };
 
       const manifestJson = JSON.stringify(manifest, null, 2);
-      await execFileAsync('powershell', [
-        '-NoProfile', '-Command',
-        `[System.IO.File]::WriteAllText('${destBase}\\backup-manifest.json', '${manifestJson.replace(/'/g, "''")}')`
-      ], { shell: false });
+      const manifestFile = `${destBase}\\backup-manifest.json`;
+      // Write manifest via temp file to avoid PowerShell escaping issues
+      const tempManifest = path.join(os.tmpdir(), 'homepinas-manifest.json');
+      try {
+        fs.writeFileSync(tempManifest, manifestJson);
+        await execFileAsync('cmd', ['/c', 'copy', '/y', tempManifest, manifestFile], { shell: false });
+        fs.unlinkSync(tempManifest);
+      } catch (mErr) {
+        this._log(`Warning: could not write manifest: ${mErr.message}`);
+      }
 
       this._setProgress('done', 100, 'Backup completado');
 

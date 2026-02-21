@@ -252,15 +252,26 @@ async function runBackupNow() {
     notify('✅ Backup completado', 'Copia de seguridad guardada en el NAS');
 
     // Report to NAS (include log)
-    try { await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'success', duration, log: backupManager.logContent }); } catch(e) {}
+    try {
+      await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'success', duration, log: backupManager.logContent });
+      console.log('[Backup] Report sent to NAS: success');
+    } catch(e) {
+      console.error('[Backup] Failed to report success to NAS:', e.message);
+    }
 
   } catch (err) {
     const duration = Math.round((Date.now() - startTime) / 1000);
     store.set('lastResult', 'error');
-    notify('❌ Backup fallido', err.message);
+    console.error('[Backup] Error:', err.message);
+    notify('❌ Backup fallido', err.message.substring(0, 200));
 
     const log = err.backupLog || backupManager.logContent;
-    try { await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'error', duration, error: err.message, log }); } catch(e) {}
+    try {
+      await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'error', duration, error: err.message.substring(0, 2000), log });
+      console.log('[Backup] Report sent to NAS: error');
+    } catch(e) {
+      console.error('[Backup] Failed to report error to NAS:', e.message);
+    }
   }
 
   updateTrayMenu();

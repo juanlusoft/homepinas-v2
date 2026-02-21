@@ -46,7 +46,7 @@ class NASApi {
         path: `/api${reqPath}`,
         method,
         agent: this.agent,
-        timeout: 30000,
+        timeout: 120000,
         headers: {
           'Content-Type': 'application/json',
           ...headers,
