@@ -2,14 +2,17 @@
  * Backup Manager - Execute backups on Windows/Mac
  * Windows: wbadmin (image) or robocopy (files)
  * Mac: asr (image) or rsync (files)
+ *
+ * SECURITY: Uses execFile (no shell) to prevent command injection.
+ * Credentials are never interpolated into command strings.
  */
 
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
 const os = require('os');
 const path = require('path');
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 class BackupManager {
   constructor() {
@@ -42,7 +45,11 @@ class BackupManager {
     const { nasAddress, backupType, sambaShare, sambaUser, sambaPass } = config;
     const shareName = sambaShare || 'active-backup';
     const sharePath = `\\\\${nasAddress}\\${shareName}`;
-    const creds = { user: sambaUser || 'homepinas', pass: sambaPass || 'homepinas' };
+
+    if (!sambaUser || !sambaPass) {
+      throw new Error('Samba credentials are required for backup');
+    }
+    const creds = { user: sambaUser, pass: sambaPass };
 
     if (backupType === 'image') {
       return this._windowsImageBackup(sharePath, creds);
@@ -52,45 +59,52 @@ class BackupManager {
   }
 
   async _windowsImageBackup(sharePath, creds) {
-    // Clean ALL connections to this server first (error 1219 workaround)
     const server = sharePath.split('\\').filter(Boolean)[0];
-    try { await execAsync(`net use \\\\${server} /delete /y 2>nul`, { shell: 'cmd.exe' }); } catch (e) {}
-    try { await execAsync(`net use ${sharePath} /delete /y 2>nul`, { shell: 'cmd.exe' }); } catch (e) {}
-    // Also clean any mapped drives to this server
+
+    // Clean connections using execFile (no shell interpolation)
+    try { await execFileAsync('net', ['use', `\\\\${server}`, '/delete', '/y'], { shell: false }); } catch (e) {}
+    try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch (e) {}
+
+    // Clean mapped drives to this server
     try {
-      const { stdout } = await execAsync('net use', { shell: 'cmd.exe' });
+      const { stdout } = await execFileAsync('net', ['use'], { shell: false });
       const lines = stdout.split('\n').filter(l => l.includes(server));
       for (const line of lines) {
         const match = line.match(/([A-Z]:)\s/);
-        if (match) try { await execAsync(`net use ${match[1]} /delete /y 2>nul`, { shell: 'cmd.exe' }); } catch(e) {}
+        if (match) {
+          try { await execFileAsync('net', ['use', match[1], '/delete', '/y'], { shell: false }); } catch(e) {}
+        }
       }
     } catch(e) {}
 
+    // Connect with credentials — passed as separate args, never interpolated
     try {
-      await execAsync(`net use ${sharePath} /user:${creds.user} ${creds.pass} /persistent:no`, { shell: 'cmd.exe' });
+      await execFileAsync('net', ['use', sharePath, `/user:${creds.user}`, creds.pass, '/persistent:no'], { shell: false });
     } catch (e) {
       throw new Error(`No se pudo conectar al share ${sharePath}: ${e.message}`);
     }
 
-    const cmd = `wbadmin start backup -backupTarget:${sharePath} -include:C: -allCritical -quiet`;
-
     try {
-      // Run wbadmin and capture output regardless of exit code
+      // Run wbadmin with execFile and capture output
       let stdout = '', stderr = '';
       try {
-        const result = await execAsync(cmd, {
-          shell: 'cmd.exe',
+        const result = await execFileAsync('wbadmin', [
+          'start', 'backup',
+          `-backupTarget:${sharePath}`,
+          '-include:C:',
+          '-allCritical',
+          '-quiet'
+        ], {
           timeout: 7200000, // 2 hours
           windowsHide: true,
+          shell: false,
         });
         stdout = result.stdout || '';
         stderr = result.stderr || '';
       } catch (execErr) {
-        // wbadmin may exit non-zero even on success (warnings, etc.)
         stdout = execErr.stdout || '';
         stderr = execErr.stderr || '';
-        
-        // Check if backup actually succeeded by parsing output
+
         const output = (stdout + stderr).toLowerCase();
         const successIndicators = [
           'completed successfully',
@@ -105,32 +119,30 @@ class BackupManager {
           'access is denied',
           'cannot find the path',
         ];
-        
+
         const hasSuccess = successIndicators.some(s => output.includes(s));
         const hasFailure = failureIndicators.some(f => output.includes(f));
-        
-        // If we see success indicators and no failure indicators, it worked
+
         if (hasSuccess && !hasFailure) {
           console.log('[wbadmin] Backup completed despite non-zero exit code');
         } else if (hasFailure || !hasSuccess) {
-          // Real failure - rethrow with better message
           const errorMsg = stderr || stdout || execErr.message;
           throw new Error(`wbadmin falló: ${errorMsg.substring(0, 500)}`);
         }
       }
-      
+
       return { type: 'image', output: stdout, timestamp: new Date().toISOString() };
     } finally {
-      try { await execAsync(`net use ${sharePath} /delete /y 2>nul`, { shell: 'cmd.exe' }); } catch (e) {}
+      try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch (e) {}
     }
   }
 
   async _windowsFileBackup(sharePath, paths, creds) {
     if (!paths || paths.length === 0) throw new Error('No hay carpetas configuradas para respaldar');
 
-    try { await execAsync(`net use Z: /delete /y 2>nul`, { shell: 'cmd.exe' }); } catch (e) {}
+    try { await execFileAsync('net', ['use', 'Z:', '/delete', '/y'], { shell: false }); } catch (e) {}
     try {
-      await execAsync(`net use Z: ${sharePath} /user:${creds.user} ${creds.pass} /persistent:no`, { shell: 'cmd.exe' });
+      await execFileAsync('net', ['use', 'Z:', sharePath, `/user:${creds.user}`, creds.pass, '/persistent:no'], { shell: false });
     } catch (e) {
       throw new Error(`No se pudo conectar al share ${sharePath}: ${e.message}`);
     }
@@ -143,8 +155,11 @@ class BackupManager {
       const folderName = path.basename(srcPath) || 'root';
       const dest = `${destBase}\\${folderName}`;
       try {
-        const cmd = `robocopy "${srcPath}" "${dest}" /MIR /R:2 /W:5 /NP /NFL /NDL /MT:8`;
-        const result = await execAsync(cmd, { shell: 'cmd.exe', timeout: 3600000, windowsHide: true });
+        // robocopy with execFile — paths as separate arguments
+        const result = await execFileAsync('robocopy', [
+          srcPath, dest,
+          '/MIR', '/R:2', '/W:5', '/NP', '/NFL', '/NDL', '/MT:8'
+        ], { timeout: 3600000, windowsHide: true, shell: false });
         results.push({ path: srcPath, success: true });
       } catch (err) {
         const exitCode = err.code || 0;
@@ -156,7 +171,7 @@ class BackupManager {
       }
     }
 
-    try { await execAsync('net use Z: /delete /y 2>nul', { shell: 'cmd.exe' }); } catch (e) {}
+    try { await execFileAsync('net', ['use', 'Z:', '/delete', '/y'], { shell: false }); } catch (e) {}
 
     const failed = results.filter(r => !r.success);
     if (failed.length > 0) throw new Error(`${failed.length} carpetas fallaron: ${failed.map(f => f.path).join(', ')}`);
@@ -171,7 +186,11 @@ class BackupManager {
   async _runMacBackup(config) {
     const { nasAddress, backupType, backupPaths, sambaShare, sambaUser, sambaPass } = config;
     const shareName = sambaShare || 'active-backup';
-    const creds = { user: sambaUser || 'homepinas', pass: sambaPass || 'homepinas' };
+
+    if (!sambaUser || !sambaPass) {
+      throw new Error('Samba credentials are required for backup');
+    }
+    const creds = { user: sambaUser, pass: sambaPass };
 
     if (backupType === 'image') {
       return this._macImageBackup(nasAddress, shareName, creds);
@@ -182,8 +201,14 @@ class BackupManager {
 
   async _macImageBackup(nasAddress, shareName, creds) {
     const mountPoint = '/Volumes/homepinas-backup';
-    try { await execAsync(`mkdir -p "${mountPoint}"`); } catch(e) {}
-    try { await execAsync(`mount -t smbfs //${creds.user}:${creds.pass}@${nasAddress}/${shareName} "${mountPoint}"`); } catch (e) {
+    try { await execFileAsync('mkdir', ['-p', mountPoint]); } catch(e) {}
+
+    // Mount using mount_smbfs with -N (no password prompt) and URL-encoded credentials
+    // Credentials are passed via the SMB URL, not interpolated in a shell command
+    const smbUrl = `smb://${encodeURIComponent(creds.user)}:${encodeURIComponent(creds.pass)}@${nasAddress}/${shareName}`;
+    try {
+      await execFileAsync('mount_smbfs', ['-N', smbUrl, mountPoint]);
+    } catch (e) {
       throw new Error(`No se pudo montar el share: ${e.message}`);
     }
 
@@ -192,11 +217,11 @@ class BackupManager {
     const destPath = `${mountPoint}/ImageBackup/${hostname}/${timestamp}`;
 
     try {
-      await execAsync(`mkdir -p "${destPath}"`);
-      await execAsync(`sudo asr create --source / --target "${destPath}/system.dmg" --erase --noprompt`, { timeout: 7200000 });
+      await execFileAsync('mkdir', ['-p', destPath]);
+      await execFileAsync('sudo', ['asr', 'create', '--source', '/', '--target', `${destPath}/system.dmg`, '--erase', '--noprompt'], { timeout: 7200000 });
       return { type: 'image', timestamp: new Date().toISOString() };
     } finally {
-      try { await execAsync(`umount "${mountPoint}"`); } catch (e) {}
+      try { await execFileAsync('umount', [mountPoint]); } catch (e) {}
     }
   }
 
@@ -204,8 +229,12 @@ class BackupManager {
     if (!paths || paths.length === 0) throw new Error('No hay carpetas configuradas para respaldar');
 
     const mountPoint = '/Volumes/homepinas-backup';
-    try { await execAsync(`mkdir -p "${mountPoint}"`); } catch(e) {}
-    try { await execAsync(`mount -t smbfs //${creds.user}:${creds.pass}@${nasAddress}/${shareName} "${mountPoint}"`); } catch (e) {
+    try { await execFileAsync('mkdir', ['-p', mountPoint]); } catch(e) {}
+
+    const smbUrl = `smb://${encodeURIComponent(creds.user)}:${encodeURIComponent(creds.pass)}@${nasAddress}/${shareName}`;
+    try {
+      await execFileAsync('mount_smbfs', ['-N', smbUrl, mountPoint]);
+    } catch (e) {
       throw new Error(`No se pudo montar el share: ${e.message}`);
     }
 
@@ -218,15 +247,16 @@ class BackupManager {
         const folderName = path.basename(srcPath) || 'root';
         const dest = `${mountPoint}/FileBackup/${hostname}/${timestamp}/${folderName}`;
         try {
-          await execAsync(`mkdir -p "${dest}"`);
-          await execAsync(`rsync -az --delete "${srcPath}/" "${dest}/"`, { timeout: 3600000 });
+          await execFileAsync('mkdir', ['-p', dest]);
+          // rsync with execFile — paths as separate arguments
+          await execFileAsync('rsync', ['-az', '--delete', `${srcPath}/`, `${dest}/`], { timeout: 3600000 });
           results.push({ path: srcPath, success: true });
         } catch (err) {
           results.push({ path: srcPath, success: false, error: err.message });
         }
       }
     } finally {
-      try { await execAsync(`umount "${mountPoint}"`); } catch (e) {}
+      try { await execFileAsync('umount', [mountPoint]); } catch (e) {}
     }
 
     return { type: 'files', results, timestamp: new Date().toISOString() };
