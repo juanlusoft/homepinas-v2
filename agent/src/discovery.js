@@ -83,24 +83,26 @@ class NASDiscovery {
 
   async _checkHost(host, port) {
     return new Promise((resolve) => {
+      // Discovery uses rejectUnauthorized:false since we don't know the cert yet.
+      // The agent will pin the cert fingerprint after first successful connection.
+      const discoveryAgent = new https.Agent({ rejectUnauthorized: false });
       const req = https.get({
         hostname: host,
         port,
-        path: '/api/system/stats',
-        rejectAuthorized: false,
+        path: '/api/active-backup/agent/ping',
         timeout: this.timeout,
-        agent: new https.Agent({ rejectUnauthorized: false }),
+        agent: discoveryAgent,
       }, (res) => {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            if (json.cpuModel || json.hostname) {
+            if (json.success && json.service === 'HomePiNAS') {
               resolve({
                 address: host,
                 port,
-                name: json.hostname || 'HomePiNAS',
+                name: 'HomePiNAS on ' + (json.hostname || host),
                 method: 'hostname',
               });
             } else {

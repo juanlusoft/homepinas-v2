@@ -36,7 +36,7 @@ const crypto = require('crypto');
  * GET /agent/ping - Health check for agent discovery (no auth)
  */
 router.get('/agent/ping', (req, res) => {
-  res.json({ success: true, service: 'HomePiNAS' });
+  const os = require('os'); res.json({ success: true, service: 'HomePiNAS', hostname: os.hostname() });
 });
 
 /**
