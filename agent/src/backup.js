@@ -491,25 +491,38 @@ class BackupManager {
    * Run a command with timeout, returning stdout
    */
   async _runWithTimeout(cmd, args, timeoutMs, opts = {}) {
+    this._log(`[exec] ${cmd} ${args.slice(0, 3).join(' ')}... (timeout: ${Math.round(timeoutMs/1000)}s)`);
     return new Promise((resolve, reject) => {
-      const proc = spawn(cmd, args, { shell: false, windowsHide: true });
+      let proc;
+      try {
+        proc = spawn(cmd, args, { shell: false, windowsHide: true });
+      } catch(spawnErr) {
+        this._log(`[exec] spawn failed: ${spawnErr.message}`);
+        return reject(spawnErr);
+      }
       let stdout = '', stderr = '';
-      const timer = setTimeout(() => { proc.kill(); reject(new Error('Timeout')); }, timeoutMs);
+      const timer = setTimeout(() => { this._log(`[exec] TIMEOUT after ${Math.round(timeoutMs/1000)}s`); proc.kill(); reject(new Error('Timeout')); }, timeoutMs);
 
       proc.stdout.on('data', d => { stdout += d.toString(); });
-      proc.stderr.on('data', d => { stderr += d.toString(); });
+      proc.stderr.on('data', d => { 
+        const chunk = d.toString();
+        stderr += chunk;
+        // Log wimlib progress (lines with %)
+        if (chunk.includes('%')) this._log(`[wimlib] ${chunk.trim().substring(0, 200)}`);
+      });
       proc.on('close', code => {
         clearTimeout(timer);
-        // wimlib exit codes: 0=success, 47=failed to open a file (non-fatal, WIM still valid)
+        this._log(`[exec] ${cmd} exited with code ${code}`);
         if (code === 0) {
           resolve(stdout);
         } else if (opts.allowPartial && code === 47) {
-          resolve(stdout); // Treat as success with warnings
+          this._log(`[exec] Partial success (code 47) — WIM is valid`);
+          resolve(stdout);
         } else {
           reject(new Error(stderr || stdout || `Exit code ${code}`));
         }
       });
-      proc.on('error', err => { clearTimeout(timer); reject(err); });
+      proc.on('error', err => { clearTimeout(timer); this._log(`[exec] process error: ${err.message}`); reject(err); });
     });
   }
 
