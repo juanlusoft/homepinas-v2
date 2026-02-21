@@ -105,7 +105,7 @@ document.getElementById('btn-discover').addEventListener('click', async () => {
 
 document.getElementById('btn-connect').addEventListener('click', () => {
   const addr = document.getElementById('nas-address').value.trim();
-  const port = parseInt(document.getElementById('nas-port').value) || 3001;
+  const port = parseInt(document.getElementById('nas-port').value) || 443;
   if (!addr) return;
   connectToNAS(addr, port);
 });

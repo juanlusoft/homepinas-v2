@@ -17,7 +17,7 @@ if (!gotLock) { app.quit(); }
 const store = new Store({
   defaults: {
     nasAddress: '',
-    nasPort: 3001,
+    nasPort: 443,
     agentId: '',
     agentToken: '',
     status: 'disconnected', // disconnected | pending | approved
@@ -297,7 +297,7 @@ function setupIPC() {
   ipcMain.handle('connect-nas', async (_, { address, port }) => {
     try {
       // Test connection
-      await api.testConnection(address, port || 3001);
+      await api.testConnection(address, port || 443);
 
       // Register agent
       const os = require('os');
@@ -313,7 +313,7 @@ function setupIPC() {
         if (mac) break;
       }
 
-      const result = await api.agentRegister(address, port || 3001, {
+      const result = await api.agentRegister(address, port || 443, {
         hostname: os.hostname(),
         ip: getLocalIP(),
         os: process.platform,
@@ -321,7 +321,7 @@ function setupIPC() {
       });
 
       store.set('nasAddress', address);
-      store.set('nasPort', port || 3001);
+      store.set('nasPort', port || 443);
       store.set('agentId', result.agentId);
       store.set('agentToken', result.agentToken);
       store.set('status', result.status);
