@@ -7998,6 +7998,18 @@ async function renderActiveBackupView() {
     await loadABPendingAgents();
     await loadABDevices();
     await loadRecoveryStatus();
+
+    // Auto-refresh pending agents and device status every 15 seconds
+    if (window._abRefreshInterval) clearInterval(window._abRefreshInterval);
+    window._abRefreshInterval = setInterval(async () => {
+        // Only refresh if Active Backup view is still visible
+        if (!document.getElementById('ab-pending-agents')) {
+            clearInterval(window._abRefreshInterval);
+            return;
+        }
+        await loadABPendingAgents();
+        await loadABDevices();
+    }, 15000);
 }
 
 async function loadABPendingAgents() {
