@@ -483,6 +483,8 @@ function startGlobalPolling() {
     
     // Start disk detection polling
     startDiskDetectionPolling();
+    // Start pending agent detection polling
+    startPendingAgentPolling();
 }
 
 function stopGlobalPolling() {
@@ -1213,6 +1215,103 @@ function startDiskDetectionPolling() {
     setTimeout(checkForNewDisks, 5000);
     // Then check every 30 seconds
     state.pollingIntervals.diskDetection = setInterval(checkForNewDisks, 30000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PENDING AGENT DETECTION - Global banner for new backup agents
+// ═══════════════════════════════════════════════════════════════════════════
+
+let pendingAgentBannerShown = false;
+let lastPendingAgentIds = [];
+
+async function checkForPendingAgents() {
+    try {
+        const res = await authFetch(`${API_BASE}/active-backup/pending`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const pending = data.pending || [];
+
+        const currentIds = pending.map(a => a.id).sort().join(',');
+        const previousIds = lastPendingAgentIds.join(',');
+
+        if (pending.length > 0 && (currentIds !== previousIds || !pendingAgentBannerShown)) {
+            lastPendingAgentIds = pending.map(a => a.id).sort();
+            showPendingAgentBanner(pending);
+        } else if (pending.length === 0 && pendingAgentBannerShown) {
+            hidePendingAgentBanner();
+        }
+    } catch (e) {}
+}
+
+function showPendingAgentBanner(agents) {
+    pendingAgentBannerShown = true;
+    const existing = document.getElementById('agent-pending-notification');
+    if (existing) existing.remove();
+
+    const notification = document.createElement('div');
+    notification.id = 'agent-pending-notification';
+    notification.style.cssText = `
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: 1px solid #f59e0b;
+        border-radius: 12px;
+        padding: 16px 20px;
+        z-index: 99998;
+        box-shadow: 0 8px 32px rgba(245, 158, 11, 0.3);
+        max-width: 400px;
+        animation: slideIn 0.3s ease-out;
+    `;
+
+    const agentList = agents.map(a => {
+        const osIcon = a.os === 'win32' ? '🪟' : a.os === 'darwin' ? '🍎' : '🐧';
+        return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div>
+                <div style="color: #fff; font-weight: 500;">${osIcon} ${a.hostname}</div>
+                <div style="color: #888; font-size: 11px;">${a.ip} · ${a.os === 'win32' ? 'Windows' : a.os === 'darwin' ? 'macOS' : a.os}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    notification.innerHTML = `
+        <button style="position: absolute; top: 8px; right: 12px; background: none; border: none; color: #888; font-size: 18px; cursor: pointer;" id="agent-notif-close">×</button>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <span style="font-size: 24px;">🔔</span>
+            <div>
+                <div style="color: #f59e0b; font-weight: 600;">Nuevo equipo quiere conectarse</div>
+                <div style="color: #888; font-size: 12px;">${agents.length} dispositivo(s) pendiente(s)</div>
+            </div>
+        </div>
+        <div>${agentList}</div>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button style="padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; background: #f59e0b; color: #1a1a2e; font-weight: 600;" id="agent-notif-review">Revisar</button>
+            <button style="padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; background: rgba(255,255,255,0.1); color: #fff;" id="agent-notif-dismiss">Ahora no</button>
+        </div>
+    `;
+
+    document.body.appendChild(notification);
+
+    document.getElementById('agent-notif-close').addEventListener('click', hidePendingAgentBanner);
+    document.getElementById('agent-notif-dismiss').addEventListener('click', hidePendingAgentBanner);
+    document.getElementById('agent-notif-review').addEventListener('click', () => {
+        hidePendingAgentBanner();
+        navigateTo('active-backup');
+    });
+}
+
+function hidePendingAgentBanner() {
+    pendingAgentBannerShown = false;
+    const notification = document.getElementById('agent-pending-notification');
+    if (notification) {
+        notification.style.animation = 'slideOut 0.3s ease-in forwards';
+        setTimeout(() => notification.remove(), 300);
+    }
+}
+
+function startPendingAgentPolling() {
+    setTimeout(checkForPendingAgents, 8000);
+    state.pollingIntervals.pendingAgents = setInterval(checkForPendingAgents, 15000);
 }
 
 // Router / View Switcher
