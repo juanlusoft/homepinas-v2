@@ -348,8 +348,12 @@ function setupIPC() {
   });
 
   ipcMain.handle('run-backup', async () => {
-    await runBackupNow();
-    return { success: true };
+    try {
+      await runBackupNow();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   ipcMain.handle('disconnect', () => {

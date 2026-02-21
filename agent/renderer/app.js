@@ -187,12 +187,15 @@ document.getElementById('btn-backup-now').addEventListener('click', async () => 
   document.getElementById('dash-status').textContent = 'En progreso...';
   document.getElementById('btn-backup-now').disabled = true;
   try {
-    await window.api.runBackup();
+    const result = await window.api.runBackup();
+    if (result && result.error) {
+      alert('Error al ejecutar backup:\n\n' + result.error);
+    }
     const data = await window.api.getStatus();
     showDashboard(data);
   } catch (err) {
     console.error('Backup failed:', err);
-    alert('Error al ejecutar backup: ' + (err.message || err));
+    alert('Error al ejecutar backup:\n\n' + (err.message || err));
   } finally {
     document.getElementById('btn-backup-now').disabled = false;
   }
