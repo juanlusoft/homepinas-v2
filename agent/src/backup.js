@@ -79,6 +79,21 @@ class BackupManager {
   async _windowsImageBackup(sharePath, creds, nasAddress) {
     const server = sharePath.split('\\').filter(Boolean)[0];
 
+    // ── Step 0: Verify admin privileges (required for VSS snapshots) ──
+    this._setProgress('admin-check', 2, 'Verificando privilegios de administrador...');
+    try {
+      const { stdout } = await execFileAsync('powershell', [
+        '-NoProfile', '-Command',
+        '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'
+      ], { shell: false });
+      if (stdout.trim() !== 'True') {
+        throw new Error('El agente debe ejecutarse como Administrador para crear backups de imagen (VSS). Haz clic derecho → Ejecutar como administrador.');
+      }
+    } catch (err) {
+      if (err.message.includes('Administrador')) throw err;
+      throw new Error('No se pudo verificar privilegios de administrador: ' + err.message);
+    }
+
     this._setProgress('connect', 5, 'Conectando al NAS...');
 
     // Clean existing connections
