@@ -231,6 +231,7 @@ class BackupManager {
           }
 
           // wimcapture from shadow copy (or live if VSS failed)
+          // allowPartial: exit code 47 = some files couldn't be read (non-fatal, WIM is valid)
           await this._runWithTimeout('wimlib-imagex', [
             'capture',
             capturePath,
@@ -240,7 +241,7 @@ class BackupManager {
             `--chunk-size=32768`,
             `--threads=${Math.max(1, os.cpus().length - 1)}`,
             '--no-acls',          // Skip ACLs for compatibility
-          ], 7200000); // 2 hour timeout per partition
+          ], 7200000, { allowPartial: true }); // 2 hour timeout per partition
 
           // Delete shadow copy
           if (shadowId) {
@@ -299,7 +300,7 @@ class BackupManager {
           await this._runWithTimeout('wimlib-imagex', [
             'capture', `${efiLetter}\\`, efiWim,
             `${hostname}-EFI`, '--compress=LZX', '--no-acls'
-          ], 300000); // 5 min timeout
+          ], 300000, { allowPartial: true }); // 5 min timeout
 
           // Unmount EFI
           await execFileAsync('powershell', ['-NoProfile', '-Command',
@@ -462,7 +463,7 @@ class BackupManager {
   /**
    * Run a command with timeout, returning stdout
    */
-  async _runWithTimeout(cmd, args, timeoutMs) {
+  async _runWithTimeout(cmd, args, timeoutMs, opts = {}) {
     return new Promise((resolve, reject) => {
       const proc = spawn(cmd, args, { shell: false, windowsHide: true });
       let stdout = '', stderr = '';
@@ -472,8 +473,14 @@ class BackupManager {
       proc.stderr.on('data', d => { stderr += d.toString(); });
       proc.on('close', code => {
         clearTimeout(timer);
-        if (code === 0) resolve(stdout);
-        else reject(new Error(stderr || stdout || `Exit code ${code}`));
+        // wimlib exit codes: 0=success, 47=failed to open a file (non-fatal, WIM still valid)
+        if (code === 0) {
+          resolve(stdout);
+        } else if (opts.allowPartial && code === 47) {
+          resolve(stdout); // Treat as success with warnings
+        } else {
+          reject(new Error(stderr || stdout || `Exit code ${code}`));
+        }
       });
       proc.on('error', err => { clearTimeout(timer); reject(err); });
     });
