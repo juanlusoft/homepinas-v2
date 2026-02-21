@@ -137,17 +137,12 @@ router.get('/agent/poll', (req, res) => {
     lastResult: device.lastResult,
   };
 
-  // Include Samba config for image backups (credentials only sent once on first poll after approval)
+  // Include Samba config for image backups (always send credentials so agent reinstalls work)
   if (device.backupType === 'image' && device.sambaShare) {
     response.config.sambaShare = device.sambaShare;
     response.config.nasAddress = getLocalIPs()[0] || req.hostname;
-    // Only send credentials if agent hasn't received them yet
-    if (!device._credentialsSent) {
-      response.config.sambaUser = device.sambaUser || '';
-      response.config.sambaPass = device.sambaPass || '';
-      device._credentialsSent = true;
-      saveData(data);
-    }
+    response.config.sambaUser = device.sambaUser || '';
+    response.config.sambaPass = device.sambaPass || '';
   }
 
   // Check if there's a pending trigger (manual backup from dashboard)
