@@ -96,9 +96,9 @@ class NASApi {
   }
 
   async authenticate(address, port, username, password) {
-    const result = await this._request('POST', address, port, '/api/login', {}, { username, password });
-    if (!result || !result.token) {
-      throw new Error('Credenciales incorrectas');
+    const result = await this._request('POST', address, port, '/login', {}, { username, password });
+    if (!result || !result.success) {
+      throw new Error(result?.message || 'Credenciales incorrectas');
     }
     return result;
   }
