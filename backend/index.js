@@ -232,7 +232,7 @@ app.use(cors({
 app.use(generalLimiter);
 
 // Body parsing
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '5mb' }));
 
 // CSRF protection for state-changing requests
 app.use(csrfProtection);
