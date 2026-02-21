@@ -3,6 +3,9 @@
  * Instalar → auto-descubre NAS → se anuncia → espera aprobación → backups automáticos
  */
 
+// Accept self-signed certificates (NAS uses self-signed HTTPS on local network)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, Notification, shell } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
