@@ -168,26 +168,25 @@ class BackupManager {
     const hostname = os.hostname();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const destBase = `${sharePath}\\WIMBackup\\${hostname}\\${timestamp}`;
+    
+    // Local temp directory — capture locally first, then copy to NAS
+    // This avoids SMB disconnections during long wimcapture operations
+    const localBase = path.join(os.tmpdir(), `homepinas-backup-${timestamp}`);
 
     try {
-      // Create destination directory
+      // Create local and remote directories
+      fs.mkdirSync(localBase, { recursive: true });
       await execFileAsync('cmd', ['/c', 'mkdir', destBase], { shell: false });
+      this._log(`Local capture dir: ${localBase}`);
+      this._log(`Remote dest dir: ${destBase}`);
 
       this._setProgress('metadata', 10, 'Capturando metadatos del disco...');
 
       // ── Step 1: Save disk metadata (partition layout, GPT/MBR, sizes) ──
       const diskMetadata = await this._captureWindowsDiskMetadata();
-      const metadataPath = `${destBase}\\disk-metadata.json`;
-      // Write metadata via PowerShell (safe, no shell interpolation issues)
       const metadataJson = JSON.stringify(diskMetadata, null, 2);
-      const tempMeta = path.join(os.tmpdir(), 'homepinas-metadata.json');
-      try {
-        fs.writeFileSync(tempMeta, metadataJson);
-        await execFileAsync('cmd', ['/c', 'copy', '/y', tempMeta, metadataPath], { shell: false });
-        fs.unlinkSync(tempMeta);
-      } catch (metaErr) {
-        this._log(`Warning: could not write metadata: ${metaErr.message}`);
-      }
+      fs.writeFileSync(path.join(localBase, 'disk-metadata.json'), metadataJson);
+      this._log('Disk metadata saved locally');
 
       // ── Step 2: Check if wimlib is available, install if not ──
       this._setProgress('wimlib', 15, 'Verificando wimlib...');
@@ -204,7 +203,7 @@ class BackupManager {
       for (let i = 0; i < partitions.length; i++) {
         const part = partitions[i];
         const progressBase = 20 + (i / totalPartitions) * 70;
-        const wimFile = `${destBase}\\${part.driveLetter.replace(':', '')}-partition.wim`;
+        const wimFile = path.join(localBase, `${part.driveLetter.replace(':', '')}-partition.wim`);
         
         this._setProgress('capture', progressBase, 
           `Capturando ${part.driveLetter} (${part.label || part.fileSystem})...`);
@@ -299,7 +298,7 @@ class BackupManager {
             `$disk | Set-Partition -NewDriveLetter Y`
           ], { shell: false });
 
-          const efiWim = `${destBase}\\EFI-partition.wim`;
+          const efiWim = path.join(localBase, 'EFI-partition.wim');
           // EFI is FAT32 — VSS (--snapshot) does NOT work on FAT volumes
           await this._runWithTimeout('wimlib-imagex', [
             'capture', `${efiLetter}\\`, efiWim,
@@ -339,23 +338,34 @@ class BackupManager {
       };
 
       const manifestJson = JSON.stringify(manifest, null, 2);
-      const manifestFile = `${destBase}\\backup-manifest.json`;
-      // Write manifest via temp file to avoid PowerShell escaping issues
-      const tempManifest = path.join(os.tmpdir(), 'homepinas-manifest.json');
-      try {
-        fs.writeFileSync(tempManifest, manifestJson);
-        await execFileAsync('cmd', ['/c', 'copy', '/y', tempManifest, manifestFile], { shell: false });
-        fs.unlinkSync(tempManifest);
-      } catch (mErr) {
-        this._log(`Warning: could not write manifest: ${mErr.message}`);
-      }
-
-      this._setProgress('done', 100, 'Backup completado');
+      fs.writeFileSync(path.join(localBase, 'backup-manifest.json'), manifestJson);
+      this._log('Manifest saved locally');
 
       const failed = capturedPartitions.filter(p => !p.success);
       if (failed.length > 0 && failed.length === capturedPartitions.length) {
         throw new Error(`Todas las particiones fallaron: ${failed.map(f => f.error).join('; ')}`);
       }
+
+      // ── Step 6: Copy all files from local to NAS ──
+      this._setProgress('upload', 95, 'Subiendo backup al NAS...');
+      this._log(`Copying files from ${localBase} to ${destBase}...`);
+      
+      // Reconnect SMB in case it dropped during capture
+      try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch(e) {}
+      await execFileAsync('net', ['use', sharePath, `/user:${creds.user}`, creds.pass, '/persistent:no'], { shell: false });
+      
+      const localFiles = fs.readdirSync(localBase);
+      for (const file of localFiles) {
+        const src = path.join(localBase, file);
+        const dst = `${destBase}\\${file}`;
+        const fileSize = fs.statSync(src).size;
+        this._log(`Uploading ${file} (${Math.round(fileSize/1048576)}MB)...`);
+        await this._runWithTimeout('cmd', ['/c', 'copy', '/y', src, dst], 1800000); // 30 min per file
+        this._log(`Uploaded ${file} ✓`);
+      }
+      this._log('All files uploaded to NAS');
+
+      this._setProgress('done', 100, 'Backup completado');
 
       return {
         type: 'image',
@@ -367,6 +377,13 @@ class BackupManager {
       };
 
     } finally {
+      // Cleanup local temp files
+      try {
+        const files = fs.readdirSync(localBase);
+        for (const f of files) fs.unlinkSync(path.join(localBase, f));
+        fs.rmdirSync(localBase);
+        this._log('Local temp files cleaned up');
+      } catch(e) {}
       try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch (e) {}
     }
   }
