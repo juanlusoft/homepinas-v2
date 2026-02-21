@@ -207,19 +207,50 @@ class BackupManager {
 
         try {
           this._log(`Capturing ${part.driveLetter} (${part.label || 'no label'}, ${part.fileSystem}, ${part.size} bytes)`);
-          // wimcapture: capture the partition as a WIM image
-          // Using wimlib-imagex which supports capturing mounted volumes on Windows
+
+          // Create VSS shadow copy manually (wimlib --snapshot is unreliable)
+          let capturePath = `${part.driveLetter}\\`;
+          let shadowId = null;
+          try {
+            this._log(`Creating VSS shadow copy for ${part.driveLetter}...`);
+            const { stdout: vssOut } = await execFileAsync('powershell', [
+              '-NoProfile', '-Command',
+              `$s = (Get-WmiObject -List Win32_ShadowCopy).Create("${part.driveLetter}\\", "ClientAccessible"); ` +
+              `if ($s.ReturnValue -ne 0) { throw "VSS failed: code $($s.ReturnValue)" }; ` +
+              `$shadow = Get-WmiObject Win32_ShadowCopy | Where-Object { $_.ID -eq $s.ShadowID }; ` +
+              `Write-Output "$($s.ShadowID)|$($shadow.DeviceObject)"`
+            ], { shell: false, timeout: 120000 });
+            const [vssId, deviceObj] = vssOut.trim().split('|');
+            if (deviceObj) {
+              shadowId = vssId;
+              capturePath = deviceObj + '\\';
+              this._log(`VSS shadow created: ${shadowId} → ${capturePath}`);
+            }
+          } catch (vssErr) {
+            this._log(`VSS failed for ${part.driveLetter}, falling back to live capture: ${vssErr.message}`);
+          }
+
+          // wimcapture from shadow copy (or live if VSS failed)
           await this._runWithTimeout('wimlib-imagex', [
             'capture',
-            `${part.driveLetter}\\`,
+            capturePath,
             wimFile,
             `${hostname}-${part.driveLetter}`,
-            `--snapshot`,         // Use VSS to capture files in use (registry, BCD, etc.)
             `--compress=LZX`,     // Good compression ratio
             `--chunk-size=32768`,
             `--threads=${Math.max(1, os.cpus().length - 1)}`,
             '--no-acls',          // Skip ACLs for compatibility
           ], 7200000); // 2 hour timeout per partition
+
+          // Delete shadow copy
+          if (shadowId) {
+            try {
+              await execFileAsync('powershell', ['-NoProfile', '-Command',
+                `Get-WmiObject Win32_ShadowCopy | Where-Object { $_.ID -eq '${shadowId}' } | ForEach-Object { $_.Delete() }`
+              ], { shell: false, timeout: 30000 });
+              this._log(`VSS shadow ${shadowId} deleted`);
+            } catch(e) { this._log(`Warning: could not delete shadow ${shadowId}: ${e.message}`); }
+          }
 
           // Get WIM file size
           let wimSize = 0;
