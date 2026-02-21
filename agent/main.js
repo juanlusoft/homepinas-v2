@@ -54,8 +54,9 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow({
-    width: 600,
-    height: 450,
+    width: 500,
+    height: 400,
+    useContentSize: true,
     resizable: false,
     maximizable: false,
     icon: path.join(__dirname, 'assets', 'icon.png'),
@@ -71,7 +72,20 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    // Auto-resize to fit content
+    mainWindow.webContents.executeJavaScript(`
+      new Promise(r => setTimeout(() => {
+        const body = document.body;
+        r({ width: Math.ceil(body.scrollWidth), height: Math.ceil(body.scrollHeight) });
+      }, 100))
+    `).then(size => {
+      if (size && size.height > 0) {
+        mainWindow.setContentSize(Math.max(500, size.width), Math.min(600, size.height + 10));
+      }
+    }).catch(() => {});
+    mainWindow.show();
+  });
 
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
@@ -280,6 +294,20 @@ function disconnect() {
 
 // ── IPC Handlers ──
 function setupIPC() {
+  ipcMain.handle('get-version', () => app.getVersion());
+
+  ipcMain.handle('resize-to-fit', async () => {
+    if (!mainWindow) return;
+    try {
+      const size = await mainWindow.webContents.executeJavaScript(`
+        ({ width: Math.ceil(document.body.scrollWidth), height: Math.ceil(document.body.scrollHeight) })
+      `);
+      if (size && size.height > 0) {
+        mainWindow.setContentSize(Math.max(500, size.width), Math.min(700, size.height + 10));
+      }
+    } catch(e) {}
+  });
+
   ipcMain.handle('get-status', () => ({
     status: store.get('status'),
     nasAddress: store.get('nasAddress'),

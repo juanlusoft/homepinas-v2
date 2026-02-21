@@ -16,6 +16,8 @@ function showStep(step) {
   });
   step.classList.remove('hidden');
   step.classList.add('active');
+  // Auto-resize window to fit content
+  setTimeout(() => { try { window.api.resizeToFit(); } catch(e) {} }, 50);
 }
 
 function showLoading(text) {
@@ -70,9 +72,13 @@ async function init() {
   }
 }
 
-function showDashboard(data) {
+async function showDashboard(data) {
   showStep(stepDashboard);
   document.getElementById('dash-nas').textContent = `NAS: ${data.nasAddress || '—'}`;
+  try {
+    const ver = await window.api.getVersion();
+    document.getElementById('dash-version').textContent = `v${ver}`;
+  } catch(e) {}
   document.getElementById('dash-last').textContent = formatDate(data.lastBackup);
   document.getElementById('dash-schedule').textContent = scheduleToText(data.schedule);
   document.getElementById('dash-type').textContent = data.backupType === 'image' ? 'Imagen completa' : 'Archivos';
