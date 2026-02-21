@@ -20,10 +20,10 @@
     <txt-record>product=HomePiNAS</txt-record>
   </service>
 
-  <!-- HTTPS Service (port 3001) -->
+  <!-- HTTPS Service (port 443) -->
   <service>
     <type>_https._tcp</type>
-    <port>3001</port>
+    <port>443</port>
     <txt-record>path=/</txt-record>
     <txt-record>version=2.2.0</txt-record>
     <txt-record>product=HomePiNAS</txt-record>
@@ -32,7 +32,7 @@
   <!-- Web Admin Interface -->
   <service>
     <type>_http-alt._tcp</type>
-    <port>3001</port>
+    <port>443</port>
     <txt-record>txtvers=1</txt-record>
     <txt-record>type=NAS Dashboard</txt-record>
   </service>
