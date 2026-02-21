@@ -152,6 +152,7 @@ class BackupManager {
             `${part.driveLetter}\\`,
             wimFile,
             `${hostname}-${part.driveLetter}`,
+            `--snapshot`,         // Use VSS to capture files in use (registry, BCD, etc.)
             `--compress=LZX`,     // Good compression ratio
             `--chunk-size=32768`,
             `--threads=${Math.max(1, os.cpus().length - 1)}`,
@@ -202,7 +203,7 @@ class BackupManager {
           const efiWim = `${destBase}\\EFI-partition.wim`;
           await this._runWithTimeout('wimlib-imagex', [
             'capture', `${efiLetter}\\`, efiWim,
-            `${hostname}-EFI`, '--compress=LZX', '--no-acls'
+            `${hostname}-EFI`, '--snapshot', '--compress=LZX', '--no-acls'
           ], 300000); // 5 min timeout
 
           // Unmount EFI
