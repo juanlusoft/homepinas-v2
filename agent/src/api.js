@@ -50,7 +50,7 @@ class NASApi {
   }
 
   async testConnection(address, port) {
-    return this._request('GET', address, port, '/system/stats');
+    return this._request('GET', address, port, '/active-backup/agent/ping');
   }
 
   async agentRegister(address, port, deviceInfo) {

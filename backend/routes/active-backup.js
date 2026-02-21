@@ -33,6 +33,13 @@ const crypto = require('crypto');
 // ══════════════════════════════════════════
 
 /**
+ * GET /agent/ping - Health check for agent discovery (no auth)
+ */
+router.get('/agent/ping', (req, res) => {
+  res.json({ success: true, service: 'HomePiNAS' });
+});
+
+/**
  * POST /agent/register - Agent announces itself to the NAS
  * No auth required — agent just says "I exist"
  */
