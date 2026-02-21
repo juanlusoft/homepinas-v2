@@ -100,7 +100,7 @@ h1 {
   gap: 8px;
 }
 
-input[type="text"], input[type="number"] {
+input[type="text"], input[type="number"], input[type="password"] {
   flex: 1;
   padding: 10px 14px;
   background: #2a2b3e;
