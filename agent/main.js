@@ -8,7 +8,23 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, Notification, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const Store = require('electron-store');
+
+// File logger — writes to %LOCALAPPDATA%\HomePiNAS\agent.log
+const logDir = path.join(process.env.LOCALAPPDATA || process.env.HOME || '.', 'HomePiNAS');
+try { fs.mkdirSync(logDir, { recursive: true }); } catch(e) {}
+const logFile = path.join(logDir, 'agent.log');
+const _origLog = console.log;
+const _origErr = console.error;
+const _origWarn = console.warn;
+function fileLog(level, ...args) {
+  const line = `${new Date().toISOString()} [${level}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}\n`;
+  try { fs.appendFileSync(logFile, line); } catch(e) {}
+}
+console.log = (...args) => { _origLog(...args); fileLog('INFO', ...args); };
+console.error = (...args) => { _origErr(...args); fileLog('ERROR', ...args); };
+console.warn = (...args) => { _origWarn(...args); fileLog('WARN', ...args); };
 const { NASDiscovery } = require('./src/discovery');
 const { BackupManager } = require('./src/backup');
 const { NASApi } = require('./src/api');
