@@ -237,15 +237,16 @@ async function runBackupNow() {
     store.set('lastResult', 'success');
     notify('✅ Backup completado', 'Copia de seguridad guardada en el NAS');
 
-    // Report to NAS
-    try { await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'success', duration }); } catch(e) {}
+    // Report to NAS (include log)
+    try { await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'success', duration, log: backupManager.logContent }); } catch(e) {}
 
   } catch (err) {
     const duration = Math.round((Date.now() - startTime) / 1000);
     store.set('lastResult', 'error');
     notify('❌ Backup fallido', err.message);
 
-    try { await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'error', duration, error: err.message }); } catch(e) {}
+    const log = err.backupLog || backupManager.logContent;
+    try { await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'error', duration, error: err.message, log }); } catch(e) {}
   }
 
   updateTrayMenu();

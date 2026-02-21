@@ -164,7 +164,7 @@ router.post('/agent/report', (req, res) => {
   const token = req.headers['x-agent-token'];
   if (!token) return res.status(401).json({ error: 'Missing agent token' });
 
-  const { status, duration, error: errorMsg, size } = req.body;
+  const { status, duration, error: errorMsg, size, log: backupLog } = req.body;
 
   const data = getData();
   if (!data.activeBackup) return res.status(404).json({ error: 'Not configured' });
@@ -178,6 +178,19 @@ router.post('/agent/report', (req, res) => {
   device.lastDuration = duration || null;
 
   saveData(data);
+
+  // Save backup log to file
+  if (backupLog) {
+    try {
+      const logDir = path.join('/mnt/storage/active-backup', device.id, 'logs');
+      fs.mkdirSync(logDir, { recursive: true });
+      const logFile = path.join(logDir, `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+      fs.writeFileSync(logFile, backupLog);
+      console.log(`[ActiveBackup] Log saved: ${logFile}`);
+    } catch (logErr) {
+      console.error('[ActiveBackup] Could not save log:', logErr.message);
+    }
+  }
 
   if (status !== 'success') {
     notifyBackupFailure(device, errorMsg || 'Unknown error');

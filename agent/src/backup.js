@@ -21,29 +21,73 @@ class BackupManager {
     this.platform = process.platform;
     this.running = false;
     this._progress = null;  // { phase, percent, detail }
+    this._logLines = [];    // Backup log buffer
+    this._logFile = null;   // Path to log file on disk
   }
 
   get progress() { return this._progress; }
+  get logContent() { return this._logLines.join('\n'); }
 
   _setProgress(phase, percent, detail) {
     this._progress = { phase, percent: Math.min(100, Math.max(0, percent)), detail };
+    this._log(`[${phase}] ${percent}% — ${detail}`);
+  }
+
+  _log(msg) {
+    const ts = new Date().toISOString();
+    const line = `${ts} ${msg}`;
+    this._logLines.push(line);
+    console.log(`[Backup] ${msg}`);
+  }
+
+  _initLog() {
+    this._logLines = [];
+    const logDir = this.platform === 'win32'
+      ? path.join(process.env.LOCALAPPDATA || 'C:\\ProgramData', 'HomePiNAS')
+      : path.join(os.homedir(), '.homepinas');
+    try { fs.mkdirSync(logDir, { recursive: true }); } catch(e) {}
+    this._logFile = path.join(logDir, 'backup.log');
+    this._log(`=== Backup started on ${os.hostname()} (${this.platform}) ===`);
+    this._log(`OS: ${os.type()} ${os.release()} ${os.arch()}`);
+    this._log(`RAM: ${Math.round(os.totalmem() / 1073741824)}GB`);
+  }
+
+  _flushLog() {
+    if (this._logFile) {
+      try {
+        fs.writeFileSync(this._logFile, this._logLines.join('\n') + '\n');
+      } catch(e) {
+        console.error('[Backup] Could not write log file:', e.message);
+      }
+    }
   }
 
   async runBackup(config) {
     if (this.running) throw new Error('Backup already running');
     this.running = true;
     this._progress = null;
+    this._initLog();
 
     try {
+      let result;
       if (this.platform === 'win32') {
-        return await this._runWindowsBackup(config);
+        result = await this._runWindowsBackup(config);
       } else if (this.platform === 'darwin') {
-        return await this._runMacBackup(config);
+        result = await this._runMacBackup(config);
       } else if (this.platform === 'linux') {
-        return await this._runLinuxBackup(config);
+        result = await this._runLinuxBackup(config);
       } else {
         throw new Error(`Plataforma no soportada: ${this.platform}`);
       }
+      this._log(`=== Backup completed successfully ===`);
+      result.log = this.logContent;
+      this._flushLog();
+      return result;
+    } catch (err) {
+      this._log(`=== Backup FAILED: ${err.message} ===`);
+      this._flushLog();
+      err.backupLog = this.logContent;
+      throw err;
     } finally {
       this.running = false;
       this._progress = null;
@@ -86,9 +130,11 @@ class BackupManager {
         '-NoProfile', '-Command',
         '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'
       ], { shell: false });
+      this._log(`Admin check result: ${stdout.trim()}`);
       if (stdout.trim() !== 'True') {
         throw new Error('El agente debe ejecutarse como Administrador para crear backups de imagen (VSS). Haz clic derecho → Ejecutar como administrador.');
       }
+      this._log('Running with admin privileges ✓');
     } catch (err) {
       if (err.message.includes('Administrador')) throw err;
       throw new Error('No se pudo verificar privilegios de administrador: ' + err.message);
@@ -160,6 +206,7 @@ class BackupManager {
           `Capturando ${part.driveLetter} (${part.label || part.fileSystem})...`);
 
         try {
+          this._log(`Capturing ${part.driveLetter} (${part.label || 'no label'}, ${part.fileSystem}, ${part.size} bytes)`);
           // wimcapture: capture the partition as a WIM image
           // Using wimlib-imagex which supports capturing mounted volumes on Windows
           await this._runWithTimeout('wimlib-imagex', [
@@ -194,6 +241,7 @@ class BackupManager {
             success: true,
           });
         } catch (err) {
+          this._log(`FAILED ${part.driveLetter}: ${err.message.substring(0, 1000)}`);
           capturedPartitions.push({
             driveLetter: part.driveLetter,
             label: part.label,
@@ -216,9 +264,10 @@ class BackupManager {
           ], { shell: false });
 
           const efiWim = `${destBase}\\EFI-partition.wim`;
+          // EFI is FAT32 — VSS (--snapshot) does NOT work on FAT volumes
           await this._runWithTimeout('wimlib-imagex', [
             'capture', `${efiLetter}\\`, efiWim,
-            `${hostname}-EFI`, '--snapshot', '--compress=LZX', '--no-acls'
+            `${hostname}-EFI`, '--compress=LZX', '--no-acls'
           ], 300000); // 5 min timeout
 
           // Unmount EFI
