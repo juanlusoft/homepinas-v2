@@ -127,7 +127,6 @@ router.get('/agent/poll', (req, res) => {
   device.lastSeen = new Date().toISOString();
   if (pollVersion) device.agentVersion = pollVersion;
   if (pollIp) device.ip = pollIp;
-  saveData(data);
 
   // Build response with config
   const response = {
@@ -156,10 +155,11 @@ router.get('/agent/poll', (req, res) => {
   // Check if there's a pending trigger (manual backup from dashboard)
   if (device._triggerBackup) {
     response.action = 'backup';
-    // Clear the trigger
     device._triggerBackup = false;
-    saveData(data);
   }
+
+  // Single save — covers presence update + trigger clear
+  saveData(data);
 
   res.json(response);
 });
