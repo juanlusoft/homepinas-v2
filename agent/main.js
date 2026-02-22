@@ -149,6 +149,7 @@ function createTray() {
 }
 
 function updateTrayMenu(backupRunning = false) {
+  if (!tray) return; // CLI mode — no tray
   const status = store.get('status');
   const nasAddr = store.get('nasAddress');
   const lastResult = store.get('lastResult');
@@ -281,7 +282,7 @@ async function runBackupNow() {
     const p = backupManager.progress;
     if (p) {
       sendToRenderer('backup-progress', p);
-      tray.setToolTip(`HomePiNAS Backup — ${p.phase} ${p.percent}%`);
+      if (tray) tray.setToolTip(`HomePiNAS Backup — ${p.phase} ${p.percent}%`);
     }
   }, 2000);
 
