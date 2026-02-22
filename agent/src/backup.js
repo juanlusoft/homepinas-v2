@@ -181,6 +181,22 @@ class BackupManager {
       this._log(`Local capture dir: ${localBase}`);
       this._log(`Remote dest dir: ${destBase}`);
 
+      // Use NAS share directly for WIM output to avoid filling local disk
+      // Metadata and manifest still go to local temp first (small files)
+      const useDirectNas = true;
+      const wimOutputDir = useDirectNas ? destBase : localBase;
+      this._log(`WIM output dir: ${wimOutputDir} (direct-to-NAS: ${useDirectNas})`);
+
+      // Create remote directory early so wimlib can write directly to NAS
+      if (useDirectNas) {
+        try {
+          await execFileAsync('cmd', ['/c', 'mkdir', destBase], { shell: false });
+          this._log(`Remote dir created: ${destBase}`);
+        } catch(e) {
+          this._log(`Remote dir may already exist: ${e.message}`);
+        }
+      }
+
       this._setProgress('metadata', 10, 'Capturando metadatos del disco...');
 
       // ── Step 1: Save disk metadata (partition layout, GPT/MBR, sizes) ──
@@ -204,7 +220,7 @@ class BackupManager {
       for (let i = 0; i < partitions.length; i++) {
         const part = partitions[i];
         const progressBase = 20 + (i / totalPartitions) * 70;
-        const wimFile = path.join(localBase, `${part.driveLetter.replace(':', '')}-partition.wim`);
+        const wimFile = path.join(wimOutputDir, `${part.driveLetter.replace(':', '')}-partition.wim`);
         
         this._setProgress('capture', progressBase, 
           `Capturando ${part.driveLetter} (${part.label || part.fileSystem})...`);
@@ -299,7 +315,7 @@ class BackupManager {
             `$disk | Set-Partition -NewDriveLetter Y`
           ], { shell: false });
 
-          const efiWim = path.join(localBase, 'EFI-partition.wim');
+          const efiWim = path.join(wimOutputDir, 'EFI-partition.wim');
           // EFI is FAT32 — VSS (--snapshot) does NOT work on FAT volumes
           await this._runWithTimeout(this._wimlibPath || 'wimlib-imagex', [
             'capture', `${efiLetter}\\`, efiWim,
@@ -347,9 +363,9 @@ class BackupManager {
         throw new Error(`Todas las particiones fallaron: ${failed.map(f => f.error).join('; ')}`);
       }
 
-      // ── Step 6: Copy all files from local to NAS ──
-      this._setProgress('upload', 95, 'Subiendo backup al NAS...');
-      this._log(`Copying files from ${localBase} to ${destBase}...`);
+      // ── Step 6: Copy remaining local files to NAS ──
+      // WIMs are already on NAS (direct write), only copy metadata & manifest
+      this._setProgress('upload', 95, 'Subiendo metadatos al NAS...');
       
       // Reconnect SMB in case it dropped during capture
       try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch(e) {}
