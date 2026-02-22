@@ -199,7 +199,10 @@ async function pollNAS() {
   if (!nasAddr || !agentToken) return;
 
   try {
-    const result = await api.agentPoll(nasAddr, store.get('nasPort'), agentToken);
+    const result = await api.agentPoll(nasAddr, store.get('nasPort'), agentToken, {
+      version: app.getVersion(),
+      hostname: require('os').hostname(),
+    });
 
     if (result.status === 'pending') {
       if (store.get('status') !== 'pending') {

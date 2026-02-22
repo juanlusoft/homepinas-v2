@@ -107,8 +107,12 @@ class NASApi {
     return this._request('POST', address, port, '/active-backup/agent/register', {}, deviceInfo);
   }
 
-  async agentPoll(address, port, agentToken) {
-    return this._request('GET', address, port, '/active-backup/agent/poll', { 'X-Agent-Token': agentToken });
+  async agentPoll(address, port, agentToken, agentInfo = {}) {
+    return this._request('GET', address, port, '/active-backup/agent/poll', {
+      'X-Agent-Token': agentToken,
+      'X-Agent-Version': agentInfo.version || '',
+      'X-Agent-Hostname': agentInfo.hostname || '',
+    });
   }
 
   async agentReport(address, port, agentToken, result) {

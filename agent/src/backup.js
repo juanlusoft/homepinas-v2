@@ -23,6 +23,7 @@ class BackupManager {
     this._progress = null;  // { phase, percent, detail }
     this._logLines = [];    // Backup log buffer
     this._logFile = null;   // Path to log file on disk
+    this._wimlibPath = 'wimlib-imagex'; // Updated by _ensureWimlib
   }
 
   get progress() { return this._progress; }
@@ -235,7 +236,7 @@ class BackupManager {
 
           // wimcapture from shadow copy (or live if VSS failed)
           // allowPartial: exit code 47 = some files couldn't be read (non-fatal, WIM is valid)
-          await this._runWithTimeout('wimlib-imagex', [
+          await this._runWithTimeout(this._wimlibPath || 'wimlib-imagex', [
             'capture',
             capturePath,
             wimFile,
@@ -300,7 +301,7 @@ class BackupManager {
 
           const efiWim = path.join(localBase, 'EFI-partition.wim');
           // EFI is FAT32 — VSS (--snapshot) does NOT work on FAT volumes
-          await this._runWithTimeout('wimlib-imagex', [
+          await this._runWithTimeout(this._wimlibPath || 'wimlib-imagex', [
             'capture', `${efiLetter}\\`, efiWim,
             `${hostname}-EFI`, '--compress=LZX', '--no-acls'
           ], 300000, { allowPartial: true }); // 5 min timeout
@@ -438,53 +439,48 @@ class BackupManager {
    * Downloads portable wimlib if not found
    */
   async _ensureWimlib() {
+    // 1. Check bundled wimlib (shipped with agent)
+    const bundledPaths = [
+      path.join(process.resourcesPath || '', 'wimlib', 'wimlib-imagex.exe'),
+      path.join(path.dirname(process.execPath), 'resources', 'wimlib', 'wimlib-imagex.exe'),
+    ];
+    
+    for (const p of bundledPaths) {
+      if (fs.existsSync(p)) {
+        this._wimlibPath = p;
+        // Also add to PATH so DLLs are found
+        process.env.PATH = `${path.dirname(p)};${process.env.PATH}`;
+        this._log(`Using bundled wimlib: ${p}`);
+        return;
+      }
+    }
+
+    // 2. Check system PATH
     try {
       await execFileAsync('wimlib-imagex', ['--version'], { shell: false });
-      return; // Already available
+      this._wimlibPath = 'wimlib-imagex';
+      this._log('Using system wimlib-imagex');
+      return;
     } catch (e) {}
 
-    // Try from known install path
-    const wimlibPaths = [
+    // 3. Check known install locations
+    const knownPaths = [
+      'C:\\Windows\\System32\\wimlib-imagex.exe',
       'C:\\Program Files\\wimlib\\wimlib-imagex.exe',
       'C:\\Program Files (x86)\\wimlib\\wimlib-imagex.exe',
       path.join(process.env.LOCALAPPDATA || '', 'wimlib', 'wimlib-imagex.exe'),
     ];
 
-    for (const p of wimlibPaths) {
+    for (const p of knownPaths) {
       if (fs.existsSync(p)) {
-        // Add to PATH for this session
+        this._wimlibPath = p;
         process.env.PATH = `${path.dirname(p)};${process.env.PATH}`;
+        this._log(`Using wimlib at: ${p}`);
         return;
       }
     }
 
-    // Download portable wimlib
-    console.log('[Backup] Downloading wimlib-imagex...');
-    const wimlibDir = path.join(process.env.LOCALAPPDATA || 'C:\\ProgramData', 'wimlib');
-
-    try {
-      await execFileAsync('powershell', ['-NoProfile', '-Command', `
-        New-Item -ItemType Directory -Force -Path '${wimlibDir}' | Out-Null
-        $url = 'https://wimlib.net/downloads/wimlib-1.14.4-windows-x86_64-bin.zip'
-        $zip = Join-Path $env:TEMP 'wimlib.zip'
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        Expand-Archive -Path $zip -DestinationPath '${wimlibDir}' -Force
-        Remove-Item $zip -Force
-        # Move files from subfolder to root
-        Get-ChildItem '${wimlibDir}' -Directory | ForEach-Object {
-          Get-ChildItem $_.FullName -File | Move-Item -Destination '${wimlibDir}' -Force
-        }
-      `], { shell: false, timeout: 120000 });
-
-      process.env.PATH = `${wimlibDir};${process.env.PATH}`;
-
-      // Verify
-      await execFileAsync('wimlib-imagex', ['--version'], { shell: false });
-      console.log('[Backup] wimlib-imagex installed successfully');
-    } catch (err) {
-      throw new Error(`No se pudo instalar wimlib: ${err.message}. Instálalo manualmente desde https://wimlib.net`);
-    }
+    throw new Error('wimlib-imagex no encontrado. Está incluido en el instalador — reinstala el agente o descárgalo de https://wimlib.net');
   }
 
   /**
