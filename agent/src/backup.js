@@ -340,33 +340,52 @@ class BackupManager {
             this._log(`EFI mounted at ${efiLetter}:`);
           }
 
-          const efiWim = path.join(wimOutputDir, 'EFI-partition.wim');
-          // EFI is FAT32 — VSS does NOT work on FAT volumes, capture live
-          await this._runWithTimeout(this._wimlibPath || 'wimlib-imagex', [
-            'capture', `${efiLetter}:\\`, efiWim,
-            `${hostname}-EFI`, '--compress=LZX', '--no-acls'
-          ], 300000, { allowPartial: true }); // 5 min timeout
+          // EFI is FAT32 — VSS doesn't work, and wimlib exits code 47 (incomplete WIM)
+          // because BCD file is locked. Instead, copy files directly with robocopy.
+          const efiDest = path.join(wimOutputDir, 'EFI');
+          await execFileAsync('cmd', ['/c', 'mkdir', efiDest], { shell: false }).catch(() => {});
+          
+          // robocopy: /E = recurse, /R:0 = no retries, /W:0 = no wait, /NFL /NDL = quiet
+          // robocopy returns 0-7 for success, 8+ for errors
+          // execFileAsync treats any non-zero exit as error, so use spawn manually
+          await new Promise((resolve, reject) => {
+            const robo = spawn('robocopy', [
+              `${efiLetter}:\\`, efiDest,
+              '/E', '/R:0', '/W:0', '/NFL', '/NDL', '/NP', '/COPY:DAT'
+            ], { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+            let stderr = '';
+            robo.stderr.on('data', d => { stderr += d.toString(); });
+            const timer = setTimeout(() => { robo.kill(); reject(new Error('EFI copy timeout')); }, 120000);
+            robo.on('close', code => {
+              clearTimeout(timer);
+              if (code <= 7) resolve();
+              else reject(new Error(`robocopy failed with code ${code}: ${stderr}`));
+            });
+            robo.on('error', err => { clearTimeout(timer); reject(err); });
+          });
+          this._log(`EFI copied with robocopy`);
 
-          // Get WIM file size
-          let efiWimSize = 0;
+          // Get total size of copied EFI directory
+          let efiTotalSize = 0;
           try {
             const { stdout: sizeOut } = await execFileAsync('powershell', [
               '-NoProfile', '-Command',
-              `(Get-Item '${efiWim}').Length`
+              `(Get-ChildItem '${efiDest}' -Recurse -File | Measure-Object -Property Length -Sum).Sum`
             ], { shell: false });
-            efiWimSize = parseInt(sizeOut.trim()) || 0;
+            efiTotalSize = parseInt(sizeOut.trim()) || 0;
           } catch(e) {}
 
           capturedPartitions.push({
             driveLetter: 'EFI',
             label: 'EFI System',
             fileSystem: 'FAT32',
-            wimFile: 'EFI-partition.wim',
-            wimSize: efiWimSize,
+            wimFile: null,
+            efiDir: 'EFI',
+            wimSize: efiTotalSize,
             originalSize: efiPartition.size,
             success: true,
           });
-          this._log(`EFI captured successfully (${efiWimSize} bytes)`);
+          this._log(`EFI captured successfully as directory (${efiTotalSize} bytes)`);
         } catch (err) {
           console.error('Could not capture EFI partition:', err.message);
           this._log(`EFI capture failed: ${err.message}`);
