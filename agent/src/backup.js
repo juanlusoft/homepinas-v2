@@ -307,6 +307,17 @@ class BackupManager {
       // Mount to a hidden temp folder (NOT a drive letter) so it doesn't
       // appear in Explorer and users can't accidentally break EFI files.
       this._setProgress('efi', 90, 'Capturando partición EFI...');
+
+      // Reconnect SMB — the connection likely dropped during the long wimlib capture
+      this._log('[smb] Reconnecting to NAS before EFI capture...');
+      try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch(e) {}
+      try {
+        await execFileAsync('net', ['use', sharePath, `/user:${creds.user}`, creds.pass, '/persistent:no'], { shell: false });
+        this._log('[smb] Reconnected successfully ✓');
+      } catch(e) {
+        this._log(`[smb] Reconnect failed: ${e.message} — will retry before upload`);
+      }
+
       const efiPartition = diskMetadata.partitions.find(p => p.isEFI);
       if (efiPartition) {
         const efiMountPath = path.join(os.tmpdir(), `homepinas-efi-${Date.now()}`);
@@ -415,9 +426,24 @@ class BackupManager {
       // WIMs are already on NAS (direct write), only copy metadata & manifest
       this._setProgress('upload', 95, 'Subiendo metadatos al NAS...');
       
-      // Reconnect SMB in case it dropped during capture
-      try { await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }); } catch(e) {}
-      await execFileAsync('net', ['use', sharePath, `/user:${creds.user}`, creds.pass, '/persistent:no'], { shell: false });
+      // Reconnect SMB with retries (connection may have dropped during long capture)
+      let smbConnected = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await execFileAsync('net', ['use', sharePath, '/delete', '/y'], { shell: false }).catch(() => {});
+          await execFileAsync('net', ['use', sharePath, `/user:${creds.user}`, creds.pass, '/persistent:no'], { shell: false });
+          smbConnected = true;
+          this._log(`[smb] Upload reconnect OK (attempt ${attempt})`);
+          break;
+        } catch(e) {
+          this._log(`[smb] Upload reconnect attempt ${attempt}/3 failed: ${e.message}`);
+          if (attempt < 3) await new Promise(r => setTimeout(r, 5000)); // wait 5s
+        }
+      }
+      if (!smbConnected) {
+        this._log('[smb] CRITICAL: Could not reconnect to NAS for metadata upload');
+        throw new Error('No se pudo reconectar al NAS para subir metadatos. El WIM se guardó correctamente pero faltan metadata y manifest.');
+      }
       
       const localFiles = fs.readdirSync(localBase);
       for (const file of localFiles) {
@@ -425,10 +451,14 @@ class BackupManager {
         const dst = `${destBase}\\${file}`;
         const fileSize = fs.statSync(src).size;
         this._log(`Uploading ${file} (${Math.round(fileSize/1048576)}MB)...`);
-        await this._runWithTimeout('cmd', ['/c', 'copy', '/y', src, dst], 1800000); // 30 min per file
-        this._log(`Uploaded ${file} ✓`);
+        try {
+          await execFileAsync('cmd', ['/c', 'copy', '/y', src, dst], { shell: false, timeout: 60000 });
+          this._log(`Uploaded ${file} ✓`);
+        } catch(e) {
+          this._log(`Upload failed for ${file}: ${e.message}`);
+        }
       }
-      this._log('All files uploaded to NAS');
+      this._log('Metadata upload complete');
 
       this._setProgress('done', 100, 'Backup completado');
 
@@ -595,43 +625,57 @@ class BackupManager {
         reject(new Error('Timeout'));
       }, timeoutMs);
 
-      // Monitor output file for progress every 5 seconds
+      // Monitor progress using async PowerShell to read stdout file tail.
+      // CRITICAL: We MUST NOT use fs.openSync() here. On Windows, cmd.exe's
+      // output redirect (>) holds an exclusive write lock on the file.
+      // fs.openSync() blocks the Node.js event loop waiting for the lock,
+      // which prevents the 'close' event from ever being processed.
+      // PowerShell's Get-Content opens with shared access — no blocking.
+      let lastProgressLine = '';
+      let progressErrors = 0;
       const progressInterval = setInterval(() => {
-        try {
-          if (!fs.existsSync(outFile)) return;
-          const stat = fs.statSync(outFile);
-          // Read last 2KB for progress info
-          const fd = fs.openSync(outFile, 'r');
-          const bufSize = Math.min(2048, stat.size);
-          const buf = Buffer.alloc(bufSize);
-          fs.readSync(fd, buf, 0, bufSize, Math.max(0, stat.size - bufSize));
-          fs.closeSync(fd);
-          const tail = buf.toString('utf-8');
-          const lines = tail.split(/[\r\n]+/).filter(l => l.trim());
-          const last = lines[lines.length - 1] || '';
-          if (last) {
-            this._log(`[wimlib] ${last.trim().substring(0, 200)}`);
+        // Use async exec to avoid blocking the event loop
+        execFile('powershell', [
+          '-NoProfile', '-Command',
+          `if (Test-Path '${outFile}') { $f = Get-Item '${outFile}'; Write-Host $f.Length; Get-Content '${outFile}' -Tail 1 } else { Write-Host '0' }`
+        ], { timeout: 8000, windowsHide: true, shell: false }, (err, stdout) => {
+          if (err) {
+            progressErrors++;
+            if (progressErrors <= 3) this._log(`[progress] Read error (${progressErrors}): ${err.message.substring(0, 100)}`);
+            return;
+          }
+          progressErrors = 0;
+          const lines = (stdout || '').trim().split(/[\r\n]+/);
+          const fileSize = parseInt(lines[0]) || 0;
+          const last = lines.slice(1).join(' ').trim();
+          if (last && last !== lastProgressLine) {
+            lastProgressLine = last;
+            this._log(`[wimlib] ${last.substring(0, 200)}`);
             const pctMatch = last.match(/(\d+)%/);
             if (pctMatch) {
               const wimlibPct = parseInt(pctMatch[1]);
-              this._setProgress('capture', 20 + Math.round(wimlibPct * 0.7), last.trim().substring(0, 100));
+              this._setProgress('capture', 20 + Math.round(wimlibPct * 0.7), last.substring(0, 100));
             }
           }
-        } catch(e) {}
-      }, 5000);
+        });
+      }, 10000); // Every 10 seconds (PowerShell is heavier than file read)
 
       proc.on('close', code => {
         clearTimeout(timer);
         clearInterval(progressInterval);
         this._log(`[exec] cmd.exe exited with code ${code}`);
 
-        // Read output files
+        // Read output files (safe now — cmd.exe released the lock)
         let stdout = '', stderr = '';
-        try { stdout = fs.readFileSync(outFile, 'utf-8').slice(-100000); } catch(e) {}
+        try { stdout = fs.readFileSync(outFile, 'utf-8').slice(-100000); } catch(e) {
+          this._log(`[exec] Could not read stdout file: ${e.message}`);
+        }
         try { stderr = fs.readFileSync(errFile, 'utf-8'); } catch(e) {}
-        try { fs.unlinkSync(outFile); } catch(e) {}
-        try { fs.unlinkSync(errFile); } catch(e) {}
-        try { fs.unlinkSync(outFile.replace('.stdout.log', '.run.bat')); } catch(e) {}
+
+        // Clean up temp files
+        for (const f of [outFile, errFile, batFile]) {
+          try { fs.unlinkSync(f); } catch(e) {}
+        }
 
         if (stderr) this._log(`[exec:stderr] ${stderr.trim().substring(0, 500)}`);
 
