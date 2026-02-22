@@ -253,7 +253,10 @@ async function pollNAS() {
 async function runBackupNow() {
   if (backupManager.running) return;
 
+  store.set('lastResult', 'running');
+  store.set('lastError', '');
   updateTrayMenu(true);
+  sendToRenderer('status-update', { lastResult: 'running' });
   notify('Backup iniciado', 'Creando copia de seguridad...');
   sendToRenderer('backup-progress', { phase: 'starting', percent: 0, detail: 'Iniciando backup...' });
 

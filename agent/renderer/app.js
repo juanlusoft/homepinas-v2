@@ -86,7 +86,11 @@ async function showDashboard(data) {
   const errorBar = document.getElementById('dash-error-bar');
   const errorText = document.getElementById('dash-error-text');
 
-  if (data.lastResult === 'success') {
+  if (data.lastResult === 'running') {
+    document.getElementById('dash-status-icon').textContent = '⏳';
+    document.getElementById('dash-status').textContent = 'En progreso...';
+    errorBar.classList.add('hidden');
+  } else if (data.lastResult === 'success') {
     document.getElementById('dash-status-icon').textContent = '✅';
     document.getElementById('dash-status').textContent = 'OK';
     errorBar.classList.add('hidden');
