@@ -183,12 +183,28 @@ class BackupManager {
     ];
 
     this._log(`Launching worker: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
+    this._log(`Full args: ${JSON.stringify(workerArgs)}`);
     const worker = spawn('powershell', workerArgs, {
       detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout/stderr for debugging
       windowsHide: true,
       shell: false,
     });
+    
+    // Capture worker errors
+    let workerStderr = '';
+    if (worker.stderr) {
+      worker.stderr.on('data', chunk => {
+        workerStderr += chunk.toString();
+        this._log(`[worker:stderr] ${chunk.toString().trim()}`);
+      });
+    }
+    if (worker.stdout) {
+      worker.stdout.on('data', chunk => {
+        this._log(`[worker:stdout] ${chunk.toString().trim()}`);
+      });
+    }
+    
     worker.unref(); // Don't block Node.js exit
     const workerPid = worker.pid;
     this._log(`Worker launched with PID ${workerPid}`);
@@ -295,11 +311,16 @@ class BackupManager {
         if (!alive && !workerDone) {
           clearInterval(pollTimer);
           let errMsg = 'Worker process died unexpectedly';
+          if (workerStderr) {
+            errMsg += ` (stderr: ${workerStderr.substring(0, 500)})`;
+          }
           try {
             const wlog = fs.readFileSync(workerLog, 'utf-8');
             this._log(`[worker:log]\n${wlog}`);
-            errMsg += `: ${wlog.split('\n').slice(-3).join(' ')}`;
-          } catch(e) {}
+            errMsg += ` | Log: ${wlog.split('\n').slice(-3).join(' ')}`;
+          } catch(e) {
+            errMsg += ' | No worker log file created';
+          }
           try { fs.unlinkSync(statusFile); } catch(e) {}
           reject(new Error(errMsg));
         }
