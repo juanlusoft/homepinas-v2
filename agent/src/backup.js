@@ -507,7 +507,13 @@ class BackupManager {
   async _runWithFileRedirect(cmd, args, timeoutMs, opts, outFile, errFile) {
     // Write a .bat file to avoid cmd.exe quoting hell with \\?\ paths
     const batFile = outFile.replace('.stdout.log', '.run.bat');
-    const escapedArgs = args.map(a => `"${a}"`).join(' ');
+    // Don't quote args that end with \ (batch interprets \" as escaped quote)
+    // Also don't quote simple args without spaces (flags like --compress=LZX)
+    const escapedArgs = args.map(a => {
+      if (a.endsWith('\\')) return a;  // paths ending in \ must NOT be quoted
+      if (/\s/.test(a)) return `"${a}"`;  // quote if has spaces
+      return a;  // no quotes needed for simple args
+    }).join(' ');
     const batContent = `@echo off\r\n"${cmd}" ${escapedArgs} > "${outFile}" 2> "${errFile}"\r\nexit /b %errorlevel%\r\n`;
     fs.writeFileSync(batFile, batContent, 'utf-8');
     this._log(`[exec:bat] ${batFile} → ${cmd} ${args.slice(0, 3).join(' ')}...`);
