@@ -30,9 +30,25 @@ const { BackupManager } = require('./src/backup');
 const { NASApi } = require('./src/api');
 const { Scheduler } = require('./src/scheduler');
 
-// Single instance lock
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) { app.quit(); }
+// ── CLI Mode ──
+// Usage: HomePiNAS Backup.exe --backup  (run backup and exit)
+//        HomePiNAS Backup.exe --status  (show status and exit)
+const cliArgs = process.argv.slice(1);
+const CLI_MODE = cliArgs.includes('--backup') || cliArgs.includes('--status');
+
+// Single instance lock (skip for CLI status queries)
+if (!cliArgs.includes('--status')) {
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    if (CLI_MODE) {
+      console.log('Another instance is already running');
+      process.exit(1);
+    }
+    app.quit();
+  }
+} else {
+  // For --status, don't need single instance lock
+}
 
 const store = new Store({
   encryptionKey: 'homepinas-agent-store-v2',
@@ -477,12 +493,51 @@ function getLocalIP() {
 }
 
 // ── App lifecycle ──
-app.on('ready', () => {
+app.on('ready', async () => {
   discovery = new NASDiscovery();
   backupManager = new BackupManager();
   api = new NASApi();
   scheduler = new Scheduler(() => runBackupNow());
 
+  // ── CLI: --status ──
+  if (cliArgs.includes('--status')) {
+    const status = {
+      version: app.getVersion(),
+      nasAddress: store.get('nasAddress') || 'not configured',
+      nasPort: store.get('nasPort'),
+      status: store.get('status'),
+      lastBackup: store.get('lastBackup') || 'never',
+      lastResult: store.get('lastResult') || 'none',
+      lastError: store.get('lastError') || null,
+      backupType: store.get('backupType'),
+      schedule: store.get('schedule'),
+      deviceName: store.get('deviceName') || require('os').hostname(),
+    };
+    console.log(JSON.stringify(status, null, 2));
+    app.quit();
+    return;
+  }
+
+  // ── CLI: --backup ──
+  if (cliArgs.includes('--backup')) {
+    if (!store.get('agentToken')) {
+      console.error('Agent not registered with NAS. Run the GUI first to set up.');
+      app.exit(1);
+      return;
+    }
+    console.log('Starting backup in CLI mode...');
+    try {
+      await runBackupNow();
+      console.log('Backup completed successfully');
+      app.exit(0);
+    } catch (err) {
+      console.error('Backup failed:', err.message);
+      app.exit(1);
+    }
+    return;
+  }
+
+  // ── Normal GUI mode ──
   setupIPC();
   createTray();
 
