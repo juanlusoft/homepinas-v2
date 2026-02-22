@@ -182,19 +182,20 @@ class BackupManager {
       '-LogFile', workerLog,
     ];
 
-    // Launch PowerShell directly (not via cmd.exe to avoid backslash escaping issues)
+    // Launch PowerShell worker
+    // detached=false so PowerShell has console context, but stdio='ignore' prevents blocking
     this._log(`Launching worker: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
     this._log(`SharePath: ${sharePath}`);
     
     const worker = spawn('powershell.exe', workerArgs, {
-      detached: true,
-      stdio: 'ignore', // Must be 'ignore' for truly detached process
+      detached: false, // PowerShell needs console context on Windows
+      stdio: 'ignore', // Don't pipe (worker writes to files, not stdout)
       windowsHide: true,
       shell: false,
     });
     
-    worker.unref(); // Don't block Node.js exit
-    this._log(`Worker launched with PID ${worker.pid}`);
+    const workerPid = worker.pid;
+    this._log(`Worker launched with PID ${workerPid}`);
 
     // ── Monitor progress via status file ──
     // The worker writes a JSON status file every few seconds.
