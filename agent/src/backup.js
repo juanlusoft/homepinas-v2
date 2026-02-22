@@ -304,53 +304,33 @@ class BackupManager {
       }
 
       // ── Step 4: Capture EFI partition (if exists, requires admin) ──
+      // Mount to a hidden temp folder (NOT a drive letter) so it doesn't
+      // appear in Explorer and users can't accidentally break EFI files.
       this._setProgress('efi', 90, 'Capturando partición EFI...');
       const efiPartition = diskMetadata.partitions.find(p => p.isEFI);
       if (efiPartition) {
-        let efiLetter = null;
+        const efiMountPath = path.join(os.tmpdir(), `homepinas-efi-${Date.now()}`);
         let efiMountedByUs = false;
         try {
-          // Find a free drive letter (Z, Y, X, W...) to mount EFI temporarily
-          const { stdout: usedLetters } = await execFileAsync('powershell', ['-NoProfile', '-Command',
-            `(Get-Volume | Where-Object { $_.DriveLetter } | Select-Object -ExpandProperty DriveLetter) -join ','`
+          // Create temp folder for mount point
+          fs.mkdirSync(efiMountPath, { recursive: true });
+
+          // Mount EFI to folder (invisible — no drive letter in Explorer)
+          await execFileAsync('powershell', ['-NoProfile', '-Command',
+            `Add-PartitionAccessPath -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -AccessPath '${efiMountPath}'`
           ], { shell: false });
-          const used = new Set(usedLetters.trim().split(',').map(l => l.trim().toUpperCase()));
-          for (const candidate of 'ZYXWVUTSRQ'.split('')) {
-            if (!used.has(candidate)) { efiLetter = candidate; break; }
-          }
-          if (!efiLetter) throw new Error('No free drive letters available for EFI mount');
-          this._log(`Using drive letter ${efiLetter}: for EFI partition`);
+          efiMountedByUs = true;
+          this._log(`EFI mounted at hidden path: ${efiMountPath}`);
 
-          // Check if EFI already has a drive letter assigned
-          const { stdout: currentLetter } = await execFileAsync('powershell', ['-NoProfile', '-Command',
-            `(Get-Partition -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber}).DriveLetter`
-          ], { shell: false });
-          const existingLetter = currentLetter.trim();
-
-          if (existingLetter && existingLetter.length === 1) {
-            // EFI already mounted — use existing letter
-            efiLetter = existingLetter;
-            this._log(`EFI already mounted at ${efiLetter}:`);
-          } else {
-            // Mount EFI partition temporarily
-            await execFileAsync('powershell', ['-NoProfile', '-Command',
-              `Set-Partition -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -NewDriveLetter ${efiLetter}`
-            ], { shell: false });
-            efiMountedByUs = true;
-            this._log(`EFI mounted at ${efiLetter}:`);
-          }
-
-          // EFI is FAT32 — VSS doesn't work, and wimlib exits code 47 (incomplete WIM)
-          // because BCD file is locked. Instead, copy files directly with robocopy.
+          // Copy EFI files with robocopy (no drive letter exposed)
           const efiDest = path.join(wimOutputDir, 'EFI');
           await execFileAsync('cmd', ['/c', 'mkdir', efiDest], { shell: false }).catch(() => {});
           
-          // robocopy: /E = recurse, /R:0 = no retries, /W:0 = no wait, /NFL /NDL = quiet
+          // robocopy: /E = recurse, /R:0 = no retries, /W:0 = no wait
           // robocopy returns 0-7 for success, 8+ for errors
-          // execFileAsync treats any non-zero exit as error, so use spawn manually
           await new Promise((resolve, reject) => {
             const robo = spawn('robocopy', [
-              `${efiLetter}:\\`, efiDest,
+              efiMountPath, efiDest,
               '/E', '/R:0', '/W:0', '/NFL', '/NDL', '/NP', '/COPY:DAT'
             ], { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
             let stderr = '';
@@ -391,17 +371,19 @@ class BackupManager {
           this._log(`EFI capture failed: ${err.message}`);
           // Not fatal — EFI can be rebuilt with bcdboot
         } finally {
-          // Always clean up: unmount EFI if we mounted it
-          if (efiMountedByUs && efiLetter) {
+          // Always clean up: unmount EFI and remove temp folder
+          if (efiMountedByUs) {
             try {
               await execFileAsync('powershell', ['-NoProfile', '-Command',
-                `Remove-PartitionAccessPath -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -AccessPath '${efiLetter}:\\'`
+                `Remove-PartitionAccessPath -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -AccessPath '${efiMountPath}'`
               ], { shell: false });
-              this._log(`EFI unmounted from ${efiLetter}:`);
+              this._log(`EFI unmounted from ${efiMountPath}`);
             } catch(e) {
-              this._log(`Warning: could not unmount EFI from ${efiLetter}: ${e.message}`);
+              this._log(`Warning: could not unmount EFI: ${e.message}`);
             }
           }
+          // Clean up temp mount folder
+          try { fs.rmdirSync(efiMountPath); } catch(e) {}
         }
       }
 
