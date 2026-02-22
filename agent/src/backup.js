@@ -488,47 +488,80 @@ class BackupManager {
    */
   async _runWithTimeout(cmd, args, timeoutMs, opts = {}) {
     this._log(`[exec] ${cmd} ${args.slice(0, 3).join(' ')}... (timeout: ${Math.round(timeoutMs/1000)}s)`);
-    return new Promise((resolve, reject) => {
-      let proc;
-      try {
-        proc = spawn(cmd, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-      } catch(spawnErr) {
-        this._log(`[exec] spawn failed: ${spawnErr.message}`);
-        return reject(spawnErr);
-      }
-      let stdout = '', stderr = '';
-      // Cap stdout buffer to prevent memory overflow on large captures
-      const MAX_STDOUT = 100000;
-      const timer = setTimeout(() => { this._log(`[exec] TIMEOUT after ${Math.round(timeoutMs/1000)}s`); proc.kill(); reject(new Error('Timeout')); }, timeoutMs);
 
-      let lastLogTime = 0;
-      proc.stdout.on('data', d => { 
-        const chunk = d.toString();
-        if (stdout.length < MAX_STDOUT) stdout += chunk;
-        // Throttle logging: max once per 5 seconds to prevent pipe flooding
-        const now = Date.now();
-        if (now - lastLogTime < 5000) return;
-        const lines = chunk.split(/[\r\n]+/).filter(l => l.trim());
-        const last = lines[lines.length - 1];
-        if (last && (last.includes('%') || last.includes('scanned') || last.includes('Archiving') || last.includes('Writing'))) {
-          this._log(`[wimlib] ${last.trim().substring(0, 200)}`);
-          // Update progress from wimlib output
-          const pctMatch = last.match(/(\d+)%/);
-          if (pctMatch) {
-            const wimlibPct = parseInt(pctMatch[1]);
-            this._setProgress('capture', 20 + Math.round(wimlibPct * 0.7), last.trim().substring(0, 100));
+    // On Windows: run via cmd.exe with output redirected to temp files
+    // This avoids Node.js pipe issues that silently kill child processes
+    const isWin = process.platform === 'win32';
+    const logBase = path.join(os.tmpdir(), `homepinas-exec-${Date.now()}`);
+    const outFile = logBase + '.stdout.log';
+    const errFile = logBase + '.stderr.log';
+
+    if (isWin) {
+      return this._runWithFileRedirect(cmd, args, timeoutMs, opts, outFile, errFile);
+    }
+
+    // Non-Windows: use regular spawn
+    return this._runWithSpawn(cmd, args, timeoutMs, opts);
+  }
+
+  async _runWithFileRedirect(cmd, args, timeoutMs, opts, outFile, errFile) {
+    // Build command string with output redirection
+    const escapedArgs = args.map(a => `"${a}"`).join(' ');
+    const cmdLine = `"${cmd}" ${escapedArgs} > "${outFile}" 2> "${errFile}"`;
+    this._log(`[exec:file-redirect] ${cmdLine.substring(0, 300)}`);
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('cmd.exe', ['/c', cmdLine], {
+        shell: false,
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+
+      const timer = setTimeout(() => {
+        this._log(`[exec] TIMEOUT after ${Math.round(timeoutMs/1000)}s`);
+        proc.kill();
+        reject(new Error('Timeout'));
+      }, timeoutMs);
+
+      // Monitor output file for progress every 5 seconds
+      const progressInterval = setInterval(() => {
+        try {
+          if (!fs.existsSync(outFile)) return;
+          const stat = fs.statSync(outFile);
+          // Read last 2KB for progress info
+          const fd = fs.openSync(outFile, 'r');
+          const bufSize = Math.min(2048, stat.size);
+          const buf = Buffer.alloc(bufSize);
+          fs.readSync(fd, buf, 0, bufSize, Math.max(0, stat.size - bufSize));
+          fs.closeSync(fd);
+          const tail = buf.toString('utf-8');
+          const lines = tail.split(/[\r\n]+/).filter(l => l.trim());
+          const last = lines[lines.length - 1] || '';
+          if (last) {
+            this._log(`[wimlib] ${last.trim().substring(0, 200)}`);
+            const pctMatch = last.match(/(\d+)%/);
+            if (pctMatch) {
+              const wimlibPct = parseInt(pctMatch[1]);
+              this._setProgress('capture', 20 + Math.round(wimlibPct * 0.7), last.trim().substring(0, 100));
+            }
           }
-          lastLogTime = now;
-        }
-      });
-      proc.stderr.on('data', d => { 
-        const chunk = d.toString();
-        stderr += chunk;
-        this._log(`[wimlib:err] ${chunk.trim().substring(0, 200)}`);
-      });
+        } catch(e) {}
+      }, 5000);
+
       proc.on('close', code => {
         clearTimeout(timer);
-        this._log(`[exec] ${cmd} exited with code ${code}`);
+        clearInterval(progressInterval);
+        this._log(`[exec] cmd.exe exited with code ${code}`);
+
+        // Read output files
+        let stdout = '', stderr = '';
+        try { stdout = fs.readFileSync(outFile, 'utf-8').slice(-100000); } catch(e) {}
+        try { stderr = fs.readFileSync(errFile, 'utf-8'); } catch(e) {}
+        try { fs.unlinkSync(outFile); } catch(e) {}
+        try { fs.unlinkSync(errFile); } catch(e) {}
+
+        if (stderr) this._log(`[exec:stderr] ${stderr.trim().substring(0, 500)}`);
+
         if (code === 0) {
           resolve(stdout);
         } else if (opts.allowPartial && code === 47) {
@@ -538,7 +571,30 @@ class BackupManager {
           reject(new Error(stderr || stdout || `Exit code ${code}`));
         }
       });
-      proc.on('error', err => { clearTimeout(timer); this._log(`[exec] process error: ${err.message}`); reject(err); });
+
+      proc.on('error', err => {
+        clearTimeout(timer);
+        clearInterval(progressInterval);
+        this._log(`[exec] process error: ${err.message}`);
+        reject(err);
+      });
+    });
+  }
+
+  async _runWithSpawn(cmd, args, timeoutMs, opts) {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(cmd, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      let stdout = '', stderr = '';
+      const timer = setTimeout(() => { proc.kill(); reject(new Error('Timeout')); }, timeoutMs);
+
+      proc.stdout.on('data', d => { stdout += d.toString().slice(0, 100000); });
+      proc.stderr.on('data', d => { stderr += d.toString(); this._log(`[stderr] ${d.toString().trim().substring(0, 200)}`); });
+      proc.on('close', code => {
+        clearTimeout(timer);
+        if (code === 0 || (opts.allowPartial && code === 47)) resolve(stdout);
+        else reject(new Error(stderr || stdout || `Exit code ${code}`));
+      });
+      proc.on('error', err => { clearTimeout(timer); reject(err); });
     });
   }
 
