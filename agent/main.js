@@ -36,6 +36,13 @@ const { Scheduler } = require('./src/scheduler');
 const cliArgs = process.argv.slice(1);
 const CLI_MODE = cliArgs.includes('--backup') || cliArgs.includes('--status');
 
+// Disable GPU for headless/CLI mode (prevents FATAL crash via SSH)
+if (CLI_MODE) {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('no-sandbox');
+}
+
 // Single instance lock (skip for CLI status queries)
 if (!cliArgs.includes('--status')) {
   const gotLock = app.requestSingleInstanceLock();
