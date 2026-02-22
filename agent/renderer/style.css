@@ -199,6 +199,44 @@ input:focus { border-color: #4f6ef7; }
 #loading.hidden { display: none; }
 #loading p { margin-top: 16px; color: #888; }
 
+/* Progress bar */
+.progress-bar {
+  background: rgba(52, 152, 219, 0.1);
+  border: 1px solid rgba(52, 152, 219, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.progress-bar.hidden { display: none; }
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #3498db;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.progress-track {
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.progress-detail {
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Error bar */
 .error-bar {
   background: rgba(231, 76, 60, 0.15);

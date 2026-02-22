@@ -255,6 +255,16 @@ async function runBackupNow() {
 
   updateTrayMenu(true);
   notify('Backup iniciado', 'Creando copia de seguridad...');
+  sendToRenderer('backup-progress', { phase: 'starting', percent: 0, detail: 'Iniciando backup...' });
+
+  // Poll progress from BackupManager every 2 seconds
+  const progressInterval = setInterval(() => {
+    const p = backupManager.progress;
+    if (p) {
+      sendToRenderer('backup-progress', p);
+      tray.setToolTip(`HomePiNAS Backup — ${p.phase} ${p.percent}%`);
+    }
+  }, 2000);
 
   const startTime = Date.now();
   const config = {
@@ -308,6 +318,8 @@ async function runBackupNow() {
     }
   }
 
+  clearInterval(progressInterval);
+  sendToRenderer('backup-progress', null);
   updateTrayMenu();
   sendToRenderer('status-update', { lastBackup: store.get('lastBackup'), lastResult: store.get('lastResult') });
 }

@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('api', {
   openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
   getLastError: () => ipcRenderer.invoke('get-last-error'),
   onStatusUpdate: (cb) => ipcRenderer.on('status-update', (_, data) => cb(data)),
+  onBackupProgress: (cb) => ipcRenderer.on('backup-progress', (_, data) => cb(data)),
 });

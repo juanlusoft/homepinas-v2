@@ -249,5 +249,19 @@ window.api.onStatusUpdate((data) => {
   }
 });
 
+// ── Backup progress ──
+window.api.onBackupProgress((data) => {
+  const progressDiv = document.getElementById('dash-progress');
+  if (!data) {
+    progressDiv.classList.add('hidden');
+    return;
+  }
+  progressDiv.classList.remove('hidden');
+  document.getElementById('progress-phase').textContent = data.phase || 'Procesando...';
+  document.getElementById('progress-pct').textContent = `${data.percent || 0}%`;
+  document.getElementById('progress-fill').style.width = `${data.percent || 0}%`;
+  document.getElementById('progress-detail').textContent = data.detail || '';
+});
+
 // ── Start ──
 init();

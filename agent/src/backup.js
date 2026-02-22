@@ -499,12 +499,21 @@ class BackupManager {
       let stdout = '', stderr = '';
       const timer = setTimeout(() => { this._log(`[exec] TIMEOUT after ${Math.round(timeoutMs/1000)}s`); proc.kill(); reject(new Error('Timeout')); }, timeoutMs);
 
-      proc.stdout.on('data', d => { stdout += d.toString(); });
+      proc.stdout.on('data', d => { 
+        const chunk = d.toString();
+        stdout += chunk;
+        // Log wimlib progress from stdout too
+        const lines = chunk.split(/[\r\n]+/).filter(l => l.trim());
+        for (const line of lines) {
+          if (line.includes('%') || line.includes('scanned') || line.includes('Capturing') || line.includes('Writing')) {
+            this._log(`[wimlib] ${line.trim().substring(0, 200)}`);
+          }
+        }
+      });
       proc.stderr.on('data', d => { 
         const chunk = d.toString();
         stderr += chunk;
-        // Log wimlib progress (lines with %)
-        if (chunk.includes('%')) this._log(`[wimlib] ${chunk.trim().substring(0, 200)}`);
+        this._log(`[wimlib:err] ${chunk.trim().substring(0, 200)}`);
       });
       proc.on('close', code => {
         clearTimeout(timer);
