@@ -491,23 +491,34 @@ class BackupManager {
     return new Promise((resolve, reject) => {
       let proc;
       try {
-        proc = spawn(cmd, args, { shell: false, windowsHide: true });
+        proc = spawn(cmd, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
       } catch(spawnErr) {
         this._log(`[exec] spawn failed: ${spawnErr.message}`);
         return reject(spawnErr);
       }
       let stdout = '', stderr = '';
+      // Cap stdout buffer to prevent memory overflow on large captures
+      const MAX_STDOUT = 100000;
       const timer = setTimeout(() => { this._log(`[exec] TIMEOUT after ${Math.round(timeoutMs/1000)}s`); proc.kill(); reject(new Error('Timeout')); }, timeoutMs);
 
+      let lastLogTime = 0;
       proc.stdout.on('data', d => { 
         const chunk = d.toString();
-        stdout += chunk;
-        // Log wimlib progress from stdout too
+        if (stdout.length < MAX_STDOUT) stdout += chunk;
+        // Throttle logging: max once per 5 seconds to prevent pipe flooding
+        const now = Date.now();
+        if (now - lastLogTime < 5000) return;
         const lines = chunk.split(/[\r\n]+/).filter(l => l.trim());
-        for (const line of lines) {
-          if (line.includes('%') || line.includes('scanned') || line.includes('Capturing') || line.includes('Writing')) {
-            this._log(`[wimlib] ${line.trim().substring(0, 200)}`);
+        const last = lines[lines.length - 1];
+        if (last && (last.includes('%') || last.includes('scanned') || last.includes('Archiving') || last.includes('Writing'))) {
+          this._log(`[wimlib] ${last.trim().substring(0, 200)}`);
+          // Update progress from wimlib output
+          const pctMatch = last.match(/(\d+)%/);
+          if (pctMatch) {
+            const wimlibPct = parseInt(pctMatch[1]);
+            this._setProgress('capture', 20 + Math.round(wimlibPct * 0.7), last.trim().substring(0, 100));
           }
+          lastLogTime = now;
         }
       });
       proc.stderr.on('data', d => { 
