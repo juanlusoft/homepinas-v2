@@ -505,13 +505,15 @@ class BackupManager {
   }
 
   async _runWithFileRedirect(cmd, args, timeoutMs, opts, outFile, errFile) {
-    // Build command string with output redirection
+    // Write a .bat file to avoid cmd.exe quoting hell with \\?\ paths
+    const batFile = outFile.replace('.stdout.log', '.run.bat');
     const escapedArgs = args.map(a => `"${a}"`).join(' ');
-    const cmdLine = `"${cmd}" ${escapedArgs} > "${outFile}" 2> "${errFile}"`;
-    this._log(`[exec:file-redirect] ${cmdLine.substring(0, 300)}`);
+    const batContent = `@echo off\r\n"${cmd}" ${escapedArgs} > "${outFile}" 2> "${errFile}"\r\nexit /b %errorlevel%\r\n`;
+    fs.writeFileSync(batFile, batContent, 'utf-8');
+    this._log(`[exec:bat] ${batFile} → ${cmd} ${args.slice(0, 3).join(' ')}...`);
 
     return new Promise((resolve, reject) => {
-      const proc = spawn('cmd.exe', ['/c', cmdLine], {
+      const proc = spawn('cmd.exe', ['/c', batFile], {
         shell: false,
         windowsHide: true,
         stdio: 'ignore',
@@ -559,6 +561,7 @@ class BackupManager {
         try { stderr = fs.readFileSync(errFile, 'utf-8'); } catch(e) {}
         try { fs.unlinkSync(outFile); } catch(e) {}
         try { fs.unlinkSync(errFile); } catch(e) {}
+        try { fs.unlinkSync(outFile.replace('.stdout.log', '.run.bat')); } catch(e) {}
 
         if (stderr) this._log(`[exec:stderr] ${stderr.trim().substring(0, 500)}`);
 
