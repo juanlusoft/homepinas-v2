@@ -152,10 +152,10 @@ class BackupManager {
     const statusFile = path.join(os.tmpdir(), `homepinas-backup-status-${Date.now()}.json`);
     const workerLog = path.join(os.tmpdir(), `homepinas-backup-worker-${Date.now()}.log`);
 
-    // Find the worker script (bundled with agent)
+    // Find the worker script (shipped as extraResource, NOT inside asar)
     const workerPaths = [
-      path.join(process.resourcesPath || '', 'app', 'src', 'backup-worker.ps1'),
-      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'src', 'backup-worker.ps1'),
+      path.join(process.resourcesPath || '', 'backup-worker.ps1'),
+      path.join(path.dirname(process.execPath), 'resources', 'backup-worker.ps1'),
       path.join(__dirname, 'backup-worker.ps1'),
     ];
     let workerScript = null;

@@ -1,6 +1,6 @@
 {
   "name": "homepinas-backup-agent",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "HomePiNAS Backup Agent - Automatic backup to your NAS",
   "main": "main.js",
   "author": "HomePiNAS (homelabs.club)",
@@ -39,6 +39,10 @@
           "from": "wimlib",
           "to": "wimlib",
           "filter": ["**/*"]
+        },
+        {
+          "from": "src/backup-worker.ps1",
+          "to": "backup-worker.ps1"
         }
       ]
     },
