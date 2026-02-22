@@ -211,7 +211,7 @@ class BackupManager {
 
       // ── Step 3: Capture each important partition as WIM ──
       const partitions = diskMetadata.partitions.filter(p => 
-        p.driveLetter && p.size > 0 && !p.isRecovery
+        p.driveLetter && p.size > 0 && !p.isRecovery && !p.isEFI
       );
 
       let totalPartitions = partitions.length;
@@ -307,35 +307,82 @@ class BackupManager {
       this._setProgress('efi', 90, 'Capturando partición EFI...');
       const efiPartition = diskMetadata.partitions.find(p => p.isEFI);
       if (efiPartition) {
+        let efiLetter = null;
+        let efiMountedByUs = false;
         try {
-          // Mount EFI partition temporarily
-          const efiLetter = 'Y:';
-          await execFileAsync('powershell', ['-NoProfile', '-Command',
-            `$disk = Get-Partition -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber}; ` +
-            `$disk | Set-Partition -NewDriveLetter Y`
+          // Find a free drive letter (Z, Y, X, W...) to mount EFI temporarily
+          const { stdout: usedLetters } = await execFileAsync('powershell', ['-NoProfile', '-Command',
+            `(Get-Volume | Where-Object { $_.DriveLetter } | Select-Object -ExpandProperty DriveLetter) -join ','`
           ], { shell: false });
+          const used = new Set(usedLetters.trim().split(',').map(l => l.trim().toUpperCase()));
+          for (const candidate of 'ZYXWVUTSRQ'.split('')) {
+            if (!used.has(candidate)) { efiLetter = candidate; break; }
+          }
+          if (!efiLetter) throw new Error('No free drive letters available for EFI mount');
+          this._log(`Using drive letter ${efiLetter}: for EFI partition`);
+
+          // Check if EFI already has a drive letter assigned
+          const { stdout: currentLetter } = await execFileAsync('powershell', ['-NoProfile', '-Command',
+            `(Get-Partition -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber}).DriveLetter`
+          ], { shell: false });
+          const existingLetter = currentLetter.trim();
+
+          if (existingLetter && existingLetter.length === 1) {
+            // EFI already mounted — use existing letter
+            efiLetter = existingLetter;
+            this._log(`EFI already mounted at ${efiLetter}:`);
+          } else {
+            // Mount EFI partition temporarily
+            await execFileAsync('powershell', ['-NoProfile', '-Command',
+              `Set-Partition -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -NewDriveLetter ${efiLetter}`
+            ], { shell: false });
+            efiMountedByUs = true;
+            this._log(`EFI mounted at ${efiLetter}:`);
+          }
 
           const efiWim = path.join(wimOutputDir, 'EFI-partition.wim');
-          // EFI is FAT32 — VSS (--snapshot) does NOT work on FAT volumes
+          // EFI is FAT32 — VSS does NOT work on FAT volumes, capture live
           await this._runWithTimeout(this._wimlibPath || 'wimlib-imagex', [
-            'capture', `${efiLetter}\\`, efiWim,
+            'capture', `${efiLetter}:\\`, efiWim,
             `${hostname}-EFI`, '--compress=LZX', '--no-acls'
           ], 300000, { allowPartial: true }); // 5 min timeout
 
-          // Unmount EFI
-          await execFileAsync('powershell', ['-NoProfile', '-Command',
-            `Remove-PartitionAccessPath -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -AccessPath '${efiLetter}\\'`
-          ], { shell: false });
+          // Get WIM file size
+          let efiWimSize = 0;
+          try {
+            const { stdout: sizeOut } = await execFileAsync('powershell', [
+              '-NoProfile', '-Command',
+              `(Get-Item '${efiWim}').Length`
+            ], { shell: false });
+            efiWimSize = parseInt(sizeOut.trim()) || 0;
+          } catch(e) {}
 
           capturedPartitions.push({
             driveLetter: 'EFI',
             label: 'EFI System',
+            fileSystem: 'FAT32',
             wimFile: 'EFI-partition.wim',
+            wimSize: efiWimSize,
+            originalSize: efiPartition.size,
             success: true,
           });
+          this._log(`EFI captured successfully (${efiWimSize} bytes)`);
         } catch (err) {
           console.error('Could not capture EFI partition:', err.message);
+          this._log(`EFI capture failed: ${err.message}`);
           // Not fatal — EFI can be rebuilt with bcdboot
+        } finally {
+          // Always clean up: unmount EFI if we mounted it
+          if (efiMountedByUs && efiLetter) {
+            try {
+              await execFileAsync('powershell', ['-NoProfile', '-Command',
+                `Remove-PartitionAccessPath -DiskNumber ${efiPartition.diskNumber} -PartitionNumber ${efiPartition.partitionNumber} -AccessPath '${efiLetter}:\\'`
+              ], { shell: false });
+              this._log(`EFI unmounted from ${efiLetter}:`);
+            } catch(e) {
+              this._log(`Warning: could not unmount EFI from ${efiLetter}: ${e.message}`);
+            }
+          }
         }
       }
 
