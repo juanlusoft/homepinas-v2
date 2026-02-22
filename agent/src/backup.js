@@ -182,32 +182,23 @@ class BackupManager {
       '-LogFile', workerLog,
     ];
 
-    this._log(`Launching worker: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
-    this._log(`Full args: ${JSON.stringify(workerArgs)}`);
-    const worker = spawn('powershell', workerArgs, {
+    // Build PowerShell command string for cmd.exe /c start
+    // This ensures PowerShell runs completely independently, even if Node.js crashes
+    const psArgs = workerArgs.slice(2).map(a => a.includes(' ') ? `"${a.replace(/"/g, '""')}"` : a).join(' ');
+    const cmd = `cmd.exe`;
+    const cmdArgs = ['/c', 'start', '/b', 'powershell.exe', ...workerArgs];
+    
+    this._log(`Launching worker via cmd.exe: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
+    
+    const worker = spawn(cmd, cmdArgs, {
       detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout/stderr for debugging
+      stdio: 'ignore', // Must be 'ignore' for truly detached process on Windows
       windowsHide: true,
       shell: false,
     });
     
-    // Capture worker errors
-    let workerStderr = '';
-    if (worker.stderr) {
-      worker.stderr.on('data', chunk => {
-        workerStderr += chunk.toString();
-        this._log(`[worker:stderr] ${chunk.toString().trim()}`);
-      });
-    }
-    if (worker.stdout) {
-      worker.stdout.on('data', chunk => {
-        this._log(`[worker:stdout] ${chunk.toString().trim()}`);
-      });
-    }
-    
     worker.unref(); // Don't block Node.js exit
-    const workerPid = worker.pid;
-    this._log(`Worker launched with PID ${workerPid}`);
+    this._log(`Worker launched (detached)`);
 
     // ── Monitor progress via status file ──
     // The worker writes a JSON status file every few seconds.
@@ -231,11 +222,7 @@ class BackupManager {
           return;
         }
 
-        // Check if worker is still alive
-        let alive = false;
-        try { process.kill(workerPid, 0); alive = true; } catch(e) {}
-
-        // Read status file
+        // Read status file (worker updates it every few seconds)
         let status = null;
         try {
           if (fs.existsSync(statusFile)) {
@@ -307,17 +294,17 @@ class BackupManager {
           }
         }
 
-        // If worker died without setting status
-        if (!alive && !workerDone) {
+        // If no status updates for too long, worker probably died
+        // (We can't check PID with cmd.exe /c start, so we rely on status file)
+        const noStatusForMs = Date.now() - (status ? new Date(status.timestamp).getTime() : startTime);
+        if (!status && noStatusForMs > 30000 && !workerDone) {
+          // No status file created after 30 seconds = worker died at startup
           clearInterval(pollTimer);
-          let errMsg = 'Worker process died unexpectedly';
-          if (workerStderr) {
-            errMsg += ` (stderr: ${workerStderr.substring(0, 500)})`;
-          }
+          let errMsg = 'Worker failed to start (no status file after 30s)';
           try {
             const wlog = fs.readFileSync(workerLog, 'utf-8');
             this._log(`[worker:log]\n${wlog}`);
-            errMsg += ` | Log: ${wlog.split('\n').slice(-3).join(' ')}`;
+            errMsg += ` | Log: ${wlog.split('\n').slice(-5).join(' ')}`;
           } catch(e) {
             errMsg += ' | No worker log file created';
           }
