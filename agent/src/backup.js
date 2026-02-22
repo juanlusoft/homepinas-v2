@@ -182,23 +182,19 @@ class BackupManager {
       '-LogFile', workerLog,
     ];
 
-    // Build PowerShell command string for cmd.exe /c start
-    // This ensures PowerShell runs completely independently, even if Node.js crashes
-    const psArgs = workerArgs.slice(2).map(a => a.includes(' ') ? `"${a.replace(/"/g, '""')}"` : a).join(' ');
-    const cmd = `cmd.exe`;
-    const cmdArgs = ['/c', 'start', '/b', 'powershell.exe', ...workerArgs];
+    // Launch PowerShell directly (not via cmd.exe to avoid backslash escaping issues)
+    this._log(`Launching worker: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
+    this._log(`SharePath: ${sharePath}`);
     
-    this._log(`Launching worker via cmd.exe: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
-    
-    const worker = spawn(cmd, cmdArgs, {
+    const worker = spawn('powershell.exe', workerArgs, {
       detached: true,
-      stdio: 'ignore', // Must be 'ignore' for truly detached process on Windows
+      stdio: 'ignore', // Must be 'ignore' for truly detached process
       windowsHide: true,
       shell: false,
     });
     
     worker.unref(); // Don't block Node.js exit
-    this._log(`Worker launched (detached)`);
+    this._log(`Worker launched with PID ${worker.pid}`);
 
     // ── Monitor progress via status file ──
     // The worker writes a JSON status file every few seconds.
