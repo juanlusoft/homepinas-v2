@@ -117,9 +117,10 @@ class BackupManager {
   }
 
   /**
-   * Windows Image Backup using wimcapture (wimlib)
-   * Captures each partition as a WIM image + saves disk metadata
-   * Result is fully restorable from Linux/PXE without Windows
+   * Windows Image Backup using PowerShell worker process
+   * Launches backup-worker.ps1 as independent process to avoid Node.js deadlocks.
+   * Monitors progress via JSON status file — Node.js event loop stays free.
+   * Result: WIM images + EFI + metadata, fully restorable from Linux/PXE.
    */
   async _windowsImageBackup(sharePath, creds, nasAddress) {
     const server = sharePath.split('\\').filter(Boolean)[0];
@@ -140,6 +141,178 @@ class BackupManager {
       if (err.message.includes('Administrador')) throw err;
       throw new Error('No se pudo verificar privilegios de administrador: ' + err.message);
     }
+
+    // ── Ensure wimlib is available ──
+    await this._ensureWimlib();
+
+    // ── Launch backup worker as independent PowerShell process ──
+    this._setProgress('worker-launch', 3, 'Lanzando proceso de backup...');
+
+    const hostname = os.hostname();
+    const statusFile = path.join(os.tmpdir(), `homepinas-backup-status-${Date.now()}.json`);
+    const workerLog = path.join(os.tmpdir(), `homepinas-backup-worker-${Date.now()}.log`);
+
+    // Find the worker script (bundled with agent)
+    const workerPaths = [
+      path.join(process.resourcesPath || '', 'app', 'src', 'backup-worker.ps1'),
+      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'src', 'backup-worker.ps1'),
+      path.join(__dirname, 'backup-worker.ps1'),
+    ];
+    let workerScript = null;
+    for (const p of workerPaths) {
+      if (fs.existsSync(p)) { workerScript = p; break; }
+    }
+    if (!workerScript) {
+      throw new Error('backup-worker.ps1 not found. Reinstall the agent.');
+    }
+    this._log(`Worker script: ${workerScript}`);
+    this._log(`Status file: ${statusFile}`);
+    this._log(`Worker log: ${workerLog}`);
+
+    // Launch PowerShell worker as fully detached process
+    const workerArgs = [
+      '-ExecutionPolicy', 'Bypass',
+      '-File', workerScript,
+      '-WimlibPath', this._wimlibPath,
+      '-SharePath', sharePath,
+      '-SambaUser', creds.user,
+      '-SambaPass', creds.pass,
+      '-Hostname', hostname,
+      '-StatusFile', statusFile,
+      '-LogFile', workerLog,
+    ];
+
+    this._log(`Launching worker: powershell ${workerArgs.slice(0, 4).join(' ')}...`);
+    const worker = spawn('powershell', workerArgs, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      shell: false,
+    });
+    worker.unref(); // Don't block Node.js exit
+    const workerPid = worker.pid;
+    this._log(`Worker launched with PID ${workerPid}`);
+
+    // ── Monitor progress via status file ──
+    // The worker writes a JSON status file every few seconds.
+    // We poll it here — Node.js event loop stays completely free.
+    const POLL_INTERVAL = 5000; // 5 seconds
+    const TIMEOUT = 7200000; // 2 hours
+    const startTime = Date.now();
+
+    return new Promise((resolve, reject) => {
+      let lastPhase = '';
+      let lastDetail = '';
+      let workerDone = false;
+
+      const pollTimer = setInterval(() => {
+        // Check timeout
+        if (Date.now() - startTime > TIMEOUT) {
+          clearInterval(pollTimer);
+          this._log('[worker] TIMEOUT after 2 hours');
+          try { process.kill(workerPid); } catch(e) {}
+          reject(new Error('Backup timeout (2 hours)'));
+          return;
+        }
+
+        // Check if worker is still alive
+        let alive = false;
+        try { process.kill(workerPid, 0); alive = true; } catch(e) {}
+
+        // Read status file
+        let status = null;
+        try {
+          if (fs.existsSync(statusFile)) {
+            const raw = fs.readFileSync(statusFile, 'utf-8');
+            status = JSON.parse(raw);
+          }
+        } catch(e) {
+          // File might be mid-write, retry next poll
+        }
+
+        if (status) {
+          // Update progress if changed
+          if (status.phase !== lastPhase || status.detail !== lastDetail) {
+            lastPhase = status.phase;
+            lastDetail = status.detail;
+            this._setProgress(status.phase, status.percent, status.detail);
+            this._log(`[worker] ${status.phase} ${status.percent}% — ${status.detail}`);
+          }
+
+          // Check for completion
+          if (status.phase === 'done') {
+            workerDone = true;
+            clearInterval(pollTimer);
+            this._log('[worker] Backup completed successfully');
+
+            // Read worker log for full details
+            try {
+              const wlog = fs.readFileSync(workerLog, 'utf-8');
+              this._log(`[worker:log]\n${wlog}`);
+            } catch(e) {}
+
+            // Clean up temp files
+            try { fs.unlinkSync(statusFile); } catch(e) {}
+            try { fs.unlinkSync(workerLog); } catch(e) {}
+
+            // Parse the backup path from the worker log
+            let backupPath = '';
+            try {
+              const wlog = fs.readFileSync(workerLog, 'utf-8');
+              const pathMatch = wlog.match(/Path: (.+)/);
+              if (pathMatch) backupPath = pathMatch[1].trim();
+            } catch(e) {}
+
+            resolve({
+              type: 'image',
+              format: 'wim',
+              path: backupPath || `WIMBackup/${hostname}/unknown`,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          // Check for error
+          if (status.phase === 'error') {
+            workerDone = true;
+            clearInterval(pollTimer);
+            const errMsg = status.error || status.detail || 'Unknown worker error';
+            this._log(`[worker] FAILED: ${errMsg}`);
+
+            // Read worker log
+            try {
+              const wlog = fs.readFileSync(workerLog, 'utf-8');
+              this._log(`[worker:log]\n${wlog}`);
+            } catch(e) {}
+
+            try { fs.unlinkSync(statusFile); } catch(e) {}
+            reject(new Error(errMsg));
+            return;
+          }
+        }
+
+        // If worker died without setting status
+        if (!alive && !workerDone) {
+          clearInterval(pollTimer);
+          let errMsg = 'Worker process died unexpectedly';
+          try {
+            const wlog = fs.readFileSync(workerLog, 'utf-8');
+            this._log(`[worker:log]\n${wlog}`);
+            errMsg += `: ${wlog.split('\n').slice(-3).join(' ')}`;
+          } catch(e) {}
+          try { fs.unlinkSync(statusFile); } catch(e) {}
+          reject(new Error(errMsg));
+        }
+      }, POLL_INTERVAL);
+    });
+  }
+
+  /**
+   * OLD: Windows Image Backup using direct wimcapture from Node.js
+   * DEPRECATED: Replaced by worker process. Kept for reference.
+   */
+  async _windowsImageBackup_legacy(sharePath, creds, nasAddress) {
+    const server = sharePath.split('\\').filter(Boolean)[0];
 
     this._setProgress('connect', 5, 'Conectando al NAS...');
 
