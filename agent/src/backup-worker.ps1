@@ -60,14 +60,17 @@ try {
     Write-Status "connect" 5 "Conectando al NAS..."
     $server = ($SharePath -split '\\' | Where-Object { $_ })[0]
     
-    # Clean existing connections
-    net use "\\$server" /delete /y 2>$null
-    net use $SharePath /delete /y 2>$null
+    # Clean existing connections (ignore errors)
+    cmd.exe /c net use "`"\\$server`"" /delete /y 2>$null
+    cmd.exe /c net use "`"$SharePath`"" /delete /y 2>$null
     
-    # Connect
-    $netResult = net use $SharePath /user:$SambaUser $SambaPass /persistent:no 2>&1
+    # Connect (quote all parameters to handle special chars)
+    Write-Log "Connecting with: net use `"$SharePath`" /user:$SambaUser *** /persistent:no"
+    $netResult = cmd.exe /c net use "`"$SharePath`"" "/user:$SambaUser" "$SambaPass" /persistent:no 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "SMB connect failed: $netResult"
+        Write-Log "net use LASTEXITCODE: $LASTEXITCODE"
+        Write-Log "net use output: $netResult"
+        throw "SMB connect failed (code $LASTEXITCODE): $netResult"
     }
     Write-Log "SMB connected to $SharePath"
 
@@ -190,8 +193,8 @@ try {
                 $testFile = "$destBase\disk-metadata.json"
                 if (-not (Test-Path $testFile)) {
                     Write-Log "[smb] Connection lost, reconnecting..."
-                    net use $SharePath /delete /y 2>$null
-                    net use $SharePath /user:$SambaUser $SambaPass /persistent:no 2>$null
+                    cmd.exe /c net use "`"$SharePath`"" /delete /y 2>$null
+                    cmd.exe /c net use "`"$SharePath`"" "/user:$SambaUser" "$SambaPass" /persistent:no 2>$null
                     Write-Log "[smb] Reconnected"
                 }
             } catch {
@@ -259,8 +262,8 @@ try {
             Write-Log "EFI mounted at $efiMountPath"
             
             # Reconnect SMB before EFI copy
-            net use $SharePath /delete /y 2>$null
-            net use $SharePath /user:$SambaUser $SambaPass /persistent:no 2>$null
+            cmd.exe /c net use "`"$SharePath`"" /delete /y 2>$null
+            cmd.exe /c net use "`"$SharePath`"" "/user:$SambaUser" "$SambaPass" /persistent:no 2>$null
             
             $efiDest = "$destBase\EFI"
             New-Item -ItemType Directory -Path $efiDest -Force | Out-Null
@@ -336,5 +339,5 @@ try {
     Write-Status "error" -1 $errMsg $errMsg
 } finally {
     # Cleanup SMB
-    try { net use $SharePath /delete /y 2>$null } catch {}
+    try { cmd.exe /c net use "`"$SharePath`"" /delete /y 2>$null } catch {}
 }
