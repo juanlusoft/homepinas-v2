@@ -121,6 +121,14 @@ router.get('/agent/poll', (req, res) => {
   const device = data.activeBackup.devices.find(d => d.agentToken === token);
   if (!device) return res.status(404).json({ error: 'Agent not found' });
 
+  // Update presence info on every poll
+  const pollIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || device.ip;
+  const pollVersion = req.headers['x-agent-version'] || device.agentVersion;
+  device.lastSeen = new Date().toISOString();
+  if (pollVersion) device.agentVersion = pollVersion;
+  if (pollIp) device.ip = pollIp;
+  saveData(data);
+
   // Build response with config
   const response = {
     status: 'approved',
