@@ -8,5 +8,8 @@ contextBridge.exposeInMainWorld('api', {
   runBackup: () => ipcRenderer.invoke('run-backup'),
   disconnect: () => ipcRenderer.invoke('disconnect'),
   resizeToFit: () => ipcRenderer.invoke('resize-to-fit'),
+  openLogFile: () => ipcRenderer.invoke('open-log-file'),
+  openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
+  getLastError: () => ipcRenderer.invoke('get-last-error'),
   onStatusUpdate: (cb) => ipcRenderer.on('status-update', (_, data) => cb(data)),
 });

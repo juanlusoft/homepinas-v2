@@ -286,13 +286,23 @@ async function runBackupNow() {
   } catch (err) {
     const duration = Math.round((Date.now() - startTime) / 1000);
     store.set('lastResult', 'error');
+    store.set('lastError', err.message.substring(0, 2000));
     console.error('[Backup] Error:', err.message);
     notify('❌ Backup fallido', err.message.substring(0, 200));
 
-    const log = err.backupLog || backupManager.logContent;
+    // Read full agent.log for better diagnostics
+    let fullLog = '';
+    try { fullLog = fs.readFileSync(path.join(logDir, 'agent.log'), 'utf-8').slice(-50000); } catch(e) {}
+    const log = err.backupLog || backupManager.logContent || fullLog;
     try {
-      await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), { status: 'error', duration, error: err.message.substring(0, 2000), log });
-      console.log('[Backup] Report sent to NAS: error');
+      await api.agentReport(store.get('nasAddress'), store.get('nasPort'), store.get('agentToken'), {
+        status: 'error', duration,
+        error: err.message.substring(0, 2000),
+        log: log.slice(-50000),
+        agentVersion: app.getVersion(),
+        hostname: require('os').hostname(),
+      });
+      console.log('[Backup] Error report sent to NAS (with full logs)');
     } catch(e) {
       console.error('[Backup] Failed to report error to NAS:', e.message);
     }
@@ -423,6 +433,20 @@ function setupIPC() {
   ipcMain.handle('disconnect', () => {
     disconnect();
     return { success: true };
+  });
+
+  ipcMain.handle('open-log-file', () => {
+    const logPath = path.join(logDir, 'agent.log');
+    if (fs.existsSync(logPath)) shell.openPath(logPath);
+    else shell.openPath(logDir);
+  });
+
+  ipcMain.handle('open-log-folder', () => {
+    shell.openPath(logDir);
+  });
+
+  ipcMain.handle('get-last-error', () => {
+    return store.get('lastError') || null;
   });
 }
 

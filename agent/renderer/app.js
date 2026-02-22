@@ -83,15 +83,28 @@ async function showDashboard(data) {
   document.getElementById('dash-schedule').textContent = scheduleToText(data.schedule);
   document.getElementById('dash-type').textContent = data.backupType === 'image' ? 'Imagen completa' : 'Archivos';
 
+  const errorBar = document.getElementById('dash-error-bar');
+  const errorText = document.getElementById('dash-error-text');
+
   if (data.lastResult === 'success') {
     document.getElementById('dash-status-icon').textContent = '✅';
     document.getElementById('dash-status').textContent = 'OK';
+    errorBar.classList.add('hidden');
   } else if (data.lastResult === 'error') {
     document.getElementById('dash-status-icon').textContent = '❌';
     document.getElementById('dash-status').textContent = 'Error';
+    // Show error details
+    try {
+      const lastErr = await window.api.getLastError();
+      if (lastErr) {
+        errorText.textContent = lastErr.length > 150 ? lastErr.substring(0, 150) + '...' : lastErr;
+        errorBar.classList.remove('hidden');
+      }
+    } catch(e) {}
   } else {
     document.getElementById('dash-status-icon').textContent = '⏸️';
     document.getElementById('dash-status').textContent = 'En espera';
+    errorBar.classList.add('hidden');
   }
 }
 
@@ -205,6 +218,14 @@ document.getElementById('btn-backup-now').addEventListener('click', async () => 
   } finally {
     document.getElementById('btn-backup-now').disabled = false;
   }
+});
+
+document.getElementById('btn-open-log').addEventListener('click', () => {
+  window.api.openLogFile();
+});
+
+document.getElementById('btn-open-folder').addEventListener('click', () => {
+  window.api.openLogFolder();
 });
 
 document.getElementById('btn-disconnect').addEventListener('click', async () => {
