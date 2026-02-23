@@ -8,7 +8,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="/tmp/homepinas-recovery-build"
+BUILD_DIR="/home/juanlu/homepinas-recovery-build"
 ISO_OUTPUT="${SCRIPT_DIR}/homepinas-recovery.iso"
 WORK_DIR="${BUILD_DIR}/work"
 ROOTFS="${BUILD_DIR}/rootfs"
@@ -97,14 +97,7 @@ build_rootfs() {
             smartmontools \
             less \
             nano \
-            firmware-linux-free \
-            firmware-linux-nonfree \
-            firmware-realtek \
-            firmware-iwlwifi \
-            firmware-atheros \
-            firmware-brcm80211 \
-            firmware-intel-sound \
-            firmware-misc-nonfree
+            linux-firmware
         
         # Clean up to reduce size
         apt-get clean
