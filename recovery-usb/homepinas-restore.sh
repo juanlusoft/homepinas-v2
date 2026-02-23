@@ -12,7 +12,7 @@ NAS_ADDR=""
 SESSION_ID=""
 API_BASE=""
 RESTORE_LOG="/tmp/homepinas-restore.log"
-BACKTITLE="🏠 HomePiNAS Recovery System v1.0"
+BACKTITLE="HomePiNAS Recovery System v1.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Colors (for non-dialog output) ──
@@ -51,12 +51,12 @@ api_post() {
 
 # Show error dialog
 show_error() {
-    dialog --backtitle "$BACKTITLE" --title "❌ Error" --msgbox "$1" 8 60
+    dialog --backtitle "$BACKTITLE" --title "[ERROR] Error" --msgbox "$1" 8 60
 }
 
 # Show info dialog
 show_info() {
-    dialog --backtitle "$BACKTITLE" --title "ℹ️  Información" --msgbox "$1" 8 60
+    dialog --backtitle "$BACKTITLE" --title "[INFO] Informacion" --msgbox "$1" 8 60
 }
 
 # Confirm dialog — returns 0 on yes
@@ -70,24 +70,54 @@ confirm() {
 ###############################################################################
 
 setup_network() {
-    dialog --backtitle "$BACKTITLE" --title "🌐 Red" \
-        --infobox "Configurando red...\n\nEsperando conexión de red (DHCP)..." 6 50
+    dialog --backtitle "$BACKTITLE" --title "Red" \
+        --infobox "Configurando red...\n\nBuscando interfaces de red..." 6 50
 
-    # Wait for network (max 30 seconds)
-    local attempts=0
-    while [ $attempts -lt 30 ]; do
+    # First check if network is already up
+    if ip route get 1.1.1.1 &>/dev/null; then
+        local ip
+        ip=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' 2>/dev/null || ip addr show | grep 'inet ' | grep -v 127.0.0 | awk '{print $2}' | cut -d/ -f1 | head -1)
+        log "Network already ready, IP: $ip"
+        return 0
+    fi
+
+    # Find all non-loopback interfaces and try DHCP on each
+    local ifaces
+    ifaces=$(ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$' | grep -v '^sit' | grep -v '^ip6')
+
+    for iface in $ifaces; do
+        dialog --backtitle "$BACKTITLE" --title "Red" \
+            --infobox "Activando interfaz ${iface}...\nSolicitando IP por DHCP..." 5 50
+
+        # Bring interface up
+        ip link set "$iface" up 2>/dev/null
+        sleep 2
+
+        # Try udhcpc first (BusyBox / initramfs), then dhclient, then dhcpcd
+        if command -v udhcpc &>/dev/null; then
+            udhcpc -i "$iface" -t 5 -T 3 -n -q 2>>"$RESTORE_LOG"
+        elif command -v dhclient &>/dev/null; then
+            dhclient -v "$iface" 2>>"$RESTORE_LOG"
+        elif command -v dhcpcd &>/dev/null; then
+            dhcpcd "$iface" 2>>"$RESTORE_LOG"
+        fi
+
+        # Check if we got an IP
+        sleep 1
         if ip route get 1.1.1.1 &>/dev/null; then
             local ip
-            ip=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+')
-            log "Network ready, IP: $ip"
+            ip=$(ip addr show "$iface" | grep 'inet ' | awk '{print $2}' | cut -d/ -f1 | head -1)
+            log "Network ready on $iface, IP: $ip"
+            dialog --backtitle "$BACKTITLE" --title "Red" \
+                --infobox "Conectado: ${ip} (${iface})" 4 45
+            sleep 1
             return 0
         fi
-        sleep 1
-        attempts=$((attempts + 1))
     done
 
-    dialog --backtitle "$BACKTITLE" --title "⚠️ Red" --yesno \
-        "No se detectó conexión de red automática.\n\n¿Deseas configurarla manualmente?" 8 55
+    # If still no network, offer manual config
+    dialog --backtitle "$BACKTITLE" --title "Red" --yesno \
+        "No se pudo obtener IP automaticamente.\n\nDeseas configurarla manualmente?" 8 55
     
     if [ $? -eq 0 ]; then
         configure_network_manual
@@ -121,22 +151,29 @@ configure_network_manual() {
     [ $? -ne 0 ] && return 1
 
     local config_method
-    config_method=$(dialog --backtitle "$BACKTITLE" --title "Configuración" \
-        --menu "Método de configuración:" 10 50 3 \
-        "dhcp" "Automático (DHCP)" \
-        "static" "Manual (IP estática)" 3>&1 1>&2 2>&3)
+    config_method=$(dialog --backtitle "$BACKTITLE" --title "Configuracion" \
+        --menu "Metodo de configuracion:" 10 50 3 \
+        "dhcp" "Automatico (DHCP)" \
+        "static" "Manual (IP estatica)" 3>&1 1>&2 2>&3)
     
     [ $? -ne 0 ] && return 1
 
     if [ "$config_method" = "dhcp" ]; then
         dialog --backtitle "$BACKTITLE" --infobox "Obteniendo IP por DHCP..." 4 40
         ip link set "$selected_iface" up
-        dhclient -v "$selected_iface" 2>/dev/null || dhcpcd "$selected_iface" 2>/dev/null
+        sleep 2
+        if command -v udhcpc &>/dev/null; then
+            udhcpc -i "$selected_iface" -t 5 -T 3 -n -q 2>/dev/null
+        elif command -v dhclient &>/dev/null; then
+            dhclient -v "$selected_iface" 2>/dev/null
+        elif command -v dhcpcd &>/dev/null; then
+            dhcpcd "$selected_iface" 2>/dev/null
+        fi
         sleep 3
     else
         local ip_addr
-        ip_addr=$(dialog --backtitle "$BACKTITLE" --title "IP estática" \
-            --inputbox "Dirección IP (ej: 192.168.1.50/24):" 8 50 "192.168.1.50/24" 3>&1 1>&2 2>&3)
+        ip_addr=$(dialog --backtitle "$BACKTITLE" --title "IP estatica" \
+            --inputbox "Direccion IP (ej: 192.168.1.50/24):" 8 50 "192.168.1.50/24" 3>&1 1>&2 2>&3)
         [ $? -ne 0 ] && return 1
         
         local gateway
@@ -156,7 +193,7 @@ configure_network_manual() {
         show_info "Red configurada correctamente\n\nIP: ${my_ip}\nInterfaz: ${selected_iface}"
         return 0
     else
-        show_error "No se pudo establecer conexión de red"
+        show_error "No se pudo establecer conexion de red"
         return 1
     fi
 }
@@ -169,8 +206,8 @@ discover_nas_tui() {
     local tmpfile
     tmpfile=$(mktemp)
 
-    dialog --backtitle "$BACKTITLE" --title "🔍 Buscando NAS" \
-        --infobox "Buscando HomePiNAS en la red...\n\nMétodo 1: mDNS/Avahi..." 7 50
+    dialog --backtitle "$BACKTITLE" --title ">> Buscando NAS" \
+        --infobox "Buscando HomePiNAS en la red...\n\nMetodo 1: mDNS/Avahi..." 7 50
     
     # Source nas-discover functions
     if [ -f "${SCRIPT_DIR}/nas-discover" ]; then
@@ -188,21 +225,21 @@ discover_nas_tui() {
         API_BASE="https://${NAS_ADDR}/api"
         log "NAS found at $NAS_ADDR"
         
-        dialog --backtitle "$BACKTITLE" --title "✅ NAS encontrado" \
+        dialog --backtitle "$BACKTITLE" --title "[OK] NAS encontrado" \
             --msgbox "HomePiNAS encontrado en:\n\n  📡 ${NAS_ADDR}\n\nConectando..." 9 50
         return 0
     fi
 
     # Manual entry if auto-discovery fails
-    dialog --backtitle "$BACKTITLE" --title "⚠️ NAS no encontrado" --yesno \
-        "No se encontró HomePiNAS automáticamente.\n\n¿Quieres introducir la dirección manualmente?" 8 55
+    dialog --backtitle "$BACKTITLE" --title "[!] NAS no encontrado" --yesno \
+        "No se encontro HomePiNAS automaticamente.\n\nQuieres introducir la direccion manualmente?" 8 55
     
     if [ $? -ne 0 ]; then
         return 1
     fi
 
     local manual_addr
-    manual_addr=$(dialog --backtitle "$BACKTITLE" --title "Dirección del NAS" \
+    manual_addr=$(dialog --backtitle "$BACKTITLE" --title "Direccion del NAS" \
         --inputbox "Introduce la IP o hostname del NAS:\n(ej: 192.168.1.100)" 9 50 "" 3>&1 1>&2 2>&3)
     
     [ $? -ne 0 ] && return 1
@@ -214,16 +251,16 @@ discover_nas_tui() {
         manual_addr=$(echo "$manual_addr" | cut -d: -f1)
     fi
 
-    dialog --backtitle "$BACKTITLE" --infobox "Verificando conexión con ${manual_addr}:${port}..." 4 55
+    dialog --backtitle "$BACKTITLE" --infobox "Verificando conexion con ${manual_addr}:${port}..." 4 55
 
     if curl -sk --connect-timeout 5 "https://${manual_addr}:${port}/api/system/stats" &>/dev/null; then
         NAS_ADDR="${manual_addr}:${port}"
         API_BASE="https://${NAS_ADDR}/api"
         log "NAS manually set to $NAS_ADDR"
-        show_info "Conexión verificada con ${NAS_ADDR}"
+        show_info "Conexion verificada con ${NAS_ADDR}"
         return 0
     else
-        show_error "No se pudo conectar con ${manual_addr}:${port}\n\nVerifica que el NAS esté encendido y accesible."
+        show_error "No se pudo conectar con ${manual_addr}:${port}\n\nVerifica que el NAS este encendido y accesible."
         return 1
     fi
 }
@@ -234,10 +271,10 @@ discover_nas_tui() {
 
 login_tui() {
     local credentials
-    credentials=$(dialog --backtitle "$BACKTITLE" --title "🔐 Inicio de sesión" \
+    credentials=$(dialog --backtitle "$BACKTITLE" --title "🔐 Inicio de sesion" \
         --form "Credenciales del HomePiNAS:" 12 50 3 \
         "Usuario:" 1 1 "admin" 1 12 25 50 \
-        "Contraseña:" 2 1 "" 2 12 25 50 \
+        "Contrasena:" 2 1 "" 2 12 25 50 \
         3>&1 1>&2 2>&3)
     
     [ $? -ne 0 ] && return 1
@@ -247,11 +284,11 @@ login_tui() {
     password=$(echo "$credentials" | sed -n '2p')
 
     if [ -z "$username" ] || [ -z "$password" ]; then
-        show_error "Usuario y contraseña son obligatorios"
+        show_error "Usuario y contrasena son obligatorios"
         return 1
     fi
 
-    dialog --backtitle "$BACKTITLE" --infobox "Iniciando sesión..." 4 35
+    dialog --backtitle "$BACKTITLE" --infobox "Iniciando sesion..." 4 35
 
     local response
     response=$(curl -sk --connect-timeout 10 \
@@ -365,8 +402,8 @@ select_version() {
     done
 
     local selected_version
-    selected_version=$(dialog --backtitle "$BACKTITLE" --title "📦 Seleccionar versión" \
-        --menu "Elige la versión de backup:" 18 65 10 \
+    selected_version=$(dialog --backtitle "$BACKTITLE" --title "📦 Seleccionar version" \
+        --menu "Elige la version de backup:" 18 65 10 \
         "${menu_items[@]}" 3>&1 1>&2 2>&3)
     
     [ $? -ne 0 ] && return 1
@@ -406,8 +443,8 @@ select_target_disk() {
     fi
 
     local selected_disk
-    selected_disk=$(dialog --backtitle "$BACKTITLE" --title "💾 Seleccionar disco destino" \
-        --menu "⚠️  EL DISCO SELECCIONADO SERÁ BORRADO COMPLETAMENTE\n\nElige el disco destino:" 18 65 8 \
+    selected_disk=$(dialog --backtitle "$BACKTITLE" --title ">> Seleccionar disco destino" \
+        --menu "[!] EL DISCO SELECCIONADO SERA BORRADO COMPLETAMENTE\n\nElige el disco destino:" 18 65 8 \
         "${menu_items[@]}" 3>&1 1>&2 2>&3)
     
     [ $? -ne 0 ] && return 1
@@ -416,14 +453,14 @@ select_target_disk() {
     local disk_info
     disk_info=$(lsblk -dno SIZE,MODEL "$selected_disk" 2>/dev/null)
     
-    dialog --backtitle "$BACKTITLE" --title "⚠️  ¡ATENCIÓN!" --yesno \
-        "¡TODOS LOS DATOS en ${selected_disk} se PERDERÁN!\n\nDisco: ${selected_disk}\nInfo: ${disk_info}\n\n¿Estás SEGURO de que quieres continuar?" 12 60
+    dialog --backtitle "$BACKTITLE" --title "[!] ATENCIÓN!" --yesno \
+        "TODOS LOS DATOS en ${selected_disk} se PERDERAN!\n\nDisco: ${selected_disk}\nInfo: ${disk_info}\n\nEstas SEGURO de que quieres continuar?" 12 60
     
     [ $? -ne 0 ] && return 1
 
     # Triple confirm for safety
-    dialog --backtitle "$BACKTITLE" --title "⚠️  ÚLTIMA CONFIRMACIÓN" --yesno \
-        "Escribir:\n  ${selected_disk}\n\nEsta operación NO se puede deshacer.\n\n¿Continuar con la restauración?" 11 55
+    dialog --backtitle "$BACKTITLE" --title "[!] ÚLTIMA CONFIRMACIÓN" --yesno \
+        "Escribir:\n  ${selected_disk}\n\nEsta operacion NO se puede deshacer.\n\nContinuar con la restauracion?" 11 55
     
     [ $? -ne 0 ] && return 1
 
@@ -451,16 +488,16 @@ restore_files() {
     count=$(echo "$files_json" | jq 'length' 2>/dev/null)
 
     if [ -z "$count" ] || [ "$count" = "0" ]; then
-        show_error "El backup está vacío o no se puede leer."
+        show_error "El backup esta vacio o no se puede leer."
         return 1
     fi
 
     # Ask what to restore
     local restore_choice
     restore_choice=$(dialog --backtitle "$BACKTITLE" --title "📂 Restaurar archivos" \
-        --menu "¿Qué quieres restaurar?" 12 55 4 \
+        --menu "Que quieres restaurar?" 12 55 4 \
         "todo" "Restaurar TODO el backup" \
-        "carpeta" "Elegir carpeta específica" \
+        "carpeta" "Elegir carpeta especifica" \
         "manual" "Escribir ruta manualmente" 3>&1 1>&2 2>&3)
     
     [ $? -ne 0 ] && return 1
@@ -485,15 +522,15 @@ restore_files() {
     # Ask destination
     local dest_path
     dest_path=$(dialog --backtitle "$BACKTITLE" --title "Destino" \
-        --inputbox "¿Dónde restaurar en ESTE equipo?\n(Ruta local destino):" 9 55 "/mnt/restore" 3>&1 1>&2 2>&3)
+        --inputbox "Donde restaurar en ESTE equipo?\n(Ruta local destino):" 9 55 "/mnt/restore" 3>&1 1>&2 2>&3)
     [ $? -ne 0 ] && return 1
 
     # Create destination
     mkdir -p "$dest_path" 2>/dev/null
 
     # Confirm
-    dialog --backtitle "$BACKTITLE" --title "Confirmar restauración" --yesno \
-        "Restaurar archivos:\n\n  Origen: backup ${version} → ${source_path}\n  Destino: ${dest_path}\n  NAS: ${NAS_ADDR}\n\n¿Continuar?" 12 60
+    dialog --backtitle "$BACKTITLE" --title "Confirmar restauracion" --yesno \
+        "Restaurar archivos:\n\n  Origen: backup ${version} → ${source_path}\n  Destino: ${dest_path}\n  NAS: ${NAS_ADDR}\n\nContinuar?" 12 60
     [ $? -ne 0 ] && return 1
 
     # Download and restore via rsync from NAS
@@ -517,11 +554,11 @@ browse_backup_dirs() {
         
         # Add parent directory option
         if [ "$current_path" != "/" ]; then
-            menu_items+=(".." "⬆️  Directorio anterior")
+            menu_items+=(".." "..Directorio anterior")
         fi
         
         # Add "select this" option
-        menu_items+=("SELECCIONAR" "✅ Restaurar esta carpeta: ${current_path}")
+        menu_items+=("SELECCIONAR" "[OK] Restaurar esta carpeta: ${current_path}")
         
         # List directories
         local count
@@ -657,7 +694,7 @@ restore_files_download() {
 
     log "File restore completed. Errors: $errors"
     
-    show_info "Restauración completada\n\nArchivos: ${total_files}\nDestino: ${dest_path}\nErrores: ${errors}"
+    show_info "Restauracion completada\n\nArchivos: ${total_files}\nDestino: ${dest_path}\nErrores: ${errors}"
 }
 
 ###############################################################################
@@ -767,7 +804,7 @@ restore_image_linux() {
     if [ -n "$full_disk_img" ]; then
         # Full disk image — write directly
         dialog --backtitle "$BACKTITLE" --title "Restaurando imagen completa" --yesno \
-            "Se encontró imagen de disco completa:\n  ${full_disk_img}\n\nSe escribirá directamente en:\n  ${target_disk}\n\n¿Continuar?" 12 60
+            "Se encontro imagen de disco completa:\n  ${full_disk_img}\n\nSe escribira directamente en:\n  ${target_disk}\n\nContinuar?" 12 60
         [ $? -ne 0 ] && return 1
 
         restore_single_image "$device_id" "$version" "$full_disk_img" "$target_disk"
@@ -775,7 +812,7 @@ restore_image_linux() {
         # Multiple partition images
         restore_partition_images "$device_id" "$version" "$target_disk" "${img_files[@]}"
     else
-        show_error "No se encontraron imágenes de disco en este backup.\n\nAsegúrate de que el backup se hizo en modo 'image'."
+        show_error "No se encontraron imagenes de disco en este backup.\n\nAsegurate de que el backup se hizo en modo 'image'."
         return 1
     fi
 }
@@ -837,7 +874,7 @@ restore_single_image() {
         sync
 
         echo "100"
-    ) | dialog --backtitle "$BACKTITLE" --title "💾 Restaurando imagen" \
+    ) | dialog --backtitle "$BACKTITLE" --title ">> Restaurando imagen" \
         --gauge "Preparando descarga..." 8 60 0
 
     # Verify
@@ -846,9 +883,9 @@ restore_single_image() {
         partprobe "$target_disk" 2>/dev/null
         
         log "Image restore completed: $image_file → $target_disk"
-        show_info "✅ Imagen restaurada correctamente\n\n${image_file} → ${target_disk}\n\nPuedes reiniciar desde el disco restaurado."
+        show_info "[OK] Imagen restaurada correctamente\n\n${image_file} → ${target_disk}\n\nPuedes reiniciar desde el disco restaurado."
     else
-        show_error "Error durante la restauración.\n\nRevisa el log: ${RESTORE_LOG}"
+        show_error "Error durante la restauracion.\n\nRevisa el log: ${RESTORE_LOG}"
     fi
 }
 
@@ -907,7 +944,7 @@ restore_partition_images() {
             local pct=$(( (step * 100) / (total + 1) ))
             echo "$pct"
             echo "XXX"
-            echo "Restaurando partición: ${img}\n(${step}/${total})"
+            echo "Restaurando particion: ${img}\n(${step}/${total})"
             echo "XXX"
 
             # Determine target partition from filename
@@ -973,13 +1010,13 @@ restore_partition_images() {
         sync
 
         echo "100"
-    ) | dialog --backtitle "$BACKTITLE" --title "💾 Restaurando particiones" \
+    ) | dialog --backtitle "$BACKTITLE" --title ">> Restaurando particiones" \
         --gauge "Preparando..." 8 60 0
 
     partprobe "$target_disk" 2>/dev/null
 
     log "Partition restore completed"
-    show_info "✅ Particiones restauradas en ${target_disk}\n\nPuedes reiniciar desde el disco restaurado."
+    show_info "[OK] Particiones restauradas en ${target_disk}\n\nPuedes reiniciar desde el disco restaurado."
 }
 
 ###############################################################################
@@ -1028,13 +1065,13 @@ restore_image_windows() {
     fi
 
     if [ -z "$wim_file" ]; then
-        show_error "No se encontró imagen Windows (WIM o disco completo).\n\nVerifica que el backup se realizó correctamente."
+        show_error "No se encontro imagen Windows (WIM o disco completo).\n\nVerifica que el backup se realizo correctamente."
         return 1
     fi
 
     # Windows WIM-based restore
     dialog --backtitle "$BACKTITLE" --title "🪟 Windows Restore" --yesno \
-        "Se encontró imagen Windows WIM:\n  ${wim_file}\n\nSe crearán las particiones necesarias:\n  - EFI (512MB)\n  - MSR (16MB)\n  - Windows (resto)\n\n¿Continuar?" 14 60
+        "Se encontro imagen Windows WIM:\n  ${wim_file}\n\nSe crearan las particiones necesarias:\n  - EFI (512MB)\n  - MSR (16MB)\n  - Windows (resto)\n\nContinuar?" 14 60
     [ $? -ne 0 ] && return 1
 
     (
@@ -1151,7 +1188,7 @@ restore_image_windows() {
     partprobe "$target_disk" 2>/dev/null
 
     log "Windows image restore completed"
-    show_info "✅ Windows restaurado en ${target_disk}\n\nParticiones creadas:\n  1. EFI (512MB)\n  2. MSR (16MB)\n  3. Windows (NTFS)\n\nRetira el USB y reinicia desde el disco."
+    show_info "[OK] Windows restaurado en ${target_disk}\n\nParticiones creadas:\n  1. EFI (512MB)\n  2. MSR (16MB)\n  3. Windows (NTFS)\n\nRetira el USB y reinicia desde el disco."
 }
 
 ###############################################################################
@@ -1161,15 +1198,15 @@ restore_image_windows() {
 disk_utilities_menu() {
     while true; do
         local choice
-        choice=$(dialog --backtitle "$BACKTITLE" --title "🔧 Utilidades de disco" \
+        choice=$(dialog --backtitle "$BACKTITLE" --title ">> Utilidades de disco" \
             --menu "Herramientas de disco:" 15 55 7 \
-            "info" "📋 Información de discos" \
-            "smart" "🔍 Estado SMART" \
+            "info" ">> Informacion de discos" \
+            "smart" ">> Estado SMART" \
             "part" "📊 Ver particiones" \
-            "mount" "📁 Montar partición" \
-            "umount" "⏏️  Desmontar partición" \
+            "mount" "📁 Montar particion" \
+            "umount" ">> Desmontar particion" \
             "shell" "💻 Abrir terminal" \
-            "back" "⬅️  Volver" 3>&1 1>&2 2>&3)
+            "back" "< Volver" 3>&1 1>&2 2>&3)
         
         [ $? -ne 0 ] && return
 
@@ -1226,7 +1263,7 @@ disk_utilities_menu() {
             "shell")
                 clear
                 echo -e "${CYAN}═══ Terminal HomePiNAS Recovery ═══${NC}"
-                echo -e "Escribe ${BOLD}exit${NC} para volver al menú"
+                echo -e "Escribe ${BOLD}exit${NC} para volver al menu"
                 echo ""
                 /bin/bash
                 ;;
@@ -1252,7 +1289,7 @@ show_system_info() {
     info+="\n═══ NAS ═══\n"
     if [ -n "$NAS_ADDR" ]; then
         info+="Conectado a: ${NAS_ADDR}\n"
-        info+="Sesión: ${SESSION_ID:0:16}...\n"
+        info+="Sesion: ${SESSION_ID:0:16}...\n"
     else
         info+="No conectado\n"
     fi
@@ -1261,7 +1298,7 @@ show_system_info() {
     info+="\n═══ Memoria ═══\n"
     info+="$(free -h | head -2)\n"
 
-    dialog --backtitle "$BACKTITLE" --title "ℹ️  Información del sistema" \
+    dialog --backtitle "$BACKTITLE" --title "[INFO] Informacion del sistema" \
         --msgbox "$info" 25 70
 }
 
@@ -1271,18 +1308,18 @@ show_system_info() {
 
 main_menu() {
     while true; do
-        local nas_status="❌ Sin conexión"
+        local nas_status="[ERROR] Sin conexion"
         if [ -n "$SESSION_ID" ]; then
-            nas_status="✅ ${NAS_ADDR}"
+            nas_status="[OK] ${NAS_ADDR}"
         fi
 
         local choice
-        choice=$(dialog --backtitle "$BACKTITLE" --title "Menú principal — NAS: ${nas_status}" \
-            --menu "¿Qué deseas hacer?" 16 60 8 \
+        choice=$(dialog --backtitle "$BACKTITLE" --title "Menu principal — NAS: ${nas_status}" \
+            --menu "Que deseas hacer?" 16 60 8 \
             "restore" "🔄 Restaurar backup" \
             "connect" "🔌 Conectar a NAS" \
-            "disks" "🔧 Utilidades de disco" \
-            "info" "ℹ️  Información del sistema" \
+            "disks" ">> Utilidades de disco" \
+            "info" "[INFO] Informacion del sistema" \
             "log" "📝 Ver log de operaciones" \
             "shell" "💻 Abrir terminal" \
             "reboot" "🔃 Reiniciar equipo" \
@@ -1293,7 +1330,7 @@ main_menu() {
         case "$choice" in
             "restore")
                 if [ -z "$SESSION_ID" ]; then
-                    show_error "Primero debes conectarte al NAS.\n\nSelecciona 'Conectar a NAS' del menú."
+                    show_error "Primero debes conectarte al NAS.\n\nSelecciona 'Conectar a NAS' del menu."
                     continue
                 fi
                 restore_menu
@@ -1312,21 +1349,21 @@ main_menu() {
                     dialog --backtitle "$BACKTITLE" --title "Log" \
                         --textbox "$RESTORE_LOG" 22 75
                 else
-                    show_info "No hay log todavía."
+                    show_info "No hay log todavia."
                 fi
                 ;;
             "shell")
                 clear
                 echo -e "${CYAN}═══ Terminal HomePiNAS Recovery ═══${NC}"
-                echo -e "Escribe ${BOLD}exit${NC} para volver al menú"
+                echo -e "Escribe ${BOLD}exit${NC} para volver al menu"
                 echo ""
                 /bin/bash
                 ;;
             "reboot")
-                confirm "¿Reiniciar el equipo?" && reboot
+                confirm "Reiniciar el equipo?" && reboot
                 ;;
             "poweroff")
-                confirm "¿Apagar el equipo?" && poweroff
+                confirm "Apagar el equipo?" && poweroff
                 ;;
         esac
     done
@@ -1347,7 +1384,7 @@ connect_to_nas() {
         attempts=$((attempts + 1))
         if [ $attempts -lt 3 ]; then
             dialog --backtitle "$BACKTITLE" --yesno \
-                "Intento ${attempts}/3 fallido.\n\n¿Reintentar?" 7 40
+                "Intento ${attempts}/3 fallido.\n\nReintentar?" 7 40
             [ $? -ne 0 ] && return 1
         fi
     done
@@ -1392,8 +1429,8 @@ restore_menu() {
 
 exit_menu() {
     dialog --backtitle "$BACKTITLE" --title "Salir" --yesno \
-        "¿Qué deseas hacer?" 9 45 \
-        --yes-label "Volver al menú" \
+        "Que deseas hacer?" 9 45 \
+        --yes-label "Volver al menu" \
         --no-label "Salir al terminal"
     
     if [ $? -ne 0 ]; then
@@ -1402,7 +1439,7 @@ exit_menu() {
         echo -e "${GREEN} HomePiNAS Recovery — Modo terminal${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}"
         echo ""
-        echo -e "Escribe ${BOLD}homepinas-restore${NC} para volver al menú"
+        echo -e "Escribe ${BOLD}homepinas-restore${NC} para volver al menu"
         echo ""
         exit 0
     fi
@@ -1419,25 +1456,25 @@ main() {
 
     # Check if dialog is available
     if ! command -v dialog &>/dev/null; then
-        echo -e "${RED}Error: 'dialog' no está instalado${NC}"
+        echo -e "${RED}Error: 'dialog' no esta instalado${NC}"
         echo "Instala con: apt-get install dialog"
         exit 1
     fi
 
     # Welcome screen
-    dialog --backtitle "$BACKTITLE" --title "🏠 HomePiNAS Recovery" --msgbox \
-        "Bienvenido al sistema de recuperación HomePiNAS\n\n\
-Este asistente te guiará para:\n\n\
-  🔍 Encontrar tu NAS en la red\n\
+    dialog --backtitle "$BACKTITLE" --title ">> HomePiNAS Recovery" --msgbox \
+        "Bienvenido al sistema de recuperacion HomePiNAS\n\n\
+Este asistente te guiara para:\n\n\
+  >> Encontrar tu NAS en la red\n\
   📦 Seleccionar un backup existente\n\
-  💾 Restaurar en el disco destino\n\n\
+  >> Restaurar en el disco destino\n\n\
 Soporta:\n\
   • Linux (dd, partclone)\n\
   • Windows (WIM, ntfsclone)\n\
-  • Restauración de archivos individuales\n\n\
-Asegúrate de que:\n\
-  ✓ El NAS está encendido y en la misma red\n\
-  ✓ El disco destino está conectado\n\
+  • Restauracion de archivos individuales\n\n\
+Asegurate de que:\n\
+  ✓ El NAS esta encendido y en la misma red\n\
+  ✓ El disco destino esta conectado\n\
   ✓ Tienes credenciales del NAS" 22 58
 
     # Setup network
@@ -1445,7 +1482,7 @@ Asegúrate de que:\n\
 
     # Try to auto-discover and connect
     dialog --backtitle "$BACKTITLE" --yesno \
-        "¿Conectar al NAS automáticamente?" 6 45
+        "Conectar al NAS automaticamente?" 6 45
     
     if [ $? -eq 0 ]; then
         connect_to_nas
