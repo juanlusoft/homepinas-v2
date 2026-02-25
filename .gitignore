@@ -24,3 +24,11 @@ brain
 # Logs
 *.log
 logs/
+
+# Large build artifacts
+*.img
+*.img.xz
+*.iso
+coverage/
+backend/routes/active-backup.js.bak
+backend/data/homestore-catalog-new.json
