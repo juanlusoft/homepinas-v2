@@ -1572,7 +1572,7 @@ router.post('/config', (req, res) => {
  * @param {string} options - MergerFS mount options
  * @param {string[]} diskMountPoints - Array of disk mount points to wait for
  */
-function createMergerFSSystemdUnit(sources, options, diskMountPoints) {
+async function createMergerFSSystemdUnit(sources, options, diskMountPoints) {
 
     // Generate systemd mount unit name from path: /mnt/storage -> mnt-storage.mount
     const mountUnitName = 'mnt-storage.mount';

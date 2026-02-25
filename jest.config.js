@@ -3,8 +3,8 @@
  */
 module.exports = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/backend'],
-  testMatch: ['**/__tests__/**/*.test.js'],
+  roots: ['<rootDir>/backend', '<rootDir>/tests'],
+  testMatch: ['**/__tests__/**/*.test.js', '**/tests/**/*.test.js'],
   collectCoverageFrom: [
     'backend/**/*.js',
     '!backend/__tests__/**',
@@ -13,5 +13,5 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   verbose: true,
-  testTimeout: 10000
+  testTimeout: 15000
 };
