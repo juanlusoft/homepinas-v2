@@ -8,8 +8,13 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png",
       "image": "jellyfin/jellyfin:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8096": "8096" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8096": "8096"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/jellyfin/config",
         "/media": "/mnt/storage/media"
@@ -25,8 +30,13 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png",
       "image": "plexinc/pms-docker:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "32400": "32400" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "32400": "32400"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/plex/config",
         "/media": "/mnt/storage/media"
@@ -42,8 +52,13 @@
       "category": "monitoring",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/tautulli.png",
       "image": "linuxserver/tautulli:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8181": "8181" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8181": "8181"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/tautulli/config"
       },
@@ -62,13 +77,23 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/transmission.png",
       "image": "linuxserver/transmission:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "9091": "9091", "51413": "51413" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "9091": "9091",
+        "51413": "51413"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/transmission/config",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": { "PUID": "1000", "PGID": "1000" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000"
+      },
       "webUI": 9091,
       "docs": "https://transmissionbt.com/"
     },
@@ -79,13 +104,24 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/qbittorrent.png",
       "image": "linuxserver/qbittorrent:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8080": "8080", "6881": "6881" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8080": "8080",
+        "6881": "6881"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/qbittorrent/config",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "WEBUI_PORT": "8080" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "WEBUI_PORT": "8080"
+      },
       "webUI": 8080,
       "docs": "https://www.qbittorrent.org/"
     },
@@ -96,14 +132,23 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/sonarr.png",
       "image": "linuxserver/sonarr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8989": "8989" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8989": "8989"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/sonarr/config",
         "/tv": "/mnt/storage/media/tv",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 8989,
       "docs": "https://wiki.servarr.com/sonarr"
     },
@@ -114,14 +159,23 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/radarr.png",
       "image": "linuxserver/radarr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "7878": "7878" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "7878": "7878"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/radarr/config",
         "/movies": "/mnt/storage/media/movies",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 7878,
       "docs": "https://wiki.servarr.com/radarr"
     },
@@ -132,14 +186,23 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/lidarr.png",
       "image": "linuxserver/lidarr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8686": "8686" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8686": "8686"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/lidarr/config",
         "/music": "/mnt/storage/media/music",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 8686,
       "docs": "https://wiki.servarr.com/lidarr"
     },
@@ -150,14 +213,22 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/readarr.png",
       "image": "linuxserver/readarr:develop",
-      "arch": ["amd64"],
-      "ports": { "8787": "8787" },
+      "arch": [
+        "amd64"
+      ],
+      "ports": {
+        "8787": "8787"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/readarr/config",
         "/books": "/mnt/storage/media/books",
         "/downloads": "/mnt/storage/downloads"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 8787,
       "docs": "https://wiki.servarr.com/readarr"
     },
@@ -168,12 +239,21 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/prowlarr.png",
       "image": "linuxserver/prowlarr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "9696": "9696" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "9696": "9696"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/prowlarr/config"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 9696,
       "docs": "https://wiki.servarr.com/prowlarr"
     },
@@ -184,14 +264,23 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/bazarr.png",
       "image": "linuxserver/bazarr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "6767": "6767" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "6767": "6767"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/bazarr/config",
         "/tv": "/mnt/storage/media/tv",
         "/movies": "/mnt/storage/media/movies"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 6767,
       "docs": "https://wiki.bazarr.media/"
     },
@@ -202,12 +291,21 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/overseerr.png",
       "image": "linuxserver/overseerr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "5055": "5055" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "5055": "5055"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/overseerr/config"
       },
-      "env": { "PUID": "1000", "PGID": "1000", "TZ": "Europe/Madrid" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 5055,
       "docs": "https://docs.overseerr.dev/"
     },
@@ -218,12 +316,19 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyseerr.png",
       "image": "fallenbagel/jellyseerr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "5056": "5055" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "5056": "5055"
+      },
       "volumes": {
         "/app/config": "/opt/homepinas/apps/jellyseerr/config"
       },
-      "env": { "TZ": "Europe/Madrid" },
+      "env": {
+        "TZ": "Europe/Madrid"
+      },
       "webUI": 5056,
       "docs": "https://github.com/Fallenbagel/jellyseerr"
     },
@@ -234,8 +339,13 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/photoprism.png",
       "image": "photoprism/photoprism:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "2342": "2342" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "2342": "2342"
+      },
       "volumes": {
         "/photoprism/storage": "/opt/homepinas/apps/photoprism/storage",
         "/photoprism/originals": "/mnt/storage/photos"
@@ -254,8 +364,13 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/immich.png",
       "image": "ghcr.io/immich-app/immich-server:release",
-      "arch": ["amd64", "arm64"],
-      "ports": { "2283": "2283" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "2283": "2283"
+      },
       "volumes": {
         "/usr/src/app/upload": "/mnt/storage/photos/immich"
       },
@@ -278,9 +393,17 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nextcloud.png",
       "image": "nextcloud:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8888": "80" },
-      "volumes": { "/var/www/html": "/opt/homepinas/apps/nextcloud/data" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8888": "80"
+      },
+      "volumes": {
+        "/var/www/html": "/opt/homepinas/apps/nextcloud/data"
+      },
       "env": {},
       "webUI": 8888,
       "docs": "https://docs.nextcloud.com/"
@@ -292,8 +415,13 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/calibre.png",
       "image": "booklore/booklore:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "6060": "6060" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "6060": "6060"
+      },
       "volumes": {
         "/app/data": "/opt/homepinas/apps/booklore/data",
         "/books": "/mnt/storage/books",
@@ -315,13 +443,22 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pi-hole.png",
       "image": "pihole/pihole:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8053": "80", "53": "53/udp" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8053": "80",
+        "53": "53/udp"
+      },
       "volumes": {
         "/etc/pihole": "/opt/homepinas/apps/pihole/etc",
         "/etc/dnsmasq.d": "/opt/homepinas/apps/pihole/dnsmasq"
       },
-      "env": { "WEBPASSWORD": "changeme" },
+      "env": {
+        "WEBPASSWORD": "changeme"
+      },
       "webUI": 8053,
       "docs": "https://docs.pi-hole.net/"
     },
@@ -332,8 +469,16 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/adguard-home.png",
       "image": "adguard/adguardhome:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "3003": "3000", "53": "53/udp", "853": "853" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "3003": "3000",
+        "53": "53/udp",
+        "853": "853"
+      },
       "volumes": {
         "/opt/adguardhome/work": "/opt/homepinas/apps/adguard/work",
         "/opt/adguardhome/conf": "/opt/homepinas/apps/adguard/conf"
@@ -349,8 +494,15 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/caddy.png",
       "image": "caddy:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "80": "80", "443": "443" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "80": "80",
+        "443": "443"
+      },
       "volumes": {
         "/etc/caddy/Caddyfile": "/opt/homepinas/apps/caddy/Caddyfile",
         "/data": "/opt/homepinas/apps/caddy/data",
@@ -366,8 +518,14 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/cloudflare.png",
       "image": "wisdomsky/cloudflared-web:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "14333": "14333" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "14333": "14333"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/cloudflared/config"
       },
@@ -383,7 +541,11 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/tailscale.png",
       "image": "tailscale/tailscale:latest",
-      "arch": ["amd64", "arm64", "arm"],
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
       "ports": {},
       "volumes": {
         "/var/lib/tailscale": "/opt/homepinas/apps/tailscale/state",
@@ -395,7 +557,10 @@
         "TS_ROUTES": "",
         "TS_STATE_DIR": "/var/lib/tailscale"
       },
-      "capabilities": ["NET_ADMIN", "NET_RAW"],
+      "capabilities": [
+        "NET_ADMIN",
+        "NET_RAW"
+      ],
       "networkMode": "host",
       "docs": "https://tailscale.com/kb/"
     },
@@ -406,12 +571,30 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/wireguard.png",
       "image": "linuxserver/wireguard:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "51820": "51820/udp" },
-      "volumes": { "/config": "/opt/homepinas/apps/wireguard/config" },
-      "env": { "PUID": "1000", "PGID": "1000", "SERVERURL": "auto", "PEERS": "3" },
-      "capabilities": ["NET_ADMIN", "SYS_MODULE"],
-      "sysctls": { "net.ipv4.conf.all.src_valid_mark": "1" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "51820": "51820/udp"
+      },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/wireguard/config"
+      },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000",
+        "SERVERURL": "auto",
+        "PEERS": "3"
+      },
+      "capabilities": [
+        "NET_ADMIN",
+        "SYS_MODULE"
+      ],
+      "sysctls": {
+        "net.ipv4.conf.all.src_valid_mark": "1"
+      },
       "docs": "https://www.wireguard.com/"
     },
     {
@@ -421,9 +604,17 @@
       "category": "automation",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/home-assistant.png",
       "image": "homeassistant/home-assistant:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8123": "8123" },
-      "volumes": { "/config": "/opt/homepinas/apps/homeassistant/config" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8123": "8123"
+      },
+      "volumes": {
+        "/config": "/opt/homepinas/apps/homeassistant/config"
+      },
       "env": {},
       "webUI": 8123,
       "privileged": true,
@@ -436,9 +627,15 @@
       "category": "surveillance",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/frigate.png",
       "image": "ghcr.io/blakeblackshear/frigate:stable",
-      "arch": ["amd64"],
+      "arch": [
+        "amd64"
+      ],
       "archNote": "ARM requiere imagen específica con Coral TPU",
-      "ports": { "5000": "5000", "8554": "8554", "8555": "8555" },
+      "ports": {
+        "5000": "5000",
+        "8554": "8554",
+        "8555": "8555"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/frigate/config",
         "/media/frigate": "/mnt/storage/surveillance"
@@ -455,9 +652,17 @@
       "category": "development",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/gitea.png",
       "image": "gitea/gitea:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "3333": "3000", "2222": "22" },
-      "volumes": { "/data": "/opt/homepinas/apps/gitea/data" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "3333": "3000",
+        "2222": "22"
+      },
+      "volumes": {
+        "/data": "/opt/homepinas/apps/gitea/data"
+      },
       "env": {},
       "webUI": 3333,
       "docs": "https://docs.gitea.io/"
@@ -469,9 +674,17 @@
       "category": "security",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/vaultwarden.png",
       "image": "vaultwarden/server:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8880": "80" },
-      "volumes": { "/data": "/opt/homepinas/apps/vaultwarden/data" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8880": "80"
+      },
+      "volumes": {
+        "/data": "/opt/homepinas/apps/vaultwarden/data"
+      },
       "env": {},
       "webUI": 8880,
       "docs": "https://github.com/dani-garcia/vaultwarden/wiki"
@@ -483,8 +696,14 @@
       "category": "files",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/filebrowser.png",
       "image": "filebrowser/filebrowser:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8085": "80" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8085": "80"
+      },
       "volumes": {
         "/srv": "/mnt/storage",
         "/database.db": "/opt/homepinas/apps/filebrowser/database.db"
@@ -500,9 +719,17 @@
       "category": "monitoring",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png",
       "image": "louislam/uptime-kuma:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "3002": "3001" },
-      "volumes": { "/app/data": "/opt/homepinas/apps/uptime-kuma/data" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "3002": "3001"
+      },
+      "volumes": {
+        "/app/data": "/opt/homepinas/apps/uptime-kuma/data"
+      },
       "env": {},
       "webUI": 3002,
       "docs": "https://github.com/louislam/uptime-kuma/wiki"
@@ -514,13 +741,22 @@
       "category": "backup",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/duplicati.png",
       "image": "linuxserver/duplicati:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "8200": "8200" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "8200": "8200"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/duplicati/config",
         "/source": "/mnt/storage"
       },
-      "env": { "PUID": "1000", "PGID": "1000" },
+      "env": {
+        "PUID": "1000",
+        "PGID": "1000"
+      },
       "webUI": 8200,
       "docs": "https://duplicati.readthedocs.io/"
     },
@@ -531,8 +767,13 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/paperless-ngx.png",
       "image": "ghcr.io/paperless-ngx/paperless-ngx:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8000": "8000" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8000": "8000"
+      },
       "volumes": {
         "/usr/src/paperless/data": "/opt/homepinas/apps/paperless/data",
         "/usr/src/paperless/media": "/opt/homepinas/apps/paperless/media",
@@ -552,7 +793,10 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/telegram.png",
       "image": "dgongut/dropbot:latest",
-      "arch": ["amd64", "arm64"],
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
       "ports": {},
       "volumes": {
         "/downloads": "/mnt/storage/downloads"
@@ -573,7 +817,10 @@
       "category": "backup",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/icloud.png",
       "image": "boredazfcuk/icloudpd:latest",
-      "arch": ["amd64", "arm64"],
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
       "ports": {},
       "volumes": {
         "/config": "/opt/homepinas/apps/icloudpd/config",
@@ -592,8 +839,13 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nicotine-plus.png",
       "image": "binhex/arch-nicotineplus:latest",
-      "arch": ["amd64"],
-      "ports": { "6080": "6080", "5900": "5900" },
+      "arch": [
+        "amd64"
+      ],
+      "ports": {
+        "6080": "6080",
+        "5900": "5900"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/nicotineplus/config",
         "/data": "/mnt/storage/downloads"
@@ -616,8 +868,14 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/matrix.png",
       "image": "matrixconduit/matrix-conduit:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "6167": "6167", "8448": "8448" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "6167": "6167",
+        "8448": "8448"
+      },
       "volumes": {
         "/var/lib/matrix-conduit": "/opt/homepinas/apps/conduit/data"
       },
@@ -638,8 +896,13 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pulsarr.png",
       "image": "lakker/pulsarr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "3003": "3003" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "3003": "3003"
+      },
       "volumes": {
         "/app/data": "/opt/homepinas/apps/pulsarr/data"
       },
@@ -656,8 +919,13 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/guacamole.png",
       "image": "flcontainers/guacamole:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8280": "8080" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8280": "8080"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/guacamole/config"
       },
@@ -674,8 +942,14 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/tvheadend.png",
       "image": "lscr.io/linuxserver/tvheadend:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "9981": "9981", "9982": "9982" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "9981": "9981",
+        "9982": "9982"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/tvheadend/config",
         "/recordings": "/mnt/storage/media/recordings"
@@ -695,8 +969,13 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/komga.png",
       "image": "gotson/komga:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "25600": "25600" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "25600": "25600"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/komga/config",
         "/data": "/mnt/storage/media/comics"
@@ -714,8 +993,13 @@
       "category": "monitoring",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/beszel.png",
       "image": "henrygd/beszel:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8090": "8090" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8090": "8090"
+      },
       "volumes": {
         "/beszel_data": "/opt/homepinas/apps/beszel/data"
       },
@@ -732,8 +1016,14 @@
       "category": "downloads",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/amule.png",
       "image": "isc30/emulerr:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "3030": "3000", "4662": "4662" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "3030": "3000",
+        "4662": "4662"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/emulerr/config",
         "/downloads": "/mnt/storage/downloads"
@@ -753,8 +1043,14 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/ubooquity.png",
       "image": "lscr.io/linuxserver/ubooquity:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "2202": "2202", "2203": "2203" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "2202": "2202",
+        "2203": "2203"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/ubooquity/config",
         "/books": "/mnt/storage/media/books",
@@ -776,8 +1072,13 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/stirling-pdf.png",
       "image": "stirlingtools/stirling-pdf:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8086": "8080" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8086": "8080"
+      },
       "volumes": {
         "/usr/share/tessdata": "/opt/homepinas/apps/stirling-pdf/tessdata",
         "/configs": "/opt/homepinas/apps/stirling-pdf/configs",
@@ -797,8 +1098,13 @@
       "category": "system",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/fenrus.png",
       "image": "revenz/fenrus:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "3000": "3000" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "3000": "3000"
+      },
       "volumes": {
         "/app/data": "/opt/homepinas/apps/fenrus/data"
       },
@@ -815,8 +1121,13 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/onlyoffice.png",
       "image": "onlyoffice/documentserver:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8082": "80" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8082": "80"
+      },
       "volumes": {
         "/var/log/onlyoffice": "/opt/homepinas/apps/onlyoffice/logs",
         "/var/lib/onlyoffice": "/opt/homepinas/apps/onlyoffice/data",
@@ -836,8 +1147,14 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/swag.png",
       "image": "linuxserver/swag:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "443": "443", "80": "80" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "443": "443",
+        "80": "80"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/swag/config"
       },
@@ -851,7 +1168,9 @@
         "CERTPROVIDER": "",
         "EMAIL": ""
       },
-      "capabilities": ["NET_ADMIN"],
+      "capabilities": [
+        "NET_ADMIN"
+      ],
       "docs": "https://docs.linuxserver.io/images/docker-swag/"
     },
     {
@@ -861,8 +1180,16 @@
       "category": "network",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/traefik.png",
       "image": "traefik:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "80": "80", "443": "443", "8081": "8080" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "80": "80",
+        "443": "443",
+        "8081": "8080"
+      },
       "volumes": {
         "/etc/traefik": "/opt/homepinas/apps/traefik/config",
         "/var/run/docker.sock": "/var/run/docker.sock:ro"
@@ -878,8 +1205,13 @@
       "category": "development",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/code-server.png",
       "image": "linuxserver/code-server:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8443": "8443" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8443": "8443"
+      },
       "volumes": {
         "/config": "/opt/homepinas/apps/code-server/config",
         "/workspace": "/mnt/storage/projects"
@@ -902,8 +1234,13 @@
       "category": "notes",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/flatnotes.png",
       "image": "dullage/flatnotes:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8687": "8080" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8687": "8080"
+      },
       "volumes": {
         "/data": "/opt/homepinas/apps/flatnotes/data"
       },
@@ -925,8 +1262,14 @@
       "category": "surveillance",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/traccar.png",
       "image": "traccar/traccar:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8182": "8082", "5000-5150": "5000-5150" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8182": "8082",
+        "5000-5150": "5000-5150"
+      },
       "volumes": {
         "/opt/traccar/logs": "/opt/homepinas/apps/traccar/logs",
         "/opt/traccar/data": "/opt/homepinas/apps/traccar/data"
@@ -942,8 +1285,13 @@
       "category": "media",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/kavita.png",
       "image": "jvmilazz0/kavita:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "5001": "5000" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "5001": "5000"
+      },
       "volumes": {
         "/kavita/config": "/opt/homepinas/apps/kavita/config",
         "/manga": "/mnt/storage/media/manga",
@@ -963,8 +1311,13 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/excalidraw.png",
       "image": "excalidraw/excalidraw:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "8084": "80" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "8084": "80"
+      },
       "volumes": {},
       "env": {},
       "webUI": 8084,
@@ -977,8 +1330,14 @@
       "category": "monitoring",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/dozzle.png",
       "image": "amir20/dozzle:latest",
-      "arch": ["amd64", "arm64", "arm"],
-      "ports": { "9999": "8080" },
+      "arch": [
+        "amd64",
+        "arm64",
+        "arm"
+      ],
+      "ports": {
+        "9999": "8080"
+      },
       "volumes": {
         "/var/run/docker.sock": "/var/run/docker.sock:ro"
       },
@@ -993,8 +1352,13 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/linkwarden.png",
       "image": "karakeep/karakeep:latest",
-      "arch": ["amd64", "arm64"],
-      "ports": { "3005": "3000" },
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "3005": "3000"
+      },
       "volumes": {
         "/data": "/opt/homepinas/apps/karakeep/data"
       },
@@ -1012,29 +1376,111 @@
       "category": "productivity",
       "icon": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/changedetection-io.png",
       "image": "flowko/website-shot:latest",
-      "arch": ["amd64"],
-      "ports": { "3006": "3000" },
+      "arch": [
+        "amd64"
+      ],
+      "ports": {
+        "3006": "3000"
+      },
       "volumes": {
         "/app/screenshots": "/opt/homepinas/apps/websiteshot/screenshots"
       },
       "env": {},
       "webUI": 3006,
       "docs": "https://github.com/nicholasadamou/website-shot"
+    },
+    {
+      "id": "bootimus",
+      "name": "Bootimus",
+      "description": "Servidor PXE open-source para arrancar ISOs por red. Alternativa segura a iVentoy, escrito en Go. Web UI, API REST, ACL por MAC, soporte SQLite/PostgreSQL.",
+      "category": "network",
+      "icon": "https://raw.githubusercontent.com/garybowers/bootimus/main/docs/admin_1.png",
+      "image": "garybowers/bootimus:latest",
+      "arch": [
+        "amd64",
+        "arm64"
+      ],
+      "ports": {
+        "69/udp": "69/udp",
+        "8080": "8080",
+        "8081": "8081"
+      },
+      "volumes": {
+        "/data": "/opt/homepinas/apps/bootimus/data"
+      },
+      "env": {},
+      "cap_add": [
+        "NET_BIND_SERVICE"
+      ],
+      "webUI": 8081,
+      "docs": "https://github.com/garybowers/bootimus"
     }
   ],
   "categories": {
-    "media": { "name": "Multimedia", "icon": "🎬", "order": 1 },
-    "downloads": { "name": "Descargas", "icon": "⬇️", "order": 2 },
-    "productivity": { "name": "Productividad", "icon": "📋", "order": 3 },
-    "network": { "name": "Red", "icon": "🌐", "order": 4 },
-    "security": { "name": "Seguridad", "icon": "🔐", "order": 5 },
-    "surveillance": { "name": "Vigilancia", "icon": "📹", "order": 6 },
-    "automation": { "name": "Automatización", "icon": "🏠", "order": 7 },
-    "backup": { "name": "Backup", "icon": "💾", "order": 8 },
-    "development": { "name": "Desarrollo", "icon": "💻", "order": 9 },
-    "monitoring": { "name": "Monitorización", "icon": "📊", "order": 10 },
-    "system": { "name": "Sistema", "icon": "⚙️", "order": 11 },
-    "files": { "name": "Archivos", "icon": "📁", "order": 12 },
-    "notes": { "name": "Notas", "icon": "📝", "order": 13 }
+    "media": {
+      "name": "Multimedia",
+      "icon": "🎬",
+      "order": 1
+    },
+    "downloads": {
+      "name": "Descargas",
+      "icon": "⬇️",
+      "order": 2
+    },
+    "productivity": {
+      "name": "Productividad",
+      "icon": "📋",
+      "order": 3
+    },
+    "network": {
+      "name": "Red",
+      "icon": "🌐",
+      "order": 4
+    },
+    "security": {
+      "name": "Seguridad",
+      "icon": "🔐",
+      "order": 5
+    },
+    "surveillance": {
+      "name": "Vigilancia",
+      "icon": "📹",
+      "order": 6
+    },
+    "automation": {
+      "name": "Automatización",
+      "icon": "🏠",
+      "order": 7
+    },
+    "backup": {
+      "name": "Backup",
+      "icon": "💾",
+      "order": 8
+    },
+    "development": {
+      "name": "Desarrollo",
+      "icon": "💻",
+      "order": 9
+    },
+    "monitoring": {
+      "name": "Monitorización",
+      "icon": "📊",
+      "order": 10
+    },
+    "system": {
+      "name": "Sistema",
+      "icon": "⚙️",
+      "order": 11
+    },
+    "files": {
+      "name": "Archivos",
+      "icon": "📁",
+      "order": 12
+    },
+    "notes": {
+      "name": "Notas",
+      "icon": "📝",
+      "order": 13
+    }
   }
 }
