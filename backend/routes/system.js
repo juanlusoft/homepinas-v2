@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const si = require('systeminformation');
 const { execFileSync } = require('child_process');
@@ -16,6 +17,18 @@ const { requireAuth } = require('../middleware/auth');
 const { logSecurityEvent } = require('../utils/security');
 const { getData } = require('../utils/data');
 const { validateFanId, validateFanMode } = require('../utils/sanitize');
+
+/**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Fan mode presets configuration (v1.5.5 with hysteresis)
 const FANCTL_CONF = '/usr/local/bin/homepinas-fanctl.conf';
@@ -326,7 +339,7 @@ router.get('/fan/mode', requireAuth, (req, res) => {
 });
 
 // Set fan mode preset
-router.post('/fan/mode', requireAuth, (req, res) => {
+router.post('/fan/mode', requireAuth, async (req, res) => {
     const { mode } = req.body;
 
     // SECURITY: Validate mode using sanitize function
@@ -340,10 +353,10 @@ router.post('/fan/mode', requireAuth, (req, res) => {
         // Use os.tmpdir() for temp file — /mnt/storage/.tmp may not exist yet
         const os = require('os');
         const tempFile = path.join(os.tmpdir(), 'homepinas-fanctl-temp.conf');
-        fs.writeFileSync(tempFile, preset, 'utf8');
+        await fsp.writeFile(tempFile, preset, 'utf8');
         execFileSync('sudo', ['cp', tempFile, FANCTL_CONF], { encoding: 'utf8', timeout: 10000 });
         execFileSync('sudo', ['chmod', '644', FANCTL_CONF], { encoding: 'utf8', timeout: 10000 });
-        fs.unlinkSync(tempFile);
+        await fsp.unlink(tempFile);
 
         try {
             execFileSync('sudo', ['systemctl', 'restart', 'homepinas-fanctl'], { encoding: 'utf8', timeout: 10000 });

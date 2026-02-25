@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const os = require('os');
 const { getData, saveData } = require('../../utils/data');
 const { logSecurityEvent } = require('../../utils/security');
@@ -11,6 +12,18 @@ const {
   ensureSSHKey, deviceDir, getVersions, getDirSize, getLocalIPs,
   getImageFiles, getImageBackupInstructions, ensureSambaUser, createImageBackupShare,
 } = require('./helpers');
+
+/**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * SECURITY: Sanitize backup paths to prevent command injection
@@ -40,60 +53,74 @@ function sanitizeBackupPath(pathStr) {
 /**
  * GET / - List all devices with status
  */
-router.get('/', (req, res) => {
-  const data = getData();
-  const ab = data.activeBackup || { devices: [] };
+router.get('/', async (req, res) => {
+  try {
+    const data = getData();
+    const ab = data.activeBackup || { devices: [] };
 
-  const devices = ab.devices.map(d => {
-    const dir = deviceDir(d.id);
-    const isImage = d.backupType === 'image';
+    const devices = await Promise.all(ab.devices.map(async d => {
+      const dir = deviceDir(d.id);
+      const isImage = d.backupType === 'image';
 
-    if (isImage) {
-      const images = getImageFiles(d.id);
-      return { ...d, backupCount: images.length, totalSize: fs.existsSync(dir) ? getDirSize(dir) : 0, images };
-    }
+      if (isImage) {
+        const images = getImageFiles(d.id);
+        const dirExists = await pathExists(dir);
+        return { ...d, backupCount: images.length, totalSize: dirExists ? getDirSize(dir) : 0, images };
+      }
 
-    const versions = getVersions(d.id);
-    return {
-      ...d,
-      backupCount: versions.length,
-      totalSize: fs.existsSync(dir) ? getDirSize(dir) : 0,
-      versions: versions.map(v => {
-        const stat = fs.statSync(require('path').join(dir, v));
+      const versions = getVersions(d.id);
+      const dirExists = await pathExists(dir);
+      const versionDetails = await Promise.all(versions.map(async v => {
+        const stat = await fsp.stat(require('path').join(dir, v));
         return { name: v, date: stat.mtime };
-      }),
-    };
-  });
+      }));
+      
+      return {
+        ...d,
+        backupCount: versions.length,
+        totalSize: dirExists ? getDirSize(dir) : 0,
+        versions: versionDetails,
+      };
+    }));
 
-  res.json({ success: true, devices });
+    res.json({ success: true, devices });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list devices' });
+  }
 });
 
 /**
  * GET /:id/images - List image backup files
  */
-router.get('/:id/images', (req, res) => {
-  const data = getData();
-  if (!data.activeBackup) return res.json({ success: true, images: [] });
-  const device = data.activeBackup.devices.find(d => d.id === req.params.id);
-  if (!device) return res.status(404).json({ error: 'Device not found' });
+router.get('/:id/images', async (req, res) => {
+  try {
+    const data = getData();
+    if (!data.activeBackup) return res.json({ success: true, images: [] });
+    const device = data.activeBackup.devices.find(d => d.id === req.params.id);
+    if (!device) return res.status(404).json({ error: 'Device not found' });
 
-  const images = getImageFiles(device.id);
-  const dir = deviceDir(device.id);
+    const images = getImageFiles(device.id);
+    const dir = deviceDir(device.id);
 
-  let windowsBackups = [];
-  const wibPath = require('path').join(dir, 'WindowsImageBackup');
-  if (fs.existsSync(wibPath)) {
-    try {
-      windowsBackups = fs.readdirSync(wibPath, { withFileTypes: true })
-        .filter(d => d.isDirectory())
-        .map(d => {
-          const bPath = require('path').join(wibPath, d.name);
-          return { name: d.name, size: getDirSize(bPath), modified: fs.statSync(bPath).mtime, type: 'windows-image' };
-        });
-    } catch(e) {}
+    let windowsBackups = [];
+    const wibPath = require('path').join(dir, 'WindowsImageBackup');
+    if (await pathExists(wibPath)) {
+      try {
+        const entries = await fsp.readdir(wibPath, { withFileTypes: true });
+        windowsBackups = await Promise.all(
+          entries.filter(d => d.isDirectory()).map(async d => {
+            const bPath = require('path').join(wibPath, d.name);
+            const stat = await fsp.stat(bPath);
+            return { name: d.name, size: getDirSize(bPath), modified: stat.mtime, type: 'windows-image' };
+          })
+        );
+      } catch(e) {}
+    }
+
+    res.json({ success: true, images, windowsBackups, totalSize: getDirSize(dir) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list images' });
   }
-
-  res.json({ success: true, images, windowsBackups, totalSize: getDirSize(dir) });
 });
 
 /**
@@ -180,7 +207,7 @@ router.post('/', async (req, res) => {
     saveData(data);
 
     const dir = deviceDir(deviceId);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!(await pathExists(dir))) await fsp.mkdir(dir, { recursive: true });
 
     let sambaSetup = null;
     if (isImage) {
@@ -265,24 +292,28 @@ router.put('/:id', (req, res) => {
 /**
  * DELETE /:id - Remove device
  */
-router.delete('/:id', (req, res) => {
-  const data = getData();
-  if (!data.activeBackup) return res.status(404).json({ error: 'No devices configured' });
+router.delete('/:id', async (req, res) => {
+  try {
+    const data = getData();
+    if (!data.activeBackup) return res.status(404).json({ error: 'No devices configured' });
 
-  const idx = data.activeBackup.devices.findIndex(d => d.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Device not found' });
+    const idx = data.activeBackup.devices.findIndex(d => d.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Device not found' });
 
-  const device = data.activeBackup.devices[idx];
-  data.activeBackup.devices.splice(idx, 1);
-  saveData(data);
+    const device = data.activeBackup.devices[idx];
+    data.activeBackup.devices.splice(idx, 1);
+    saveData(data);
 
-  if (req.query.deleteData === 'true') {
-    const dir = deviceDir(req.params.id);
-    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    if (req.query.deleteData === 'true') {
+      const dir = deviceDir(req.params.id);
+      if (await pathExists(dir)) await fsp.rm(dir, { recursive: true, force: true });
+    }
+
+    logSecurityEvent('active_backup_device_removed', req.user.username, { device: device.name });
+    res.json({ success: true, message: `Device "${device.name}" removed` });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to remove device' });
   }
-
-  logSecurityEvent('active_backup_device_removed', req.user.username, { device: device.name });
-  res.json({ success: true, message: `Device "${device.name}" removed` });
 });
 
 /**

@@ -142,7 +142,7 @@ router.get('/agent/poll', pollLimiter, (req, res) => {
  * POST /agent/report - Agent reports backup result
  * SECURITY: Rate limited to 10 requests per IP per minute
  */
-router.post('/agent/report', reportLimiter, (req, res) => {
+router.post('/agent/report', reportLimiter, async (req, res) => {
   const token = req.headers['x-agent-token'];
   if (!token) return res.status(401).json({ error: 'Missing agent token' });
 
@@ -163,11 +163,11 @@ router.post('/agent/report', reportLimiter, (req, res) => {
   if (backupLog) {
     try {
       const path = require('path');
-      const fs = require('fs');
+      const fsp = require('fs').promises;
       const logDir = path.join('/mnt/storage/active-backup', device.id, 'logs');
-      fs.mkdirSync(logDir, { recursive: true });
+      await fsp.mkdir(logDir, { recursive: true });
       const logFile = path.join(logDir, `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
-      fs.writeFileSync(logFile, backupLog);
+      await fsp.writeFile(logFile, backupLog);
     } catch (logErr) {
       console.error('[ActiveBackup] Could not save log:', logErr.message);
     }

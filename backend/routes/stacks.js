@@ -6,16 +6,31 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 const { requireAuth } = require('../middleware/auth');
 
 const STACKS_DIR = '/opt/homepinas/stacks';
 
-// Ensure stacks directory exists
-if (!fs.existsSync(STACKS_DIR)) {
-    fs.mkdirSync(STACKS_DIR, { recursive: true });
+/**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
+
+// Ensure stacks directory exists (async initialization)
+(async () => {
+  if (!(await pathExists(STACKS_DIR))) {
+    await fsp.mkdir(STACKS_DIR, { recursive: true });
+  }
+})();
 
 // Templates for common stacks
 const STACK_TEMPLATES = {
@@ -138,8 +153,8 @@ router.get('/list', requireAuth, async (req, res) => {
     try {
         const stacks = [];
         
-        if (fs.existsSync(STACKS_DIR)) {
-            const dirs = fs.readdirSync(STACKS_DIR, { withFileTypes: true })
+        if (await pathExists(STACKS_DIR)) {
+            const dirs = (await fsp.readdir(STACKS_DIR, { withFileTypes: true }))
                 .filter(d => d.isDirectory());
             
             for (const dir of dirs) {
@@ -147,11 +162,11 @@ router.get('/list', requireAuth, async (req, res) => {
                 const composePath = path.join(stackPath, 'docker-compose.yml');
                 const metaPath = path.join(stackPath, 'stack.json');
                 
-                if (fs.existsSync(composePath)) {
+                if (await pathExists(composePath)) {
                     let meta = { name: dir.name, description: '', icon: '📦' };
-                    if (fs.existsSync(metaPath)) {
+                    if (await pathExists(metaPath)) {
                         try {
-                            meta = { ...meta, ...JSON.parse(fs.readFileSync(metaPath, 'utf8')) };
+                            meta = { ...meta, ...JSON.parse(await fsp.readFile(metaPath, 'utf8')) };
                         } catch (e) {}
                     }
                     
@@ -230,7 +245,7 @@ router.post('/create', requireAuth, async (req, res) => {
         }
         
         const stackPath = path.join(STACKS_DIR, name);
-        if (fs.existsSync(stackPath)) {
+        if (await pathExists(stackPath)) {
             return res.status(400).json({ error: 'Stack already exists' });
         }
         
@@ -245,9 +260,9 @@ router.post('/create', requireAuth, async (req, res) => {
         }
         
         // Create stack directory and files
-        fs.mkdirSync(stackPath, { recursive: true });
-        fs.writeFileSync(path.join(stackPath, 'docker-compose.yml'), composeContent);
-        fs.writeFileSync(path.join(stackPath, 'stack.json'), JSON.stringify({
+        await fsp.mkdir(stackPath, { recursive: true });
+        await fsp.writeFile(path.join(stackPath, 'docker-compose.yml'), composeContent);
+        await fsp.writeFile(path.join(stackPath, 'stack.json'), JSON.stringify({
             name,
             description: description || '',
             icon: icon || '📦',
@@ -256,8 +271,8 @@ router.post('/create', requireAuth, async (req, res) => {
         
         // Create html directory for web stacks
         if (composeContent.includes('/var/www/html')) {
-            fs.mkdirSync(path.join(stackPath, 'html'), { recursive: true });
-            fs.writeFileSync(path.join(stackPath, 'html', 'index.php'), 
+            await fsp.mkdir(path.join(stackPath, 'html'), { recursive: true });
+            await fsp.writeFile(path.join(stackPath, 'html', 'index.php'), 
                 '<?php phpinfo(); ?>');
         }
         
@@ -269,7 +284,7 @@ router.post('/create', requireAuth, async (req, res) => {
 });
 
 // Get stack details
-router.get('/:id', requireAuth, (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
     try {
         if (!/^[a-zA-Z0-9_-]+$/.test(req.params.id)) {
             return res.status(400).json({ error: 'Invalid stack ID' });
@@ -278,14 +293,14 @@ router.get('/:id', requireAuth, (req, res) => {
         const composePath = path.join(stackPath, 'docker-compose.yml');
         const metaPath = path.join(stackPath, 'stack.json');
         
-        if (!fs.existsSync(composePath)) {
+        if (!(await pathExists(composePath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
         
-        const compose = fs.readFileSync(composePath, 'utf8');
+        const compose = await fsp.readFile(composePath, 'utf8');
         let meta = { name: req.params.id };
-        if (fs.existsSync(metaPath)) {
-            try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
+        if (await pathExists(metaPath)) {
+            try { meta = JSON.parse(await fsp.readFile(metaPath, 'utf8')); } catch {}
         }
         
         res.json({ success: true, stack: { ...meta, compose, path: stackPath } });
@@ -295,7 +310,7 @@ router.get('/:id', requireAuth, (req, res) => {
 });
 
 // Update stack compose file
-router.put('/:id', requireAuth, (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
     try {
         if (!/^[a-zA-Z0-9_-]+$/.test(req.params.id)) {
             return res.status(400).json({ error: 'Invalid stack ID' });
@@ -305,23 +320,23 @@ router.put('/:id', requireAuth, (req, res) => {
         const composePath = path.join(stackPath, 'docker-compose.yml');
         const metaPath = path.join(stackPath, 'stack.json');
         
-        if (!fs.existsSync(stackPath)) {
+        if (!(await pathExists(stackPath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
         
         if (compose) {
-            fs.writeFileSync(composePath, compose);
+            await fsp.writeFile(composePath, compose);
         }
         
         if (description !== undefined || icon !== undefined) {
             let meta = {};
-            if (fs.existsSync(metaPath)) {
-                try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
+            if (await pathExists(metaPath)) {
+                try { meta = JSON.parse(await fsp.readFile(metaPath, 'utf8')); } catch {}
             }
             if (description !== undefined) meta.description = description;
             if (icon !== undefined) meta.icon = icon;
             meta.updatedAt = new Date().toISOString();
-            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+            await fsp.writeFile(metaPath, JSON.stringify(meta, null, 2));
         }
         
         res.json({ success: true, message: 'Stack updated' });
@@ -339,7 +354,7 @@ router.post('/:id/up', requireAuth, async (req, res) => {
         const stackPath = path.join(STACKS_DIR, req.params.id);
         const composePath = path.join(stackPath, 'docker-compose.yml');
 
-        if (!fs.existsSync(composePath)) {
+        if (!(await pathExists(composePath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
 
@@ -366,7 +381,7 @@ router.post('/:id/down', requireAuth, async (req, res) => {
         const stackPath = path.join(STACKS_DIR, req.params.id);
         const composePath = path.join(stackPath, 'docker-compose.yml');
 
-        if (!fs.existsSync(composePath)) {
+        if (!(await pathExists(composePath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
 
@@ -392,7 +407,7 @@ router.post('/:id/restart', requireAuth, async (req, res) => {
         const stackPath = path.join(STACKS_DIR, req.params.id);
         const composePath = path.join(stackPath, 'docker-compose.yml');
 
-        if (!fs.existsSync(composePath)) {
+        if (!(await pathExists(composePath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
 
@@ -410,7 +425,7 @@ router.post('/:id/restart', requireAuth, async (req, res) => {
 });
 
 // Get stack logs
-router.get('/:id/logs', requireAuth, (req, res) => {
+router.get('/:id/logs', requireAuth, async (req, res) => {
     try {
         if (!/^[a-zA-Z0-9_-]+$/.test(req.params.id)) {
             return res.status(400).json({ error: 'Invalid stack ID' });
@@ -423,7 +438,7 @@ router.get('/:id/logs', requireAuth, (req, res) => {
         }
         const lines = Math.min(Math.max(parseInt(req.query.lines) || 100, 1), 5000);
 
-        if (!fs.existsSync(composePath)) {
+        if (!(await pathExists(composePath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
 
@@ -448,12 +463,12 @@ router.delete('/:id', requireAuth, async (req, res) => {
         const stackPath = path.join(STACKS_DIR, req.params.id);
         const composePath = path.join(stackPath, 'docker-compose.yml');
         
-        if (!fs.existsSync(stackPath)) {
+        if (!(await pathExists(stackPath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
         
         // Stop containers first
-        if (fs.existsSync(composePath)) {
+        if (await pathExists(composePath)) {
             try {
                 execFileSync('docker', ['compose', '-f', composePath, 'down', '-v'], {
                     encoding: 'utf8',
@@ -467,7 +482,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
         }
         
         // Remove directory
-        fs.rmSync(stackPath, { recursive: true, force: true });
+        await fsp.rm(stackPath, { recursive: true, force: true });
         
         res.json({ success: true, message: 'Stack deleted' });
     } catch (e) {
@@ -484,7 +499,7 @@ router.post('/:id/pull', requireAuth, async (req, res) => {
         const stackPath = path.join(STACKS_DIR, req.params.id);
         const composePath = path.join(stackPath, 'docker-compose.yml');
         
-        if (!fs.existsSync(composePath)) {
+        if (!(await pathExists(composePath))) {
             return res.status(404).json({ error: 'Stack not found' });
         }
         

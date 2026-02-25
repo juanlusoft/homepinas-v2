@@ -4,28 +4,45 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const { spawn } = require('child_process');
 const { logSecurityEvent } = require('../../utils/security');
 
 /**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * GET /status - Check if recovery ISO exists
  */
-router.get('/status', (req, res) => {
-  const isoDir = path.join(__dirname, '..', '..', '..', 'recovery-usb');
-  const isoPath = path.join(isoDir, 'homepinas-recovery.iso');
+router.get('/status', async (req, res) => {
+  try {
+    const isoDir = path.join(__dirname, '..', '..', '..', 'recovery-usb');
+    const isoPath = path.join(isoDir, 'homepinas-recovery.iso');
 
-  let isoInfo = null;
-  if (fs.existsSync(isoPath)) {
-    const stat = fs.statSync(isoPath);
-    isoInfo = { exists: true, size: stat.size, modified: stat.mtime };
+    let isoInfo = null;
+    if (await pathExists(isoPath)) {
+      const stat = await fsp.stat(isoPath);
+      isoInfo = { exists: true, size: stat.size, modified: stat.mtime };
+    }
+
+    res.json({
+      success: true,
+      scriptsAvailable: await pathExists(path.join(isoDir, 'build-recovery-iso.sh')),
+      iso: isoInfo,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check recovery status' });
   }
-
-  res.json({
-    success: true,
-    scriptsAvailable: fs.existsSync(path.join(isoDir, 'build-recovery-iso.sh')),
-    iso: isoInfo,
-  });
 });
 
 /**
@@ -35,7 +52,7 @@ router.post('/build', async (req, res) => {
   const isoDir = path.join(__dirname, '..', '..', '..', 'recovery-usb');
   const buildScript = path.join(isoDir, 'build-recovery-iso.sh');
 
-  if (!fs.existsSync(buildScript)) return res.status(404).json({ error: 'Build script not found' });
+  if (!(await pathExists(buildScript))) return res.status(404).json({ error: 'Build script not found' });
 
   res.json({ success: true, message: 'ISO build started. This will take several minutes.' });
 
@@ -56,18 +73,18 @@ router.post('/build', async (req, res) => {
 /**
  * GET /download - Download recovery ISO
  */
-router.get('/download', (req, res) => {
+router.get('/download', async (req, res) => {
   const isoPath = path.join(__dirname, '..', '..', '..', 'recovery-usb', 'homepinas-recovery.iso');
-  if (!fs.existsSync(isoPath)) return res.status(404).json({ error: 'Recovery ISO not found. Build it first.' });
+  if (!(await pathExists(isoPath))) return res.status(404).json({ error: 'Recovery ISO not found. Build it first.' });
   res.download(isoPath, 'homepinas-recovery.iso');
 });
 
 /**
  * GET /scripts - Download recovery scripts as tar.gz
  */
-router.get('/scripts', (req, res) => {
+router.get('/scripts', async (req, res) => {
   const scriptsDir = path.join(__dirname, '..', '..', '..', 'recovery-usb');
-  if (!fs.existsSync(scriptsDir)) return res.status(404).json({ error: 'Recovery scripts not found' });
+  if (!(await pathExists(scriptsDir))) return res.status(404).json({ error: 'Recovery scripts not found' });
 
   res.setHeader('Content-Type', 'application/gzip');
   res.setHeader('Content-Disposition', 'attachment; filename="homepinas-recovery-scripts.tar.gz"');

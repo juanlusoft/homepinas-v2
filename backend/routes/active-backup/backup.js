@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const { spawn } = require('child_process');
 const { getData, saveData } = require('../../utils/data');
@@ -12,6 +13,18 @@ const {
   SSH_KEY_PATH, deviceDir, getVersions, nextVersion,
   enforceRetention, notifyBackupFailure,
 } = require('./helpers');
+
+/**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * SECURITY: Sanitize backup paths to prevent command injection
@@ -89,7 +102,7 @@ async function runBackup(device) {
   runningBackups.set(device.id, backupState);
 
   const dir = deviceDir(device.id);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!(await pathExists(dir))) await fsp.mkdir(dir, { recursive: true });
 
   const vNum = nextVersion(device.id);
   const vDir = path.join(dir, `v${vNum}`);
@@ -126,7 +139,7 @@ async function runBackup(device) {
 
       const remoteSrc = `${device.sshUser}@${device.ip}:${srcPath}/`;
       const destSub = path.join(vDir, srcPath);
-      if (!fs.existsSync(destSub)) fs.mkdirSync(destSub, { recursive: true });
+      if (!(await pathExists(destSub))) await fsp.mkdir(destSub, { recursive: true });
       args.push(remoteSrc, destSub + '/');
 
       await new Promise((resolve, reject) => {
@@ -153,15 +166,15 @@ async function runBackup(device) {
     enforceRetention(device.id, device.retention || 5);
 
     const latestLink = path.join(dir, 'latest');
-    try { fs.unlinkSync(latestLink); } catch(e) {}
-    fs.symlinkSync(`v${vNum}`, latestLink);
+    try { await fsp.unlink(latestLink); } catch(e) {}
+    await fsp.symlink(`v${vNum}`, latestLink);
 
     logSecurityEvent('active_backup_success', 'system', { device: device.name, version: vNum, duration });
   } catch (err) {
     console.error(`Backup failed for ${device.name}:`, err.message);
 
-    if (fs.existsSync(vDir)) {
-      try { fs.rmSync(vDir, { recursive: true, force: true }); } catch(e) {}
+    if (await pathExists(vDir)) {
+      try { await fsp.rm(vDir, { recursive: true, force: true }); } catch(e) {}
     }
 
     const data = getData();

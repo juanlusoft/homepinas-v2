@@ -6,12 +6,25 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const { requireAuth } = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/rbac');
@@ -29,8 +42,8 @@ const STORAGE_BASE = '/mnt/storage';
  * Returns an object: { global: {...}, shares: [ { name, ...params } ] }
  * Skips the [global], [printers], [print$] and [homes] sections.
  */
-function parseSmbConf() {
-  const content = fs.readFileSync(SMB_CONF_PATH, 'utf8');
+async function parseSmbConf() {
+  const content = await fsp.readFile(SMB_CONF_PATH, 'utf8');
   const lines = content.split('\n');
 
   const systemSections = ['global', 'printers', 'print$', 'homes'];
@@ -120,8 +133,8 @@ function buildShareSection(share) {
 /**
  * Read the full smb.conf content
  */
-function readSmbConf() {
-  return fs.readFileSync(SMB_CONF_PATH, 'utf8');
+async function readSmbConf() {
+  return await fsp.readFile(SMB_CONF_PATH, 'utf8');
 }
 
 /**
@@ -131,7 +144,7 @@ function readSmbConf() {
 async function writeSmbConf(content) {
   // Write to a temp file first
   const tmpFile = path.join('/mnt/storage/.tmp', `smb.conf.${Date.now()}.tmp`);
-  fs.writeFileSync(tmpFile, content, 'utf8');
+  await fsp.writeFile(tmpFile, content, 'utf8');
 
   try {
     // Backup current config
@@ -143,7 +156,7 @@ async function writeSmbConf(content) {
     await sudoExec('chmod', ['644', SMB_CONF_PATH]);
   } catch (err) {
     // Clean up temp file on failure
-    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    try { await fsp.unlink(tmpFile); } catch { /* ignore */ }
     throw err;
   }
 }
@@ -227,9 +240,9 @@ router.use(requireAuth);
  * GET /shares
  * List all configured Samba shares (parsed from smb.conf)
  */
-router.get('/shares', requireAdmin, (req, res) => {
+router.get('/shares', requireAdmin, async (req, res) => {
   try {
-    const shares = parseSmbConf();
+    const shares = await parseSmbConf();
 
     // Normalize the parsed data for consistent API output
     const result = shares.map(share => ({
@@ -277,14 +290,14 @@ router.post('/shares', requireAdmin, async (req, res) => {
     }
 
     // Check if share name already exists
-    const existingShares = parseSmbConf();
+    const existingShares = await parseSmbConf();
     if (existingShares.some(s => s.name.toLowerCase() === name.toLowerCase())) {
       return res.status(409).json({ error: 'A share with this name already exists' });
     }
 
     // Ensure the share directory exists
-    if (!fs.existsSync(sanitizedPath)) {
-      fs.mkdirSync(sanitizedPath, { recursive: true });
+    if (!(await pathExists(sanitizedPath))) {
+      await fsp.mkdir(sanitizedPath, { recursive: true });
     }
 
     // Build the new share section
@@ -300,7 +313,7 @@ router.post('/shares', requireAdmin, async (req, res) => {
     const section = buildShareSection(shareConfig);
 
     // Add to smb.conf
-    const currentConf = readSmbConf();
+    const currentConf = await readSmbConf();
     const newConf = upsertSectionInConf(currentConf, name, section);
     await writeSmbConf(newConf);
 
@@ -333,7 +346,7 @@ router.put('/shares/:name', requireAdmin, async (req, res) => {
     const { path: sharePath, comment, readOnly, guestOk, validUsers } = req.body;
 
     // Check share exists
-    const existingShares = parseSmbConf();
+    const existingShares = await parseSmbConf();
     const existing = existingShares.find(s => s.name === shareName);
     if (!existing) {
       return res.status(404).json({ error: 'Share not found' });
@@ -349,8 +362,8 @@ router.put('/shares/:name', requireAdmin, async (req, res) => {
       resolvedPath = sanitizedPath;
 
       // Ensure directory exists
-      if (!fs.existsSync(resolvedPath)) {
-        fs.mkdirSync(resolvedPath, { recursive: true });
+      if (!(await pathExists(resolvedPath))) {
+        await fsp.mkdir(resolvedPath, { recursive: true });
       }
     }
 
@@ -373,7 +386,7 @@ router.put('/shares/:name', requireAdmin, async (req, res) => {
     const section = buildShareSection(shareConfig);
 
     // Update smb.conf
-    const currentConf = readSmbConf();
+    const currentConf = await readSmbConf();
     const newConf = upsertSectionInConf(currentConf, shareName, section);
     await writeSmbConf(newConf);
 
@@ -404,14 +417,14 @@ router.delete('/shares/:name', requireAdmin, async (req, res) => {
     const shareName = req.params.name;
 
     // Verify share exists
-    const existingShares = parseSmbConf();
+    const existingShares = await parseSmbConf();
     const existing = existingShares.find(s => s.name === shareName);
     if (!existing) {
       return res.status(404).json({ error: 'Share not found' });
     }
 
     // Remove from smb.conf
-    const currentConf = readSmbConf();
+    const currentConf = await readSmbConf();
     const newConf = removeSectionFromConf(currentConf, shareName);
     await writeSmbConf(newConf);
 

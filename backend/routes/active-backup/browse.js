@@ -4,35 +4,52 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const { getData } = require('../../utils/data');
 const { logSecurityEvent } = require('../../utils/security');
 const { BACKUP_BASE, SSH_KEY_PATH, execFileAsync, deviceDir, getVersions, getDirSize } = require('./helpers');
 
 /**
+ * Check if a path exists (async)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * GET /:id/versions - List backup versions
  */
-router.get('/:id/versions', (req, res) => {
-  const versions = getVersions(req.params.id);
-  const dir = deviceDir(req.params.id);
+router.get('/:id/versions', async (req, res) => {
+  try {
+    const versions = getVersions(req.params.id);
+    const dir = deviceDir(req.params.id);
 
-  const result = versions.map(v => {
-    const vPath = path.join(dir, v);
-    const stat = fs.statSync(vPath);
-    return { name: v, date: stat.mtime, size: getDirSize(vPath) };
-  });
+    const result = await Promise.all(versions.map(async v => {
+      const vPath = path.join(dir, v);
+      const stat = await fsp.stat(vPath);
+      return { name: v, date: stat.mtime, size: getDirSize(vPath) };
+    }));
 
-  res.json({ success: true, versions: result });
+    res.json({ success: true, versions: result });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list versions' });
+  }
 });
 
 // ── Resolve base path for a device+version ──
-function resolveVersionPath(deviceId, version) {
+async function resolveVersionPath(deviceId, version) {
   const safe = deviceId.replace(/[^a-zA-Z0-9_-]/g, '');
   const safeVersion = version.replace(/[^a-zA-Z0-9_.-]/g, '');
   let basePath = path.join(BACKUP_BASE, safe, safeVersion);
 
   if (safeVersion === 'latest') {
-    const target = fs.readlinkSync(basePath);
+    const target = await fsp.readlink(basePath);
     basePath = path.join(BACKUP_BASE, safe, target);
   }
 
@@ -42,13 +59,13 @@ function resolveVersionPath(deviceId, version) {
 /**
  * GET /:id/browse?version=v1&path=/home/user
  */
-router.get('/:id/browse', (req, res) => {
+router.get('/:id/browse', async (req, res) => {
   const version = req.query.version || 'latest';
   const browsePath = req.query.path || '/';
 
   let basePath, safe, safeVersion;
   try {
-    ({ basePath, safe, safeVersion } = resolveVersionPath(req.params.id, version));
+    ({ basePath, safe, safeVersion } = await resolveVersionPath(req.params.id, version));
   } catch(e) {
     return res.status(404).json({ error: 'No backups available' });
   }
@@ -60,16 +77,23 @@ router.get('/:id/browse', (req, res) => {
     return res.status(403).json({ error: 'Access denied' });
   }
 
-  if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'Path not found' });
-  if (!fs.statSync(fullPath).isDirectory()) return res.status(400).json({ error: 'Not a directory' });
-
+  if (!(await pathExists(fullPath))) return res.status(404).json({ error: 'Path not found' });
+  
   try {
-    const items = fs.readdirSync(fullPath, { withFileTypes: true }).map(entry => {
+    const stat = await fsp.stat(fullPath);
+    if (!stat.isDirectory()) return res.status(400).json({ error: 'Not a directory' });
+
+    const entries = await fsp.readdir(fullPath, { withFileTypes: true });
+    const items = await Promise.all(entries.map(async entry => {
       const entryPath = path.join(fullPath, entry.name);
       let size = 0, modified = null;
-      try { const s = fs.statSync(entryPath); size = s.size; modified = s.mtime; } catch(e) {}
+      try { 
+        const s = await fsp.stat(entryPath); 
+        size = s.size; 
+        modified = s.mtime; 
+      } catch(e) {}
       return { name: entry.name, type: entry.isDirectory() ? 'directory' : 'file', size, modified };
-    });
+    }));
 
     res.json({
       success: true, path: browsePath, version: safeVersion,
@@ -87,13 +111,13 @@ router.get('/:id/browse', (req, res) => {
 /**
  * GET /:id/download?version=v1&path=/home/user/file.txt
  */
-router.get('/:id/download', (req, res) => {
+router.get('/:id/download', async (req, res) => {
   const version = req.query.version || 'latest';
   const filePath = req.query.path || '';
 
   let basePath, safe;
   try {
-    ({ basePath, safe } = resolveVersionPath(req.params.id, version));
+    ({ basePath, safe } = await resolveVersionPath(req.params.id, version));
   } catch(e) {
     return res.status(404).json({ error: 'No backups available' });
   }
@@ -102,7 +126,15 @@ router.get('/:id/download', (req, res) => {
   const fullPath = path.resolve(basePath, cleanPath);
 
   if (!fullPath.startsWith(path.resolve(BACKUP_BASE, safe))) return res.status(403).json({ error: 'Access denied' });
-  if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) return res.status(404).json({ error: 'File not found' });
+  
+  if (!(await pathExists(fullPath))) return res.status(404).json({ error: 'File not found' });
+  
+  try {
+    const stat = await fsp.stat(fullPath);
+    if (stat.isDirectory()) return res.status(404).json({ error: 'File not found' });
+  } catch(e) {
+    return res.status(404).json({ error: 'File not found' });
+  }
 
   res.download(fullPath);
 });
@@ -121,7 +153,7 @@ router.post('/:id/restore', async (req, res) => {
 
   let basePath, safe;
   try {
-    ({ basePath, safe } = resolveVersionPath(device.id, version));
+    ({ basePath, safe } = await resolveVersionPath(device.id, version));
   } catch(e) {
     return res.status(404).json({ error: 'No backups available' });
   }
@@ -130,13 +162,14 @@ router.post('/:id/restore', async (req, res) => {
   const localPath = path.resolve(basePath, cleanPath);
 
   if (!localPath.startsWith(path.resolve(BACKUP_BASE, safe))) return res.status(403).json({ error: 'Access denied' });
-  if (!fs.existsSync(localPath)) return res.status(404).json({ error: 'Source path not found in backup' });
+  if (!(await pathExists(localPath))) return res.status(404).json({ error: 'Source path not found in backup' });
 
   const remoteDest = destPath || '/' + cleanPath;
   const sshCmd = `ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no -o ConnectTimeout=10 -p ${device.sshPort || 22}`;
 
   try {
-    const isDir = fs.statSync(localPath).isDirectory();
+    const stat = await fsp.stat(localPath);
+    const isDir = stat.isDirectory();
     const args = [
       '-az', '--progress', '-e', sshCmd,
       isDir ? localPath + '/' : localPath,
