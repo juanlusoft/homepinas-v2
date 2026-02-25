@@ -8,37 +8,12 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 
 const { requireAuth } = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/rbac');
 const { logSecurityEvent } = require('../utils/security');
 const { validateUsername, validatePassword } = require('../utils/sanitize');
 const { getData, saveData } = require('../utils/data');
 
 const BCRYPT_ROUNDS = 12;
-
-/**
- * Middleware: require admin role
- * Looks up the user's role from data since sessions only store username.
- */
-function requireAdmin(req, res, next) {
-  const data = getData();
-  // Legacy single-user: always admin
-  if (data.user && !data.users?.length && data.user.username === req.user.username) {
-    req.user.role = 'admin';
-    return next();
-  }
-  // Multi-user: look up role
-  const users = data.users || [];
-  const user = users.find(u => u.username === req.user.username);
-  if (user) {
-    req.user.role = user.role || 'user';
-  } else if (data.user && data.user.username === req.user.username) {
-    // Legacy fallback
-    req.user.role = 'admin';
-  }
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin required' });
-  }
-  next();
-}
 
 /**
  * Get the users array from data, handling legacy single-user format.
