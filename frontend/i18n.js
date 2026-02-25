@@ -94,5 +94,11 @@ function getCurrentLang() {
     return currentLang;
 }
 
+// Expose to window for IIFE modules
+window.initI18n = initI18n;
+window.t = t;
+window.applyTranslations = applyTranslations;
+window.getCurrentLang = getCurrentLang;
+
 // Export functions
 export { initI18n, t, applyTranslations, loadTranslations, getCurrentLang };

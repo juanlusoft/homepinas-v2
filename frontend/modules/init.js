@@ -16,10 +16,14 @@
 
 // =============================================================================
 
-// Initialize i18n first, then auth
+// Initialize i18n first, then start the app
 async function init() {
-    await initI18n();
-    initAuth();
+    if (typeof initI18n === 'function') {
+        await initI18n();
+    }
+    if (window.AppRouter && window.AppRouter.initAuth) {
+        await window.AppRouter.initAuth();
+    }
 }
 
 // Listen for language changes to re-render current view
@@ -1103,7 +1107,7 @@ async function buildRecoveryISO() {
 
     // Expose to window
     window.AppInit = {
-        init: initAuth,
+        init: init,
         checkAuth: checkAuth
     };
     

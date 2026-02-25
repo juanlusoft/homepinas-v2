@@ -1108,6 +1108,7 @@ setupForm.addEventListener('submit', async (e) => {
         switchView,
         startGlobalPolling,
         stopGlobalPolling,
+        initAuth,
         views,
         viewsMap
     };
