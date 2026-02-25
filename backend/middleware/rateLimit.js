@@ -62,10 +62,20 @@ const ddnsLimiter = rateLimit({
     message: { error: 'Too many DDNS update requests, please try again later' }
 });
 
+/**
+ * VPN management rate limiter - prevent abuse of VPN client creation/install
+ */
+const vpnLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,
+    message: { error: 'Too many VPN requests, please try again later' }
+});
+
 module.exports = {
     generalLimiter,
     authLimiter,
     criticalLimiter,
     notificationLimiter,
-    ddnsLimiter
+    ddnsLimiter,
+    vpnLimiter
 };

@@ -9,20 +9,21 @@ const express = require('express');
 const router = express.Router();
 const { execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const { requireAuth } = require('../middleware/auth');
 const { criticalLimiter } = require('../middleware/rateLimit');
 const { logSecurityEvent } = require('../utils/security');
 
 const INSTALL_DIR = '/opt/homepinas';
-const REPO_URL = 'https://github.com/juanlusoft/homepinas-v2.git';
-const EXPECTED_REMOTE = 'github.com/juanlusoft/homepinas-v2'; // SECURITY: Expected repo pattern
+const REPO_URL = 'https://github.com/juanlusoft/dashboard.git';
+const EXPECTED_REMOTE = 'github.com/juanlusoft/dashboard'; // SECURITY: Expected repo pattern
 
 // Check for updates
 router.get('/check', requireAuth, async (req, res) => {
     try {
-        // Get current local version
-        const packageJson = require(path.join(INSTALL_DIR, 'package.json'));
+        // Get current local version (use readFileSync to avoid Node require cache)
+        const packageJson = JSON.parse(fs.readFileSync(path.join(INSTALL_DIR, 'package.json'), 'utf8'));
         const currentVersion = packageJson.version;
 
         // Fetch latest version from GitHub
@@ -35,7 +36,7 @@ router.get('/check', requireAuth, async (req, res) => {
         try {
             // Check for local modifications FIRST
             try {
-                const statusOutput = execFileSync('git', ['status', '--porcelain'], {
+                const statusOutput = execFileSync('sudo', ['git', 'status', '--porcelain'], {
                     cwd: INSTALL_DIR,
                     encoding: 'utf8',
                     timeout: 10000
@@ -50,7 +51,7 @@ router.get('/check', requireAuth, async (req, res) => {
             }
 
             // SECURITY: Use execFileSync with explicit arguments
-            execFileSync('git', ['fetch', 'origin', '--quiet'], {
+            execFileSync('sudo', ['git', 'fetch', 'origin', '--quiet'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 30000
@@ -59,13 +60,13 @@ router.get('/check', requireAuth, async (req, res) => {
             // Detect current branch
             let currentBranch = 'main';
             try {
-                currentBranch = execFileSync('git', ['branch', '--show-current'], {
+                currentBranch = execFileSync('sudo', ['git', 'branch', '--show-current'], {
                     cwd: INSTALL_DIR, encoding: 'utf8', timeout: 5000
                 }).trim() || 'main';
             } catch (e) {}
 
             // Get commits ahead of current HEAD on the SAME branch
-            const remoteInfo = execFileSync('git', ['log', `HEAD..origin/${currentBranch}`, '--oneline'], {
+            const remoteInfo = execFileSync('sudo', ['git', 'log', `HEAD..origin/${currentBranch}`, '--oneline'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 10000
@@ -80,7 +81,7 @@ router.get('/check', requireAuth, async (req, res) => {
 
                 // Try to get latest version from remote package.json
                 try {
-                    const remotePackage = execFileSync('git', ['show', `origin/${currentBranch}:package.json`], {
+                    const remotePackage = execFileSync('sudo', ['git', 'show', `origin/${currentBranch}:package.json`], {
                         cwd: INSTALL_DIR,
                         encoding: 'utf8',
                         timeout: 10000
@@ -117,7 +118,7 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
 
     // SECURITY: Verify we're updating from the expected repository
     try {
-        const remoteUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
+        const remoteUrl = execFileSync('sudo', ['git', 'remote', 'get-url', 'origin'], {
             cwd: INSTALL_DIR,
             encoding: 'utf8',
             timeout: 5000
@@ -151,7 +152,7 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
 
             // 1. Pull latest changes - using execFileSync where possible
             console.log('[UPDATE] Pulling latest changes from GitHub...');
-            execFileSync('git', ['fetch', 'origin'], {
+            execFileSync('sudo', ['git', 'fetch', 'origin'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 60000
@@ -159,11 +160,11 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
             // Detect current branch for update
             let updateBranch = 'main';
             try {
-                updateBranch = execFileSync('git', ['branch', '--show-current'], {
+                updateBranch = execFileSync('sudo', ['git', 'branch', '--show-current'], {
                     cwd: INSTALL_DIR, encoding: 'utf8', timeout: 5000
                 }).trim() || 'main';
             } catch (e) {}
-            execFileSync('git', ['reset', '--hard', `origin/${updateBranch}`], {
+            execFileSync('sudo', ['git', 'reset', '--hard', `origin/${updateBranch}`], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 30000
@@ -171,7 +172,7 @@ router.post('/apply', requireAuth, criticalLimiter, async (req, res) => {
 
             // 2. Install/update dependencies
             console.log('[UPDATE] Installing dependencies...');
-            execFileSync('npm', ['install', '--production'], {
+            execFileSync('sudo', ['npm', 'install', '--production'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 120000
@@ -206,7 +207,7 @@ router.get('/status', requireAuth, (req, res) => {
         let lastCommit = 'unknown';
 
         try {
-            log = execFileSync('git', ['log', '--oneline', '-10'], {
+            log = execFileSync('sudo', ['git', 'log', '--oneline', '-10'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 10000
@@ -216,7 +217,7 @@ router.get('/status', requireAuth, (req, res) => {
         }
 
         try {
-            currentBranch = execFileSync('git', ['branch', '--show-current'], {
+            currentBranch = execFileSync('sudo', ['git', 'branch', '--show-current'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 5000
@@ -226,7 +227,7 @@ router.get('/status', requireAuth, (req, res) => {
         }
 
         try {
-            lastCommit = execFileSync('git', ['log', '-1', '--format=%h %s (%cr)'], {
+            lastCommit = execFileSync('sudo', ['git', 'log', '-1', '--format=%h %s (%cr)'], {
                 cwd: INSTALL_DIR,
                 encoding: 'utf8',
                 timeout: 5000
@@ -243,6 +244,80 @@ router.get('/status', requireAuth, (req, res) => {
     } catch (e) {
         res.status(500).json({ error: 'Failed to get update status' });
     }
+});
+
+// =============================================================================
+// OS (Debian/Ubuntu) Updates
+// =============================================================================
+
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const execFileAsync = promisify(execFile);
+
+// Check for OS updates (apt)
+router.get('/check-os', requireAuth, async (req, res) => {
+    try {
+        // Update package lists
+        await execFileAsync('sudo', ['apt-get', 'update', '-qq'], {
+            timeout: 60000
+        });
+
+        // Get list of upgradable packages
+        const { stdout } = await execFileAsync('apt', ['list', '--upgradable'], {
+            timeout: 15000,
+            encoding: 'utf8'
+        });
+
+        const lines = stdout.trim().split('\n').filter(l => l && !l.startsWith('Listing'));
+        const packages = lines.map(line => {
+            const match = line.match(/^([^/]+)\/.+\s+(\S+)\s+\S+\s+\[upgradable from: (\S+)\]/);
+            if (match) return { name: match[1], newVersion: match[2], currentVersion: match[3] };
+            return { name: line.split('/')[0], newVersion: '', currentVersion: '' };
+        });
+
+        // Count security updates
+        let securityCount = 0;
+        for (const line of lines) {
+            if (line.includes('-security')) securityCount++;
+        }
+
+        res.json({
+            success: true,
+            updatesAvailable: packages.length,
+            securityUpdates: securityCount,
+            packages: packages.slice(0, 50)
+        });
+    } catch (e) {
+        console.error('OS update check error:', e.message);
+        res.status(500).json({ success: false, error: 'Failed to check OS updates: ' + e.message });
+    }
+});
+
+// Apply OS updates (apt upgrade)
+router.post('/apply-os', requireAuth, criticalLimiter, async (req, res) => {
+    logSecurityEvent('OS_UPDATE_STARTED', { user: req.user.username }, req.ip);
+
+    // Send response immediately
+    res.json({
+        success: true,
+        message: 'OS update started. This may take several minutes.'
+    });
+
+    // Run upgrade in background
+    setTimeout(async () => {
+        try {
+            console.log('[OS-UPDATE] Starting apt upgrade...');
+            await execFileAsync('sudo', ['apt-get', 'upgrade', '-y', '-qq'], {
+                timeout: 600000,  // 10 min timeout
+                encoding: 'utf8'
+            });
+            console.log('[OS-UPDATE] Upgrade completed successfully');
+            logSecurityEvent('OS_UPDATE_COMPLETED', {}, '');
+        } catch (e) {
+            console.error('[OS-UPDATE] Upgrade failed:', e.message);
+            logSecurityEvent('OS_UPDATE_FAILED', { error: e.message }, '');
+        }
+    }, 500);
 });
 
 module.exports = router;

@@ -8,7 +8,6 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
-const fsp = require('fs').promises;
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 
@@ -38,16 +37,6 @@ function formatSize(gb) {
         return (num / 1024).toFixed(1) + ' TB';
     }
     return Math.round(num) + ' GB';
-}
-
-// Check if path exists (async replacement for fs.existsSync)
-async function pathExists(filePath) {
-    try {
-        await fsp.access(filePath);
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 // Get storage pool status (real-time)
@@ -140,7 +129,7 @@ router.get('/pool/status', requireAuth, async (req, res) => {
         // 2. Check SnapRAID status
         // ══════════════════════════════════════════════════════════════════
         try {
-            const snapraidConf = await fsp.readFile(SNAPRAID_CONF, 'utf8');
+            const snapraidConf = fs.readFileSync(SNAPRAID_CONF, 'utf8');
             if (snapraidConf.includes('content') && snapraidConf.includes('disk')) {
                 status.snapraid.configured = true;
                 
@@ -154,7 +143,7 @@ router.get('/pool/status', requireAuth, async (req, res) => {
 
         // Get last sync time
         try {
-            const logRaw = await fsp.readFile('/var/log/snapraid-sync.log', 'utf8');
+            const logRaw = fs.readFileSync('/var/log/snapraid-sync.log', 'utf8');
             const logContent = logRaw.split('\n').slice(-50).join('\n');
             const syncMatch = logContent.match(/=== SnapRAID Sync Finished: (.+?) ===/);
             if (syncMatch) {
@@ -276,41 +265,16 @@ router.get('/pool/status', requireAuth, async (req, res) => {
 });
 
 /**
- * Middleware: allow during initial setup with valid setup token OR with valid auth.
- * SECURITY: Setup wizard requires one-time token to prevent unauthorized access.
- * Token is generated on first boot and must be provided via X-Setup-Token header.
+ * Middleware: allow during initial setup (no storage configured yet) OR with valid auth.
+ * Like Synology DSM: the setup wizard doesn't require login since you just created the account.
  */
 function requireAuthOrSetup(req, res, next) {
     const data = getData();
-    const isInitialSetup = !data.storageConfig || data.storageConfig.length === 0;
-    
-    if (isInitialSetup) {
-        // During setup, require the setup token
-        const setupToken = req.headers['x-setup-token'];
-        
-        // Generate setup token if it doesn't exist (first boot)
-        if (!data.setupToken) {
-            const crypto = require('crypto');
-            data.setupToken = crypto.randomBytes(32).toString('hex');
-            saveData(data);
-            console.log('[SECURITY] Setup token generated. Use X-Setup-Token header with value:', data.setupToken);
-        }
-        
-        if (setupToken !== data.setupToken) {
-            logSecurityEvent('setup_wizard_auth_failed', req.ip, { 
-                error: 'Invalid or missing setup token' 
-            });
-            return res.status(401).json({ 
-                error: 'Unauthorized. Setup token required.',
-                hint: 'Check server logs for the setup token or use localhost access.'
-            });
-        }
-        
-        // Valid setup token - allow access
+    // If no storage is configured yet, allow without auth (initial setup wizard)
+    if (!data.storageConfig || data.storageConfig.length === 0) {
         return next();
     }
-    
-    // After initial setup, require normal authentication
+    // Otherwise require normal auth
     return requireAuth(req, res, next);
 }
 
@@ -481,9 +445,9 @@ exclude .fseventsd
 
             // SECURITY: Write config to temp file first, then use sudo to copy
             const tempConfFile = '/tmp/homepinas-snapraid-temp.conf';
-            await fsp.writeFile(tempConfFile, snapraidConf, 'utf8');
+            fs.writeFileSync(tempConfFile, snapraidConf, 'utf8');
             execFileSync('sudo', ['cp', tempConfFile, SNAPRAID_CONF], { encoding: 'utf8', timeout: 10000 });
-            await fsp.unlink(tempConfFile);
+            fs.unlinkSync(tempConfFile);
             results.push('SnapRAID configuration created');
         } else {
             results.push('SnapRAID skipped (no parity disks configured)');
@@ -573,9 +537,9 @@ exclude .fseventsd
         const cleanedFstab = filteredLines.join('\n') + '\n';
         // Write cleaned fstab + new entries via temp file + sudo cp
         const tempFstabFile = '/tmp/homepinas-fstab-temp';
-        await fsp.writeFile(tempFstabFile, cleanedFstab + fstabEntries, 'utf8');
+        fs.writeFileSync(tempFstabFile, cleanedFstab + fstabEntries, 'utf8');
         execFileSync('sudo', ['cp', tempFstabFile, '/etc/fstab'], { encoding: 'utf8', timeout: 10000 });
-        await fsp.unlink(tempFstabFile);
+        fs.unlinkSync(tempFstabFile);
         results.push('Updated /etc/fstab for persistence (including MergerFS)');
 
         results.push('Starting initial SnapRAID sync (this may take a while)...');
@@ -584,13 +548,6 @@ exclude .fseventsd
         const data = getData();
         data.storageConfig = validatedDisks.map(d => ({ id: d.id, role: d.role }));
         data.poolConfigured = true;
-        
-        // SECURITY: Clear setup token after first successful configuration
-        if (data.setupToken) {
-            delete data.setupToken;
-            console.log('[SECURITY] Setup token cleared after successful configuration');
-        }
-        
         saveData(data);
 
         logSecurityEvent('STORAGE_CONFIGURED', { disks: validatedDisks.map(d => d.id), dataCount: dataDisks.length, parityCount: parityDisks.length }, req.ip);
@@ -776,7 +733,7 @@ router.get('/disks/detect', requireAuth, async (req, res) => {
         // Get currently mounted disks in our pool
         const poolMounts = [];
         try {
-            const dirEntries = await fsp.readdir(STORAGE_MOUNT_BASE);
+            const dirEntries = fs.readdirSync(STORAGE_MOUNT_BASE);
             dirEntries.forEach(m => poolMounts.push(m));
         } catch (e) {}
 
@@ -884,7 +841,7 @@ router.post('/disks/add-to-pool', requireAuth, async (req, res) => {
         const devicePath = `/dev/${safeDiskId}`;
         
         // 3. Check if device exists
-        if (!(await pathExists(devicePath))) {
+        if (!fs.existsSync(devicePath)) {
             return res.status(400).json({ 
                 error: 'Device not found',
                 details: `${devicePath} does not exist. Is the disk connected?`
@@ -1105,7 +1062,7 @@ router.post('/disks/add-to-pool', requireAuth, async (req, res) => {
         const fstabEntry = `UUID=${uuid} ${mountPoint} ext4 defaults,nofail 0 2`;
         try {
             // Check if entry already exists
-            const fstab = await fsp.readFile('/etc/fstab', 'utf8');
+            const fstab = fs.readFileSync('/etc/fstab', 'utf8');
             if (!fstab.includes(uuid)) {
                 const fstabAppend = `\n# HomePiNAS: ${safeDiskId} (${role})\n${fstabEntry}\n`;
                 execFileSync('sudo', ['tee', '-a', '/etc/fstab'], { input: fstabAppend, encoding: 'utf8', stdio: ['pipe', 'ignore', 'pipe'] });
@@ -1267,7 +1224,7 @@ router.post('/disks/mount-standalone', requireAuth, async (req, res) => {
         const partitionPath = `/dev/${safeDiskId}1`;
         const mountPoint = `/mnt/${safeName}`;
 
-        if (!(await pathExists(devicePath))) {
+        if (!fs.existsSync(devicePath)) {
             return res.status(400).json({ error: `Device ${devicePath} not found` });
         }
 
@@ -1308,7 +1265,7 @@ router.post('/disks/mount-standalone', requireAuth, async (req, res) => {
         // Add to fstab
         const fstabEntry = `UUID=${uuid} ${mountPoint} ext4 defaults,nofail 0 2`;
         try {
-            const fstab = await fsp.readFile('/etc/fstab', 'utf8');
+            const fstab = fs.readFileSync('/etc/fstab', 'utf8');
             if (!fstab.includes(uuid)) {
                 const fstabAppend = `\n# HomePiNAS: Standalone volume ${safeName}\n${fstabEntry}\n`;
                 execFileSync('sudo', ['tee', '-a', '/etc/fstab'], { input: fstabAppend, encoding: 'utf8', stdio: ['pipe', 'ignore', 'pipe'] });
@@ -1400,7 +1357,7 @@ router.post('/disks/unignore', requireAuth, async (req, res) => {
 // Helper: Get next disk index for mount point
 async function getNextDiskIndex() {
     try {
-        const existing = await fsp.readdir(STORAGE_MOUNT_BASE);
+        const existing = fs.readdirSync(STORAGE_MOUNT_BASE);
         const disks = existing.filter(d => d.startsWith('disk'));
         const indices = disks.map(d => parseInt(d.replace('disk', '')) || 0);
         return Math.max(0, ...indices) + 1;
@@ -1443,8 +1400,7 @@ async function addDiskToMergerFS(mountPoint, role) {
         } else {
             // First disk in pool or MergerFS not running
             // Scan for all mounted data disks in /mnt/disks
-            const dirEntries = await fsp.readdir(STORAGE_MOUNT_BASE);
-            const diskDirs = dirEntries
+            const diskDirs = fs.readdirSync(STORAGE_MOUNT_BASE)
                 .filter(d => d.startsWith('disk'))
                 .map(d => `${STORAGE_MOUNT_BASE}/${d}`)
                 .filter(p => {
@@ -1485,7 +1441,7 @@ async function addDiskToMergerFS(mountPoint, role) {
         }
 
         // Create pool mount point if needed
-        if (!(await pathExists(POOL_MOUNT))) {
+        if (!fs.existsSync(POOL_MOUNT)) {
             execFileSync('sudo', ['mkdir', '-p', POOL_MOUNT], { encoding: 'utf8' });
         }
 
@@ -1572,7 +1528,7 @@ router.post('/config', (req, res) => {
  * @param {string} options - MergerFS mount options
  * @param {string[]} diskMountPoints - Array of disk mount points to wait for
  */
-async function createMergerFSSystemdUnit(sources, options, diskMountPoints) {
+function createMergerFSSystemdUnit(sources, options, diskMountPoints) {
 
     // Generate systemd mount unit name from path: /mnt/storage -> mnt-storage.mount
     const mountUnitName = 'mnt-storage.mount';
@@ -1613,7 +1569,7 @@ WantedBy=multi-user.target
 
     // Write unit file via temp file + sudo
     const tempFile = `/mnt/storage/.tmp/homepinas-mergerfs-mount-${Date.now()}`;
-    await fsp.writeFile(tempFile, mountUnit, 'utf8');
+    fs.writeFileSync(tempFile, mountUnit, 'utf8');
     
     try {
         // Copy unit file to systemd directory
@@ -1631,16 +1587,16 @@ WantedBy=multi-user.target
             const fstabRaw = execFileSync('sudo', ['cat', '/etc/fstab'], { encoding: 'utf8', timeout: 10000 });
             const fstabFiltered = fstabRaw.split('\n').filter(line => !/\/mnt\/storage.*mergerfs/.test(line)).join('\n');
             const tempFstabClean = `/tmp/homepinas-fstab-clean-${Date.now()}`;
-            await fsp.writeFile(tempFstabClean, fstabFiltered, 'utf8');
+            fs.writeFileSync(tempFstabClean, fstabFiltered, 'utf8');
             execFileSync('sudo', ['cp', tempFstabClean, '/etc/fstab'], { encoding: 'utf8', timeout: 10000 });
-            try { await fsp.unlink(tempFstabClean); } catch (e2) {}
+            try { fs.unlinkSync(tempFstabClean); } catch (e2) {}
             console.log('Removed MergerFS fstab entry (now using systemd)');
         } catch (e) {
             // Ignore - fstab entry might not exist
         }
     } finally {
         // Clean up temp file
-        try { await fsp.unlink(tempFile); } catch (e) {}
+        try { fs.unlinkSync(tempFile); } catch (e) {}
     }
 }
 

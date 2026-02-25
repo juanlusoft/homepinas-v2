@@ -13,6 +13,7 @@ const { notificationLimiter } = require('../middleware/rateLimit');
 const { logSecurityEvent } = require('../utils/security');
 const { sanitizeString } = require('../utils/sanitize');
 const { getData, saveData } = require('../utils/data');
+const { startErrorMonitor, stopErrorMonitor, runErrorScan } = require('../utils/error-monitor');
 
 // All notification routes require authentication
 router.use(requireAuth);
@@ -38,6 +39,8 @@ router.get('/config', async (req, res) => {
     const email = notifications.email || {};
     const telegram = notifications.telegram || {};
 
+    const errorReporting = notifications.errorReporting || {};
+
     res.json({
       success: true,
       config: {
@@ -56,6 +59,14 @@ router.get('/config', async (req, res) => {
           chatId: telegram.chatId || '',
           enabled: telegram.enabled || false,
           configured: !!(telegram.botToken && telegram.chatId)
+        },
+        errorReporting: {
+          enabled: errorReporting.enabled || false,
+          frequency: errorReporting.frequency || 'immediate',
+          channels: errorReporting.channels || ['email'],
+          logSources: errorReporting.logSources || ['system', 'app', 'docker'],
+          cooldownMinutes: errorReporting.cooldownMinutes || 30,
+          lastCheck: errorReporting.lastCheck || null
         }
       }
     });
@@ -384,6 +395,97 @@ router.get('/history', async (req, res) => {
   } catch (error) {
     console.error('Error getting notification history:', error);
     res.status(500).json({ success: false, error: 'Failed to get notification history' });
+  }
+});
+
+/**
+ * POST /config/error-reporting
+ * Save error reporting configuration.
+ * Expects: { enabled, frequency, channels, logSources, cooldownMinutes }
+ */
+router.post('/config/error-reporting', async (req, res) => {
+  try {
+    const { enabled, frequency, channels, logSources, cooldownMinutes } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'Enabled must be a boolean' });
+    }
+
+    const validFrequencies = ['immediate', 'hourly', 'daily'];
+    if (!validFrequencies.includes(frequency)) {
+      return res.status(400).json({ success: false, error: 'Invalid frequency' });
+    }
+
+    if (!Array.isArray(channels) || channels.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one channel is required' });
+    }
+    const validChannels = ['email', 'telegram'];
+    if (channels.some(ch => !validChannels.includes(ch))) {
+      return res.status(400).json({ success: false, error: 'Invalid channel' });
+    }
+
+    const validSources = ['system', 'app', 'auth', 'docker'];
+    if (!Array.isArray(logSources) || logSources.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one log source is required' });
+    }
+    if (logSources.some(s => !validSources.includes(s))) {
+      return res.status(400).json({ success: false, error: 'Invalid log source' });
+    }
+
+    const cooldown = parseInt(cooldownMinutes, 10);
+    if (isNaN(cooldown) || cooldown < 5 || cooldown > 1440) {
+      return res.status(400).json({ success: false, error: 'Cooldown must be between 5 and 1440 minutes' });
+    }
+
+    const data = getData();
+    if (!data.notifications) data.notifications = {};
+
+    // Preserve lastCheck and sentHashes from existing config
+    const existing = data.notifications.errorReporting || {};
+    data.notifications.errorReporting = {
+      enabled,
+      frequency,
+      channels,
+      logSources,
+      cooldownMinutes: cooldown,
+      lastCheck: existing.lastCheck || null,
+      sentHashes: existing.sentHashes || []
+    };
+    saveData(data);
+
+    // Restart monitor with new config
+    stopErrorMonitor();
+    if (enabled) {
+      startErrorMonitor();
+    }
+
+    logSecurityEvent('ERROR_REPORTING_CONFIG_UPDATED', req.user.username, { enabled, frequency });
+
+    res.json({ success: true, message: 'Error reporting configuration saved' });
+  } catch (error) {
+    console.error('Error saving error reporting config:', error);
+    res.status(500).json({ success: false, error: 'Failed to save error reporting config' });
+  }
+});
+
+/**
+ * POST /test/error-reporting
+ * Trigger a manual error scan (sends report even with no errors).
+ */
+router.post('/test/error-reporting', notificationLimiter, async (req, res) => {
+  try {
+    const result = await runErrorScan(true);
+    res.json({
+      success: true,
+      errorsFound: result.errorsFound,
+      sent: result.sent,
+      message: result.errorsFound > 0
+        ? `Found ${result.errorsFound} error(s) and sent report`
+        : 'No errors found. Test notification sent.'
+    });
+  } catch (error) {
+    console.error('Error running test scan:', error);
+    res.status(500).json({ success: false, error: 'Failed to run error scan' });
   }
 });
 

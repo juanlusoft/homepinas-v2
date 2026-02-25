@@ -6,7 +6,6 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
-const fsp = require('fs').promises;
 const path = require('path');
 const multer = require('multer');
 
@@ -73,13 +72,13 @@ function validatePath(inputPath, res) {
 }
 
 /**
- * Recursive file search by name within a directory (async)
+ * Recursive file search by name within a directory
  */
-async function searchFiles(dir, query, results, maxResults) {
+function searchFiles(dir, query, results, maxResults) {
   if (results.length >= maxResults) return;
 
   try {
-    const entries = await fsp.readdir(dir, { withFileTypes: true });
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (results.length >= maxResults) return;
 
@@ -88,7 +87,7 @@ async function searchFiles(dir, query, results, maxResults) {
       if (entry.name.toLowerCase().includes(query.toLowerCase())) {
         const relativePath = path.relative(STORAGE_BASE, fullPath);
         try {
-          const stat = await fsp.stat(fullPath);
+          const stat = fs.statSync(fullPath);
           results.push({
             name: entry.name,
             path: '/' + relativePath,
@@ -103,23 +102,11 @@ async function searchFiles(dir, query, results, maxResults) {
 
       // Recurse into subdirectories
       if (entry.isDirectory()) {
-        await searchFiles(fullPath, query, results, maxResults);
+        searchFiles(fullPath, query, results, maxResults);
       }
     }
   } catch {
     // Skip directories we can't read
-  }
-}
-
-/**
- * Check if path exists (async replacement for fs.existsSync)
- */
-async function pathExists(filePath) {
-  try {
-    await fsp.access(filePath);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -131,48 +118,46 @@ const systemTmpDir = path.join(os.tmpdir(), 'homepinas-uploads');
 // Prefer storage temp dir (large capacity) over system tmp (limited eMMC)
 let tmpUploadDir = systemTmpDir;
 
-// Try to use storage if available and writable (async init)
-(async () => {
-  if (await pathExists('/mnt/storage')) {
-    try {
-      if (!(await pathExists(storageTmpDir))) {
-        await fsp.mkdir(storageTmpDir, { recursive: true });
-      }
-      // Test if writable
-      const testFile = path.join(storageTmpDir, '.write-test');
-      await fsp.writeFile(testFile, 'test');
-      await fsp.unlink(testFile);
-      tmpUploadDir = storageTmpDir;
-    } catch (e) {
-      console.warn('[Upload] Storage not writable, using system tmp:', e.message);
-      tmpUploadDir = systemTmpDir;
+// Try to use storage if available and writable
+if (fs.existsSync('/mnt/storage')) {
+  try {
+    if (!fs.existsSync(storageTmpDir)) {
+      fs.mkdirSync(storageTmpDir, { recursive: true });
     }
+    // Test if writable
+    const testFile = path.join(storageTmpDir, '.write-test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+    tmpUploadDir = storageTmpDir;
+  } catch (e) {
+    console.warn('[Upload] Storage not writable, using system tmp:', e.message);
+    tmpUploadDir = systemTmpDir;
   }
+}
 
-  // Ensure tmp dir exists
-  if (!(await pathExists(tmpUploadDir))) {
-    try {
-      await fsp.mkdir(tmpUploadDir, { recursive: true });
-    } catch (e) {
-      console.error('[Upload] Cannot create temp dir:', e.message);
-    }
+// Ensure tmp dir exists
+if (!fs.existsSync(tmpUploadDir)) {
+  try {
+    fs.mkdirSync(tmpUploadDir, { recursive: true });
+  } catch (e) {
+    console.error('[Upload] Cannot create temp dir:', e.message);
   }
-})();
+}
 
 // Cleanup abandoned uploads (older than 1 hour)
-async function cleanupOldUploads() {
+function cleanupOldUploads() {
   try {
-    if (!(await pathExists(tmpUploadDir))) return;
-    const files = await fsp.readdir(tmpUploadDir);
+    if (!fs.existsSync(tmpUploadDir)) return;
+    const files = fs.readdirSync(tmpUploadDir);
     const now = Date.now();
     const maxAge = 60 * 60 * 1000; // 1 hour
     
     for (const file of files) {
       try {
         const filePath = path.join(tmpUploadDir, file);
-        const stat = await fsp.stat(filePath);
+        const stat = fs.statSync(filePath);
         if (now - stat.mtimeMs > maxAge) {
-          await fsp.unlink(filePath);
+          fs.unlinkSync(filePath);
           console.log(`[Cleanup] Removed abandoned upload: ${file}`);
         }
       } catch (e) {}
@@ -209,23 +194,23 @@ router.use(requireAuth);
  * List directory contents with file metadata
  * Permission: read
  */
-router.get('/list', requirePermission('read'), async (req, res) => {
+router.get('/list', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path || '/';
     const dirPath = validatePath(inputPath, res);
     if (dirPath === null) return;
 
     // Verify the path is a directory
-    if (!(await pathExists(dirPath))) {
+    if (!fs.existsSync(dirPath)) {
       return res.status(404).json({ error: 'Directory not found' });
     }
-    const dirStat = await fsp.stat(dirPath);
+    const dirStat = fs.statSync(dirPath);
     if (!dirStat.isDirectory()) {
       return res.status(400).json({ error: 'Path is not a directory' });
     }
 
     const showHidden = req.query.showHidden === 'true';
-    const entries = await fsp.readdir(dirPath);
+    const entries = fs.readdirSync(dirPath);
     const items = [];
 
     for (const entry of entries) {
@@ -233,7 +218,7 @@ router.get('/list', requirePermission('read'), async (req, res) => {
       if (!showHidden && (entry.startsWith('.') || entry === 'lost+found')) continue;
       try {
         const fullPath = path.join(dirPath, entry);
-        const stat = await fsp.stat(fullPath);
+        const stat = fs.statSync(fullPath);
         items.push({
           name: entry,
           size: stat.size,
@@ -277,7 +262,7 @@ router.get('/list', requirePermission('read'), async (req, res) => {
  * Download a file from storage
  * Permission: read
  */
-router.get('/download', requirePermission('read'), async (req, res) => {
+router.get('/download', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path;
     if (!inputPath) {
@@ -287,11 +272,11 @@ router.get('/download', requirePermission('read'), async (req, res) => {
     const filePath = validatePath(inputPath, res);
     if (filePath === null) return;
 
-    if (!(await pathExists(filePath))) {
+    if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    const stat = await fsp.stat(filePath);
+    const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
       return res.status(400).json({ error: 'Cannot download a directory' });
     }
@@ -310,9 +295,9 @@ router.get('/download', requirePermission('read'), async (req, res) => {
  * Body: path (target directory), files (multipart)
  * Permission: write
  */
-router.post('/upload', requirePermission('write'), async (req, res) => {
+router.post('/upload', requirePermission('write'), (req, res) => {
   // Use multer middleware inline - handle up to 10 files at once
-  upload.array('files', 10)(req, res, async (err) => {
+  upload.array('files', 10)(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({ error: 'File too large (max 2GB)' });
@@ -325,65 +310,56 @@ router.post('/upload', requirePermission('write'), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    try {
-      // Now req.body.path is available — move files from temp to target
-      const uploadPath = req.body.path || '/';
-      let targetDir;
+    // Now req.body.path is available — move files from temp to target
+    const uploadPath = req.body.path || '/';
+    let targetDir;
 
-      // Handle root path
-      if (uploadPath === '/' || uploadPath === '') {
-        targetDir = STORAGE_BASE;
-      } else {
-        targetDir = sanitizePathWithinBase(uploadPath, STORAGE_BASE);
-      }
-
-      if (!targetDir) {
-        // Clean up temp files
-        for (const f of req.files) {
-          try { await fsp.unlink(f.path); } catch(e) {}
-        }
-        return res.status(400).json({ error: 'Invalid upload directory' });
-      }
-
-      if (!(await pathExists(targetDir))) {
-        for (const f of req.files) {
-          try { await fsp.unlink(f.path); } catch(e) {}
-        }
-        return res.status(400).json({ error: 'Upload directory does not exist' });
-      }
-
-      // Move each file from temp to target
-      const movedFiles = [];
-      for (const f of req.files) {
-        const destPath = path.join(targetDir, f.originalname);
-        try {
-          await fsp.rename(f.path, destPath);
-          movedFiles.push({ name: f.originalname, size: f.size, path: path.relative(STORAGE_BASE, destPath) });
-        } catch (moveErr) {
-          // Try copy+delete if rename fails (cross-device)
-          try {
-            await fsp.copyFile(f.path, destPath);
-            await fsp.unlink(f.path);
-            movedFiles.push({ name: f.originalname, size: f.size, path: path.relative(STORAGE_BASE, destPath) });
-          } catch (copyErr) {
-            console.error('Move file error:', copyErr.message);
-          }
-        }
-      }
-
-      logSecurityEvent('file_upload', req.user.username, {
-        path: uploadPath,
-        files: movedFiles.map(f => f.name),
-      });
-
-      res.json({
-        message: `${movedFiles.length} file(s) uploaded successfully`,
-        files: movedFiles,
-      });
-    } catch (err) {
-      console.error('Upload handler error:', err.message);
-      res.status(500).json({ error: 'Upload processing failed' });
+    // Handle root path
+    if (uploadPath === '/' || uploadPath === '') {
+      targetDir = STORAGE_BASE;
+    } else {
+      targetDir = sanitizePathWithinBase(uploadPath, STORAGE_BASE);
     }
+
+    if (!targetDir) {
+      // Clean up temp files
+      req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e) {} });
+      return res.status(400).json({ error: 'Invalid upload directory' });
+    }
+
+    if (!fs.existsSync(targetDir)) {
+      req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e) {} });
+      return res.status(400).json({ error: 'Upload directory does not exist' });
+    }
+
+    // Move each file from temp to target
+    const movedFiles = [];
+    for (const f of req.files) {
+      const destPath = path.join(targetDir, f.originalname);
+      try {
+        fs.renameSync(f.path, destPath);
+        movedFiles.push({ name: f.originalname, size: f.size, path: path.relative(STORAGE_BASE, destPath) });
+      } catch (moveErr) {
+        // Try copy+delete if rename fails (cross-device)
+        try {
+          fs.copyFileSync(f.path, destPath);
+          fs.unlinkSync(f.path);
+          movedFiles.push({ name: f.originalname, size: f.size, path: path.relative(STORAGE_BASE, destPath) });
+        } catch (copyErr) {
+          console.error('Move file error:', copyErr.message);
+        }
+      }
+    }
+
+    logSecurityEvent('file_upload', req.user.username, {
+      path: uploadPath,
+      files: movedFiles.map(f => f.name),
+    });
+
+    res.json({
+      message: `${movedFiles.length} file(s) uploaded successfully`,
+      files: movedFiles,
+    });
   });
 });
 
@@ -393,7 +369,7 @@ router.post('/upload', requirePermission('write'), async (req, res) => {
  * Body: { path: "/new/directory" }
  * Permission: write
  */
-router.post('/mkdir', requirePermission('write'), async (req, res) => {
+router.post('/mkdir', requirePermission('write'), (req, res) => {
   try {
     const inputPath = req.body.path;
     if (!inputPath) {
@@ -403,11 +379,11 @@ router.post('/mkdir', requirePermission('write'), async (req, res) => {
     const dirPath = validatePath(inputPath, res);
     if (dirPath === null) return;
 
-    if (await pathExists(dirPath)) {
+    if (fs.existsSync(dirPath)) {
       return res.status(409).json({ error: 'Directory already exists' });
     }
 
-    await fsp.mkdir(dirPath, { recursive: true });
+    fs.mkdirSync(dirPath, { recursive: true });
     logSecurityEvent('dir_create', req.user.username, { path: inputPath });
 
     res.json({ message: 'Directory created', path: inputPath });
@@ -423,7 +399,7 @@ router.post('/mkdir', requirePermission('write'), async (req, res) => {
  * Body: { oldPath: "/old/name", newPath: "/new/name" }
  * Permission: write
  */
-router.post('/rename', requirePermission('write'), async (req, res) => {
+router.post('/rename', requirePermission('write'), (req, res) => {
   try {
     const { oldPath: oldInput, newPath: newInput } = req.body;
     if (!oldInput || !newInput) {
@@ -437,14 +413,14 @@ router.post('/rename', requirePermission('write'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid new path: must be within storage directory' });
     }
 
-    if (!(await pathExists(oldPath))) {
+    if (!fs.existsSync(oldPath)) {
       return res.status(404).json({ error: 'Source path not found' });
     }
-    if (await pathExists(newPath)) {
+    if (fs.existsSync(newPath)) {
       return res.status(409).json({ error: 'Destination already exists' });
     }
 
-    await fsp.rename(oldPath, newPath);
+    fs.renameSync(oldPath, newPath);
     logSecurityEvent('file_rename', req.user.username, { from: oldInput, to: newInput });
 
     res.json({ message: 'Renamed successfully', from: oldInput, to: newInput });
@@ -460,7 +436,7 @@ router.post('/rename', requirePermission('write'), async (req, res) => {
  * Body: { path: "/file/to/delete" }
  * Permission: delete
  */
-router.post('/delete', requirePermission('delete'), async (req, res) => {
+router.post('/delete', requirePermission('delete'), (req, res) => {
   try {
     const inputPath = req.body.path;
     if (!inputPath) {
@@ -470,7 +446,7 @@ router.post('/delete', requirePermission('delete'), async (req, res) => {
     const targetPath = validatePath(inputPath, res);
     if (targetPath === null) return;
 
-    if (!(await pathExists(targetPath))) {
+    if (!fs.existsSync(targetPath)) {
       return res.status(404).json({ error: 'Path not found' });
     }
 
@@ -479,8 +455,8 @@ router.post('/delete', requirePermission('delete'), async (req, res) => {
       return res.status(403).json({ error: 'Cannot delete storage root' });
     }
 
-    const stat = await fsp.stat(targetPath);
-    await fsp.rm(targetPath, { recursive: true, force: true });
+    const stat = fs.statSync(targetPath);
+    fs.rmSync(targetPath, { recursive: true, force: true });
     logSecurityEvent('file_delete', req.user.username, {
       path: inputPath,
       type: stat.isDirectory() ? 'directory' : 'file',
@@ -499,7 +475,7 @@ router.post('/delete', requirePermission('delete'), async (req, res) => {
  * Body: { source: "/path/to/source", destination: "/path/to/dest" }
  * Permission: write
  */
-router.post('/move', requirePermission('write'), async (req, res) => {
+router.post('/move', requirePermission('write'), (req, res) => {
   try {
     const { source: srcInput, destination: destInput } = req.body;
     if (!srcInput || !destInput) {
@@ -513,11 +489,11 @@ router.post('/move', requirePermission('write'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid destination: must be within storage directory' });
     }
 
-    if (!(await pathExists(sourcePath))) {
+    if (!fs.existsSync(sourcePath)) {
       return res.status(404).json({ error: 'Source not found' });
     }
 
-    await fsp.rename(sourcePath, destPath);
+    fs.renameSync(sourcePath, destPath);
     logSecurityEvent('file_move', req.user.username, { from: srcInput, to: destInput });
 
     res.json({ message: 'Moved successfully', from: srcInput, to: destInput });
@@ -533,7 +509,7 @@ router.post('/move', requirePermission('write'), async (req, res) => {
  * Body: { source: "/path/to/source", destination: "/path/to/dest" }
  * Permission: write
  */
-router.post('/copy', requirePermission('write'), async (req, res) => {
+router.post('/copy', requirePermission('write'), (req, res) => {
   try {
     const { source: srcInput, destination: destInput } = req.body;
     if (!srcInput || !destInput) {
@@ -547,11 +523,11 @@ router.post('/copy', requirePermission('write'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid destination: must be within storage directory' });
     }
 
-    if (!(await pathExists(sourcePath))) {
+    if (!fs.existsSync(sourcePath)) {
       return res.status(404).json({ error: 'Source not found' });
     }
 
-    await fsp.cp(sourcePath, destPath, { recursive: true });
+    fs.cpSync(sourcePath, destPath, { recursive: true });
     logSecurityEvent('file_copy', req.user.username, { from: srcInput, to: destInput });
 
     res.json({ message: 'Copied successfully', from: srcInput, to: destInput });
@@ -566,7 +542,7 @@ router.post('/copy', requirePermission('write'), async (req, res) => {
  * Get detailed file info including stat data and MIME type
  * Permission: read
  */
-router.get('/info', requirePermission('read'), async (req, res) => {
+router.get('/info', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path;
     if (!inputPath) {
@@ -576,12 +552,11 @@ router.get('/info', requirePermission('read'), async (req, res) => {
     const filePath = validatePath(inputPath, res);
     if (filePath === null) return;
 
-    if (!(await pathExists(filePath))) {
+    if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Path not found' });
     }
 
-    const stat = await fsp.stat(filePath);
-    const lstat = await fsp.lstat(filePath);
+    const stat = fs.statSync(filePath);
     const relativePath = '/' + path.relative(STORAGE_BASE, filePath);
 
     res.json({
@@ -596,7 +571,7 @@ router.get('/info', requirePermission('read'), async (req, res) => {
       permissions: '0' + (stat.mode & parseInt('777', 8)).toString(8),
       owner: stat.uid,
       group: stat.gid,
-      isSymlink: lstat.isSymbolicLink(),
+      isSymlink: fs.lstatSync(filePath).isSymbolicLink(),
     });
   } catch (err) {
     console.error('File info error:', err.message);
@@ -609,7 +584,7 @@ router.get('/info', requirePermission('read'), async (req, res) => {
  * Recursive search by filename within a directory. Max 100 results.
  * Permission: read
  */
-router.get('/search', requirePermission('read'), async (req, res) => {
+router.get('/search', requirePermission('read'), (req, res) => {
   try {
     const inputPath = req.query.path || '/';
     const query = req.query.query;
@@ -621,18 +596,13 @@ router.get('/search', requirePermission('read'), async (req, res) => {
     const searchDir = validatePath(inputPath, res);
     if (searchDir === null) return;
 
-    if (!(await pathExists(searchDir))) {
-      return res.status(404).json({ error: 'Search directory not found' });
-    }
-
-    const stat = await fsp.stat(searchDir);
-    if (!stat.isDirectory()) {
+    if (!fs.existsSync(searchDir) || !fs.statSync(searchDir).isDirectory()) {
       return res.status(404).json({ error: 'Search directory not found' });
     }
 
     const MAX_RESULTS = 100;
     const results = [];
-    await searchFiles(searchDir, query.trim(), results, MAX_RESULTS);
+    searchFiles(searchDir, query.trim(), results, MAX_RESULTS);
 
     res.json({
       query: query.trim(),
