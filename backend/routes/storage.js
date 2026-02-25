@@ -304,32 +304,47 @@ router.post('/pool/configure', requireAuthOrSetup, async (req, res) => {
     try {
         const results = [];
 
-        // 1. Format disks that need formatting
-        for (const disk of validatedDisks) {
-            if (disk.format) {
-                // SECURITY: disk.id is now validated by sanitizeDiskId
+        // 1. Format disks that need formatting (parallel for speed)
+        const disksToFormat = validatedDisks.filter(d => d.format);
+        if (disksToFormat.length > 0) {
+            // Phase 1: Partition all disks in parallel
+            await Promise.all(disksToFormat.map(async (disk) => {
                 const safeDiskId = disk.id;
-                results.push(`Formatting /dev/${safeDiskId}...`);
+                results.push(`Partitioning /dev/${safeDiskId}...`);
                 try {
-                    // SECURITY: Use execFileSync with explicit arguments instead of shell interpolation
                     execFileSync('sudo', ['parted', '-s', `/dev/${safeDiskId}`, 'mklabel', 'gpt'], { encoding: 'utf8', timeout: 30000 });
                     execFileSync('sudo', ['parted', '-s', `/dev/${safeDiskId}`, 'mkpart', 'primary', 'ext4', '0%', '100%'], { encoding: 'utf8', timeout: 30000 });
                     execFileSync('sudo', ['partprobe', `/dev/${safeDiskId}`], { encoding: 'utf8', timeout: 10000 });
-                    execFileSync('sleep', ['2'], { timeout: 5000 });
+                } catch (e) {
+                    results.push(`Warning: Partition failed for ${safeDiskId}: ${e.message}`);
+                }
+            }));
 
-                    const partition = safeDiskId.includes('nvme') ? `${safeDiskId}p1` : `${safeDiskId}1`;
-                    // SECURITY: Validate partition name too (derived from validated disk ID)
-                    const safePartition = sanitizeDiskId(partition);
-                    if (!safePartition) {
-                        throw new Error('Invalid partition derived from disk ID');
-                    }
-                    const label = `${disk.role}_${safeDiskId}`.substring(0, 16); // ext4 label max 16 chars
-                    execFileSync('sudo', ['mkfs.ext4', '-F', '-L', label, `/dev/${safePartition}`], { encoding: 'utf8', timeout: 300000 });
+            // Wait for kernel to register all partitions
+            execFileSync('sleep', ['2'], { timeout: 5000 });
+
+            // Phase 2: Format all disks in parallel (the slow part)
+            const { execFile } = require('child_process');
+            const { promisify } = require('util');
+            const execFileAsync = promisify(execFile);
+
+            await Promise.all(disksToFormat.map(async (disk) => {
+                const safeDiskId = disk.id;
+                const partition = safeDiskId.includes('nvme') ? `${safeDiskId}p1` : `${safeDiskId}1`;
+                const safePartition = sanitizeDiskId(partition);
+                if (!safePartition) {
+                    results.push(`Warning: Invalid partition for ${safeDiskId}`);
+                    return;
+                }
+                const label = `${disk.role}_${safeDiskId}`.substring(0, 16);
+                results.push(`Formatting /dev/${safePartition}...`);
+                try {
+                    await execFileAsync('sudo', ['mkfs.ext4', '-F', '-L', label, `/dev/${safePartition}`], { encoding: 'utf8', timeout: 300000 });
                     results.push(`Formatted /dev/${safePartition} as ext4`);
                 } catch (e) {
                     results.push(`Warning: Format failed for ${safeDiskId}: ${e.message}`);
                 }
-            }
+            }));
         }
 
         // 2. Create mount points and mount disks

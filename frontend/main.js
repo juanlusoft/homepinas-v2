@@ -3224,6 +3224,7 @@ async function renderDockerManager() {
         if (updateRes.ok) updateStatus = await updateRes.json();
     } catch (e) {
         console.error('Docker unreachable:', e);
+        if (e.message === 'Session expired' || e.message === 'CSRF_EXPIRED') return;
         state.dockers = [];
     }
 
