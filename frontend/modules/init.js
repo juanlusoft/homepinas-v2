@@ -1107,8 +1107,7 @@ async function buildRecoveryISO() {
 
     // Expose to window
     window.AppInit = {
-        init: init,
-        checkAuth: checkAuth
+        init: init
     };
     
 })(window);
