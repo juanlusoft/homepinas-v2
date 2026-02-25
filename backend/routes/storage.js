@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 
@@ -129,7 +130,7 @@ router.get('/pool/status', requireAuth, async (req, res) => {
         // 2. Check SnapRAID status
         // ══════════════════════════════════════════════════════════════════
         try {
-            const snapraidConf = fs.readFileSync(SNAPRAID_CONF, 'utf8');
+            const snapraidConf = await fsp.readFile(SNAPRAID_CONF, 'utf8');
             if (snapraidConf.includes('content') && snapraidConf.includes('disk')) {
                 status.snapraid.configured = true;
                 
@@ -143,7 +144,7 @@ router.get('/pool/status', requireAuth, async (req, res) => {
 
         // Get last sync time
         try {
-            const logRaw = fs.readFileSync('/var/log/snapraid-sync.log', 'utf8');
+            const logRaw = await fsp.readFile('/var/log/snapraid-sync.log', 'utf8');
             const logContent = logRaw.split('\n').slice(-50).join('\n');
             const syncMatch = logContent.match(/=== SnapRAID Sync Finished: (.+?) ===/);
             if (syncMatch) {
@@ -265,16 +266,41 @@ router.get('/pool/status', requireAuth, async (req, res) => {
 });
 
 /**
- * Middleware: allow during initial setup (no storage configured yet) OR with valid auth.
- * Like Synology DSM: the setup wizard doesn't require login since you just created the account.
+ * Middleware: allow during initial setup with valid setup token OR with valid auth.
+ * SECURITY: Setup wizard requires one-time token to prevent unauthorized access.
+ * Token is generated on first boot and must be provided via X-Setup-Token header.
  */
 function requireAuthOrSetup(req, res, next) {
     const data = getData();
-    // If no storage is configured yet, allow without auth (initial setup wizard)
-    if (!data.storageConfig || data.storageConfig.length === 0) {
+    const isInitialSetup = !data.storageConfig || data.storageConfig.length === 0;
+    
+    if (isInitialSetup) {
+        // During setup, require the setup token
+        const setupToken = req.headers['x-setup-token'];
+        
+        // Generate setup token if it doesn't exist (first boot)
+        if (!data.setupToken) {
+            const crypto = require('crypto');
+            data.setupToken = crypto.randomBytes(32).toString('hex');
+            saveData(data);
+            console.log('[SECURITY] Setup token generated. Use X-Setup-Token header with value:', data.setupToken);
+        }
+        
+        if (setupToken !== data.setupToken) {
+            logSecurityEvent('setup_wizard_auth_failed', req.ip, { 
+                error: 'Invalid or missing setup token' 
+            });
+            return res.status(401).json({ 
+                error: 'Unauthorized. Setup token required.',
+                hint: 'Check server logs for the setup token or use localhost access.'
+            });
+        }
+        
+        // Valid setup token - allow access
         return next();
     }
-    // Otherwise require normal auth
+    
+    // After initial setup, require normal authentication
     return requireAuth(req, res, next);
 }
 
@@ -445,9 +471,9 @@ exclude .fseventsd
 
             // SECURITY: Write config to temp file first, then use sudo to copy
             const tempConfFile = '/tmp/homepinas-snapraid-temp.conf';
-            fs.writeFileSync(tempConfFile, snapraidConf, 'utf8');
+            await fsp.writeFile(tempConfFile, snapraidConf, 'utf8');
             execFileSync('sudo', ['cp', tempConfFile, SNAPRAID_CONF], { encoding: 'utf8', timeout: 10000 });
-            fs.unlinkSync(tempConfFile);
+            await fsp.unlink(tempConfFile);
             results.push('SnapRAID configuration created');
         } else {
             results.push('SnapRAID skipped (no parity disks configured)');
@@ -548,6 +574,13 @@ exclude .fseventsd
         const data = getData();
         data.storageConfig = validatedDisks.map(d => ({ id: d.id, role: d.role }));
         data.poolConfigured = true;
+        
+        // SECURITY: Clear setup token after first successful configuration
+        if (data.setupToken) {
+            delete data.setupToken;
+            console.log('[SECURITY] Setup token cleared after successful configuration');
+        }
+        
         saveData(data);
 
         logSecurityEvent('STORAGE_CONFIGURED', { disks: validatedDisks.map(d => d.id), dataCount: dataDisks.length, parityCount: parityDisks.length }, req.ip);

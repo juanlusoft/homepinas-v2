@@ -1,16 +1,44 @@
 /**
- * Active Backup — Agent endpoints (no auth)
+ * Active Backup — Agent endpoints (with rate limiting)
+ * SECURITY: Rate limiting protects against brute-force and DoS attacks
  */
 const express = require('express');
 const router = express.Router();
 const os = require('os');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const { getData, saveData } = require('../../utils/data');
 const { logSecurityEvent } = require('../../utils/security');
 const { getLocalIPs } = require('./helpers');
 
+// Rate limiting configurations
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Max 5 registration attempts per IP per hour
+  message: { error: 'Too many registration attempts. Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const pollLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // Max 60 polls per IP per minute
+  message: { error: 'Too many poll requests. Slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const reportLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Max 10 reports per IP per minute
+  message: { error: 'Too many report submissions. Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /**
  * GET /agent/ping - Health check for agent discovery
+ * Note: No rate limiting on ping (health check)
  */
 router.get('/agent/ping', (req, res) => {
   res.json({ success: true, service: 'HomePiNAS', hostname: os.hostname() });
@@ -18,8 +46,9 @@ router.get('/agent/ping', (req, res) => {
 
 /**
  * POST /agent/register - Agent announces itself to the NAS
+ * SECURITY: Rate limited to 5 requests per IP per hour
  */
-router.post('/agent/register', (req, res) => {
+router.post('/agent/register', registerLimiter, (req, res) => {
   const { hostname, ip, os: agentOS, mac } = req.body;
   if (!hostname) return res.status(400).json({ error: 'hostname is required' });
 
@@ -56,8 +85,9 @@ router.post('/agent/register', (req, res) => {
 
 /**
  * GET /agent/poll - Agent checks for config and tasks
+ * SECURITY: Rate limited to 60 requests per IP per minute
  */
-router.get('/agent/poll', (req, res) => {
+router.get('/agent/poll', pollLimiter, (req, res) => {
   const token = req.headers['x-agent-token'];
   if (!token) return res.status(401).json({ error: 'Missing agent token' });
 
@@ -110,8 +140,9 @@ router.get('/agent/poll', (req, res) => {
 
 /**
  * POST /agent/report - Agent reports backup result
+ * SECURITY: Rate limited to 10 requests per IP per minute
  */
-router.post('/agent/report', (req, res) => {
+router.post('/agent/report', reportLimiter, (req, res) => {
   const token = req.headers['x-agent-token'];
   if (!token) return res.status(401).json({ error: 'Missing agent token' });
 

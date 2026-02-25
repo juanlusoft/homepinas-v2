@@ -13,6 +13,31 @@ const {
   enforceRetention, notifyBackupFailure,
 } = require('./helpers');
 
+/**
+ * SECURITY: Sanitize backup paths to prevent command injection
+ * Rejects paths containing shell metacharacters that could be exploited
+ * @param {string} pathStr - Path to sanitize
+ * @returns {string|null} - Sanitized path or null if invalid
+ */
+function sanitizeBackupPath(pathStr) {
+  if (!pathStr || typeof pathStr !== 'string') return null;
+  
+  // Reject dangerous shell metacharacters
+  const dangerousChars = /[;&|`$(){}[\]<>\\!\n\r]/;
+  if (dangerousChars.test(pathStr)) {
+    console.error(`[SECURITY] Rejected path with dangerous characters: ${pathStr}`);
+    return null;
+  }
+  
+  // Must be absolute path or relative pattern (for excludes)
+  if (!pathStr.startsWith('/') && !pathStr.startsWith('.') && !pathStr.includes('*')) {
+    console.error(`[SECURITY] Rejected invalid path format: ${pathStr}`);
+    return null;
+  }
+  
+  return pathStr.trim();
+}
+
 // Track running backups (shared state)
 const runningBackups = new Map();
 
@@ -74,10 +99,30 @@ async function runBackup(device) {
   try {
     const sshCmd = `ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no -o ConnectTimeout=10 -p ${device.sshPort || 22}`;
 
+    // SECURITY: Validate all paths before use
+    const sanitizedPaths = [];
     for (const srcPath of device.paths) {
+      const sanitized = sanitizeBackupPath(srcPath);
+      if (!sanitized) {
+        throw new Error(`Invalid backup path rejected: ${srcPath}`);
+      }
+      sanitizedPaths.push(sanitized);
+    }
+
+    // SECURITY: Validate all exclude patterns
+    const sanitizedExcludes = [];
+    for (const exc of (device.excludes || [])) {
+      const sanitized = sanitizeBackupPath(exc);
+      if (!sanitized) {
+        throw new Error(`Invalid exclude pattern rejected: ${exc}`);
+      }
+      sanitizedExcludes.push(sanitized);
+    }
+
+    for (const srcPath of sanitizedPaths) {
       const args = ['-az', '--delete', '--stats', '-e', sshCmd];
       if (prevDir) args.push('--link-dest=' + prevDir);
-      for (const exc of (device.excludes || [])) args.push('--exclude=' + exc);
+      for (const exc of sanitizedExcludes) args.push('--exclude=' + exc);
 
       const remoteSrc = `${device.sshUser}@${device.ip}:${srcPath}/`;
       const destSub = path.join(vDir, srcPath);

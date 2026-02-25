@@ -13,6 +13,31 @@ const {
 } = require('./helpers');
 
 /**
+ * SECURITY: Sanitize backup paths to prevent command injection
+ * Rejects paths containing shell metacharacters that could be exploited
+ * @param {string} pathStr - Path to sanitize
+ * @returns {string|null} - Sanitized path or null if invalid
+ */
+function sanitizeBackupPath(pathStr) {
+  if (!pathStr || typeof pathStr !== 'string') return null;
+  
+  // Reject dangerous shell metacharacters
+  const dangerousChars = /[;&|`$(){}[\]<>\\!\n\r]/;
+  if (dangerousChars.test(pathStr)) {
+    console.error(`[SECURITY] Rejected path with dangerous characters: ${pathStr}`);
+    return null;
+  }
+  
+  // Must be absolute path or relative pattern (for excludes)
+  if (!pathStr.startsWith('/') && !pathStr.startsWith('.') && !pathStr.includes('*')) {
+    console.error(`[SECURITY] Rejected invalid path format: ${pathStr}`);
+    return null;
+  }
+  
+  return pathStr.trim();
+}
+
+/**
  * GET / - List all devices with status
  */
 router.get('/', (req, res) => {
@@ -105,6 +130,33 @@ router.post('/', async (req, res) => {
     if (!name || !ip) return res.status(400).json({ error: 'name and ip are required' });
     if (!isImage && !sshUser) return res.status(400).json({ error: 'sshUser is required for file backups' });
 
+    // SECURITY: Validate all backup paths and excludes
+    const sanitizedPaths = [];
+    if (paths && Array.isArray(paths)) {
+      for (const p of paths) {
+        const sanitized = sanitizeBackupPath(p);
+        if (!sanitized) {
+          return res.status(400).json({ error: `Invalid backup path: ${p}` });
+        }
+        sanitizedPaths.push(sanitized);
+      }
+    } else if (!isImage) {
+      sanitizedPaths.push('/home'); // Default safe path
+    }
+
+    const sanitizedExcludes = [];
+    const defaultExcludes = ['.cache', '*.tmp', 'node_modules', '.Trash*', '.local/share/Trash'];
+    const excludeList = excludes || defaultExcludes;
+    if (Array.isArray(excludeList)) {
+      for (const exc of excludeList) {
+        const sanitized = sanitizeBackupPath(exc);
+        if (!sanitized) {
+          return res.status(400).json({ error: `Invalid exclude pattern: ${exc}` });
+        }
+        sanitizedExcludes.push(sanitized);
+      }
+    }
+
     let pubKey = null;
     if (!isImage) pubKey = await ensureSSHKey();
 
@@ -114,8 +166,8 @@ router.post('/', async (req, res) => {
       backupType: isImage ? 'image' : 'files',
       os: deviceOS || (isImage ? 'windows' : 'linux'),
       sshUser: sshUser ? sshUser.trim() : '', sshPort: parseInt(sshPort) || 22,
-      paths: paths || (isImage ? [] : ['/home']),
-      excludes: excludes || ['.cache', '*.tmp', 'node_modules', '.Trash*', '.local/share/Trash'],
+      paths: sanitizedPaths,
+      excludes: sanitizedExcludes,
       schedule: schedule || '0 2 * * *', retention: parseInt(retention) || 5,
       enabled: true, registeredAt: new Date().toISOString(),
       lastBackup: null, lastResult: null, lastError: null, lastDuration: null,
@@ -169,7 +221,39 @@ router.put('/:id', (req, res) => {
   const idx = data.activeBackup.devices.findIndex(d => d.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Device not found' });
 
-  const allowed = ['name', 'ip', 'sshUser', 'sshPort', 'paths', 'excludes', 'schedule', 'retention', 'enabled', 'os'];
+  // SECURITY: Validate paths and excludes if provided
+  if (req.body.paths !== undefined) {
+    if (!Array.isArray(req.body.paths)) {
+      return res.status(400).json({ error: 'paths must be an array' });
+    }
+    const sanitizedPaths = [];
+    for (const p of req.body.paths) {
+      const sanitized = sanitizeBackupPath(p);
+      if (!sanitized) {
+        return res.status(400).json({ error: `Invalid backup path: ${p}` });
+      }
+      sanitizedPaths.push(sanitized);
+    }
+    data.activeBackup.devices[idx].paths = sanitizedPaths;
+  }
+
+  if (req.body.excludes !== undefined) {
+    if (!Array.isArray(req.body.excludes)) {
+      return res.status(400).json({ error: 'excludes must be an array' });
+    }
+    const sanitizedExcludes = [];
+    for (const exc of req.body.excludes) {
+      const sanitized = sanitizeBackupPath(exc);
+      if (!sanitized) {
+        return res.status(400).json({ error: `Invalid exclude pattern: ${exc}` });
+      }
+      sanitizedExcludes.push(sanitized);
+    }
+    data.activeBackup.devices[idx].excludes = sanitizedExcludes;
+  }
+
+  // Update other allowed fields
+  const allowed = ['name', 'ip', 'sshUser', 'sshPort', 'schedule', 'retention', 'enabled', 'os'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) data.activeBackup.devices[idx][key] = req.body[key];
   }
