@@ -120,8 +120,27 @@ if ! command -v docker &> /dev/null; then
         apt-get install -y $APT_OPTS docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || apt-get install -y $APT_OPTS docker.io
     else
         # Debian/Raspberry Pi OS
-        apt-get install -y $APT_OPTS docker.io
+        apt-get install -y $APT_OPTS ca-certificates gnupg
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $DISTRO_CODENAME stable" > /etc/apt/sources.list.d/docker.list
+        apt-get update
+        apt-get install -y $APT_OPTS docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || apt-get install -y $APT_OPTS docker.io
     fi
+fi
+
+# Ensure Docker Compose plugin is available
+if ! docker compose version &> /dev/null 2>&1; then
+    echo -e "${BLUE}Installing Docker Compose plugin...${NC}"
+    apt-get install -y $APT_OPTS docker-compose-plugin 2>/dev/null || {
+        # Manual install if apt fails
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+        [ -z "$COMPOSE_VERSION" ] && COMPOSE_VERSION="v2.29.1"
+        mkdir -p /usr/local/lib/docker/cli-plugins
+        curl -SL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
+        chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    }
 fi
 
 # 2. Install SnapRAID + MergerFS
