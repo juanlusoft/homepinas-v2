@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const fsp = require('fs').promises;
 const { execFile, spawn } = require('child_process');
 const { requireAuth } = require('../middleware/auth');
 const { logSecurityEvent } = require('../utils/security');
@@ -18,6 +19,18 @@ const { getData, saveData } = require('../utils/data');
 const runningJobs = new Map();
 
 // --- Helpers ---
+
+/**
+ * Check if path exists (async replacement for fs.existsSync)
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Validate that a path is within /mnt/ to prevent directory traversal attacks.
@@ -267,7 +280,7 @@ router.delete('/jobs/:id', (req, res) => {
  * POST /jobs/:id/run - Execute a backup job immediately
  * Spawns rsync or tar as a child process and tracks it in memory.
  */
-router.post('/jobs/:id/run', (req, res) => {
+router.post('/jobs/:id/run', async (req, res) => {
   try {
     const data = getData();
     if (!data.backups) data.backups = [];
@@ -307,7 +320,7 @@ router.post('/jobs/:id/run', (req, res) => {
 
       // Ensure destination directory exists
       try {
-        fs.mkdirSync(job.destination, { recursive: true });
+        await fsp.mkdir(job.destination, { recursive: true });
       } catch (mkdirErr) {
         return res.status(500).json({ success: false, error: 'Failed to create destination directory' });
       }
@@ -357,7 +370,7 @@ router.post('/jobs/:id/run', (req, res) => {
     });
 
     // Handle process completion
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       const finishedAt = new Date().toISOString();
       const result = code === 0 ? 'success' : 'failed';
 
@@ -382,7 +395,7 @@ router.post('/jobs/:id/run', (req, res) => {
 
         // Apply retention policy for tar backups
         if (currentJob.type === 'tar' && currentJob.retention && currentJob.retention.keepLast > 0) {
-          applyRetention(currentJob);
+          await applyRetention(currentJob);
         }
 
         saveData(currentData);
@@ -478,7 +491,7 @@ router.get('/jobs/:id/history', (req, res) => {
  * POST /jobs/:id/restore - Restore from a tar backup archive
  * Body: { archive: 'backup-2025-01-01T00-00-00-000Z.tar.gz' }
  */
-router.post('/jobs/:id/restore', (req, res) => {
+router.post('/jobs/:id/restore', async (req, res) => {
   try {
     const data = getData();
     if (!data.backups) data.backups = [];
@@ -506,7 +519,7 @@ router.post('/jobs/:id/restore', (req, res) => {
     const archivePath = path.join(job.destination, sanitizedArchive);
 
     // Verify archive exists
-    if (!fs.existsSync(archivePath)) {
+    if (!(await pathExists(archivePath))) {
       return res.status(404).json({ success: false, error: 'Archive file not found' });
     }
 
@@ -566,26 +579,26 @@ router.post('/jobs/:id/restore', (req, res) => {
  * Removes oldest archives exceeding the keepLast count.
  * @param {object} job - The backup job object
  */
-function applyRetention(job) {
+async function applyRetention(job) {
   try {
-    if (!fs.existsSync(job.destination)) return;
+    if (!(await pathExists(job.destination))) return;
 
-    const files = fs.readdirSync(job.destination)
+    const files = (await fsp.readdir(job.destination))
       .filter(f => f.startsWith('backup-') && f.endsWith('.tar.gz'))
       .sort()
       .reverse(); // Newest first
 
     if (files.length > job.retention.keepLast) {
       const toRemove = files.slice(job.retention.keepLast);
-      toRemove.forEach(file => {
+      for (const file of toRemove) {
         const filePath = path.join(job.destination, file);
         try {
-          fs.unlinkSync(filePath);
+          await fsp.unlink(filePath);
           console.log(`Retention: removed old backup ${file}`);
         } catch (unlinkErr) {
           console.error(`Retention: failed to remove ${file}:`, unlinkErr);
         }
-      });
+      }
     }
   } catch (err) {
     console.error('Error applying retention policy:', err);

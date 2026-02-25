@@ -2,6 +2,7 @@
  * Active Backup — Shared helpers
  */
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const { execFile, spawn } = require('child_process');
@@ -13,21 +14,35 @@ const execFileAsync = promisify(execFile);
 const BACKUP_BASE = '/mnt/storage/active-backup';
 const SSH_KEY_PATH = path.join(os.homedir(), '.ssh', 'homepinas_backup_rsa');
 
-// Ensure backup directory exists
-if (!fs.existsSync(BACKUP_BASE)) {
-  try { fs.mkdirSync(BACKUP_BASE, { recursive: true }); } catch(e) {}
+// Ensure backup directory exists (async init)
+(async () => {
+  try {
+    await fsp.access(BACKUP_BASE);
+  } catch {
+    try { await fsp.mkdir(BACKUP_BASE, { recursive: true }); } catch(e) {}
+  }
+})();
+
+// Helper: Check if path exists
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── SSH key ──
 async function ensureSSHKey() {
-  if (fs.existsSync(SSH_KEY_PATH)) {
-    return fs.readFileSync(SSH_KEY_PATH + '.pub', 'utf8').trim();
+  if (await pathExists(SSH_KEY_PATH)) {
+    return (await fsp.readFile(SSH_KEY_PATH + '.pub', 'utf8')).trim();
   }
   const sshDir = path.dirname(SSH_KEY_PATH);
-  if (!fs.existsSync(sshDir)) fs.mkdirSync(sshDir, { recursive: true, mode: 0o700 });
+  if (!(await pathExists(sshDir))) await fsp.mkdir(sshDir, { recursive: true, mode: 0o700 });
   await execFileAsync('ssh-keygen', ['-t', 'rsa', '-b', '4096', '-f', SSH_KEY_PATH, '-N', '', '-C', 'homepinas-backup']);
-  fs.chmodSync(SSH_KEY_PATH, 0o600);
-  return fs.readFileSync(SSH_KEY_PATH + '.pub', 'utf8').trim();
+  await fsp.chmod(SSH_KEY_PATH, 0o600);
+  return (await fsp.readFile(SSH_KEY_PATH + '.pub', 'utf8')).trim();
 }
 
 // ── Device backup dir ──
@@ -37,45 +52,50 @@ function deviceDir(deviceId) {
 }
 
 // ── Version management ──
-function getVersions(deviceId) {
+async function getVersions(deviceId) {
   const dir = deviceDir(deviceId);
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter(d => d.startsWith('v') && fs.statSync(path.join(dir, d)).isDirectory())
+  if (!(await pathExists(dir))) return [];
+  const entries = await fsp.readdir(dir, { withFileTypes: true });
+  return entries
+    .filter(d => d.isDirectory() && d.name.startsWith('v'))
+    .map(d => d.name)
     .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
 }
 
-function nextVersion(deviceId) {
-  const versions = getVersions(deviceId);
+async function nextVersion(deviceId) {
+  const versions = await getVersions(deviceId);
   if (versions.length === 0) return 1;
   return parseInt(versions[versions.length - 1].slice(1)) + 1;
 }
 
-function enforceRetention(deviceId, retention) {
-  const versions = getVersions(deviceId);
+async function enforceRetention(deviceId, retention) {
+  const versions = await getVersions(deviceId);
   const toDelete = versions.slice(0, Math.max(0, versions.length - retention));
   for (const v of toDelete) {
-    fs.rmSync(path.join(deviceDir(deviceId), v), { recursive: true, force: true });
+    await fsp.rm(path.join(deviceDir(deviceId), v), { recursive: true, force: true });
   }
-  const remaining = getVersions(deviceId);
+  const remaining = await getVersions(deviceId);
   const latestLink = path.join(deviceDir(deviceId), 'latest');
-  try { fs.unlinkSync(latestLink); } catch(e) {}
+  try { await fsp.unlink(latestLink); } catch(e) {}
   if (remaining.length > 0) {
-    fs.symlinkSync(remaining[remaining.length - 1], latestLink);
+    await fsp.symlink(remaining[remaining.length - 1], latestLink);
   }
 }
 
 // ── Directory size ──
-function getDirSize(dirPath) {
+async function getDirSize(dirPath) {
   let total = 0;
   try {
-    const items = fs.readdirSync(dirPath, { withFileTypes: true });
+    const items = await fsp.readdir(dirPath, { withFileTypes: true });
     for (const item of items) {
       const full = path.join(dirPath, item.name);
       if (item.isDirectory()) {
-        total += getDirSize(full);
+        total += await getDirSize(full);
       } else {
-        try { total += fs.statSync(full).size; } catch(e) {}
+        try { 
+          const stat = await fsp.stat(full);
+          total += stat.size;
+        } catch(e) {}
       }
     }
   } catch(e) {}
@@ -154,7 +174,7 @@ async function createImageBackupShare(device, username) {
   const sharePath = deviceDir(device.id);
   const sambaUser = username || 'homepinas';
 
-  if (!fs.existsSync(sharePath)) fs.mkdirSync(sharePath, { recursive: true });
+  if (!(await pathExists(sharePath))) await fsp.mkdir(sharePath, { recursive: true });
 
   try {
     await execFileAsync('sudo', ['chown', '-R', `${sambaUser}:sambashare`, sharePath]);
@@ -167,7 +187,7 @@ async function createImageBackupShare(device, username) {
   const shareBlock = `\n[${shareName}]\n   path = ${sharePath}\n   browseable = no\n   writable = yes\n   guest ok = no\n   valid users = ${sambaUser}\n   create mask = 0660\n   directory mask = 0770\n   comment = HomePiNAS Image Backup - ${device.name}\n`;
 
   try {
-    const currentConf = fs.readFileSync(smbConfPath, 'utf8');
+    const currentConf = await fsp.readFile(smbConfPath, 'utf8');
     if (!currentConf.includes(`[${shareName}]`)) {
       await new Promise((resolve, reject) => {
         const proc = spawn('sudo', ['tee', '-a', smbConfPath], { stdio: ['pipe', 'pipe', 'pipe'] });
